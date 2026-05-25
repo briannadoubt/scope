@@ -1,26 +1,24 @@
 #!/usr/bin/env bash
-# scope release script — npm publish → fetch sha256 → update Formula/scope.rb
+# scope release — bump version, tag, push. CI does the rest.
 #
 # Usage:
 #   ./scripts/release.sh [patch|minor|major|<explicit-version>]   (default: patch)
 #
-# What it does:
-#   1. Sanity checks (clean git tree, on main, logged into npm).
-#   2. Bumps package.json version (npm version <bump>) — creates a v<x.y.z> git tag.
-#   3. Publishes to npm.
-#   4. Downloads the published tarball, computes sha256.
-#   5. Patches Formula/scope.rb (url version + sha256) and commits it.
-#   6. Prints the tap-push instructions.
+# What this does locally:
+#   1. Sanity checks (clean tree, on main).
+#   2. `npm version <bump>` — bumps package.json AND creates the v<x.y.z> tag.
+#   3. Pushes the commit and tag.
 #
-# Requirements:
-#   - npm logged in: `npm whoami`
-#   - clean working tree
-#   - origin remote set: github.com/briannadoubt/scope
-#   - tap repo cloned somewhere local: github.com/briannadoubt/homebrew-tap
-#     (override location with SCOPE_TAP_DIR=/path/to/homebrew-tap)
+# What the GitHub Actions workflow then does (.github/workflows/release.yml):
+#   1. Publishes to npm (with provenance).
+#   2. Computes sha256 of the published tarball.
+#   3. Patches Formula/scope.rb (url + sha256) and pushes it into
+#      briannadoubt/homebrew-tap.
+#   4. Creates a GitHub release with auto-generated notes.
 #
-# This script does NOT push to git or to the tap repo — those are the last
-# manual steps so you stay in control.
+# Required GitHub repo secrets (set once):
+#   NPM_TOKEN            npm automation token (Publish scope)
+#   HOMEBREW_TAP_TOKEN   PAT with `contents: write` on briannadoubt/homebrew-tap
 
 set -euo pipefail
 
@@ -28,109 +26,43 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 BUMP="${1:-patch}"
-NPM_NAME="$(node -p "require('./package.json').name")"
-FORMULA="Formula/scope.rb"
 
 red()    { printf '\033[31m%s\033[0m\n' "$*"; }
 green()  { printf '\033[32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 step()   { printf '\033[1;34m▸\033[0m %s\n' "$*"; }
 
-# 1. sanity checks
 step "Sanity checks"
 if [[ -n "$(git status --porcelain)" ]]; then
-  red "Working tree is dirty. Commit or stash first."; git status --short; exit 1
+  red "Working tree is dirty. Commit or stash first."
+  git status --short
+  exit 1
 fi
 BRANCH="$(git symbolic-ref --short HEAD)"
 if [[ "$BRANCH" != "main" ]]; then
-  yellow "Warning: you're on branch '$BRANCH', not 'main'."
+  yellow "Warning: on branch '$BRANCH', not 'main'. Releases usually ship from main."
+  read -r -p "Continue anyway? [y/N] " ans
+  [[ "$ans" =~ ^[Yy]$ ]] || exit 1
 fi
-if ! npm whoami >/dev/null 2>&1; then
-  red "Not logged in to npm. Run \`npm login\` first."; exit 1
-fi
-green "npm user: $(npm whoami)"
 
-# 2. version bump
-step "Bumping version ($BUMP)"
-NEW_VERSION="$(npm version "$BUMP" --no-git-tag-version)"   # e.g. "v0.1.1"
-NEW_VERSION="${NEW_VERSION#v}"
-git add package.json package-lock.json 2>/dev/null || git add package.json
-git commit -m "Release v$NEW_VERSION"
-git tag -a "v$NEW_VERSION" -m "v$NEW_VERSION"
-green "Version is now v$NEW_VERSION"
+step "Bumping version ($BUMP) and tagging"
+# npm version creates a commit AND a tag in one go.
+NEW_VERSION="$(npm version "$BUMP" -m "Release v%s")"
+green "Version is now $NEW_VERSION"
 
-# 3. publish
-step "Publishing to npm"
-npm publish
-
-# 4. sha256 of the published tarball
-step "Fetching sha256 of published tarball"
-TARBALL_URL="https://registry.npmjs.org/$NPM_NAME/-/$NPM_NAME-$NEW_VERSION.tgz"
-TARBALL_TMP="$(mktemp -t scope-release.XXXXXX.tgz)"
-trap 'rm -f "$TARBALL_TMP"' EXIT
-
-# Allow a couple of retries — npm registry CDN can take a moment to propagate.
-for attempt in 1 2 3 4 5; do
-  if curl -fsSL "$TARBALL_URL" -o "$TARBALL_TMP"; then break; fi
-  yellow "Tarball not available yet (attempt $attempt) — retrying in 4s..."
-  sleep 4
-done
-if [[ ! -s "$TARBALL_TMP" ]]; then
-  red "Could not fetch $TARBALL_URL"; exit 1
-fi
-SHA256="$(shasum -a 256 "$TARBALL_TMP" | cut -d' ' -f1)"
-green "sha256: $SHA256"
-
-# 5. patch Formula/scope.rb
-step "Updating $FORMULA"
-# url line
-/usr/bin/sed -i '' -E "s|^( *url +).*|\\1\"$TARBALL_URL\"|" "$FORMULA"
-# sha256 line
-/usr/bin/sed -i '' -E "s|^( *sha256 +).*|\\1\"$SHA256\"|" "$FORMULA"
-git add "$FORMULA"
-git commit -m "Formula: bump to v$NEW_VERSION ($SHA256)"
+step "Pushing commit and tag to origin"
+git push origin "$BRANCH" --follow-tags
 
 green ""
-green "✓ Released v$NEW_VERSION to npm"
-green ""
-
-# 6. optionally sync the formula straight into a local clone of the tap
-TAP_DIR="${SCOPE_TAP_DIR:-}"
-if [[ -z "$TAP_DIR" ]]; then
-  # try a couple of common locations
-  for candidate in "$HOME/dev/homebrew-tap" "$HOME/code/homebrew-tap" "$HOME/src/homebrew-tap" "$HOME/projects/homebrew-tap"; do
-    if [[ -d "$candidate/.git" ]]; then TAP_DIR="$candidate"; break; fi
-  done
-fi
-if [[ -n "$TAP_DIR" && -d "$TAP_DIR/.git" ]]; then
-  step "Syncing formula into $TAP_DIR"
-  mkdir -p "$TAP_DIR/Formula"
-  cp "$FORMULA" "$TAP_DIR/Formula/scope.rb"
-  (
-    cd "$TAP_DIR"
-    git add Formula/scope.rb
-    git commit -m "scope v$NEW_VERSION" || yellow "(nothing to commit in tap)"
-  )
-  yellow "Tap commit ready. To push: (cd $TAP_DIR && git push)"
-else
-  yellow "No local clone of briannadoubt/homebrew-tap found."
-  echo "  Set SCOPE_TAP_DIR to your tap clone, or copy the formula manually:"
-  echo "    cp $FORMULA /path/to/homebrew-tap/Formula/scope.rb"
-fi
-
-yellow "Next steps (manual):"
-echo "  1. Push the source repo:"
-echo "       git push origin main --follow-tags"
+green "✓ Pushed $NEW_VERSION. GitHub Actions will now:"
+echo "    • publish to npm"
+echo "    • compute sha256"
+echo "    • update Formula/scope.rb in briannadoubt/homebrew-tap"
+echo "    • create a GitHub release"
 echo ""
-echo "  2. Push the tap (if it was synced above):"
-echo "       cd \${SCOPE_TAP_DIR:-/path/to/homebrew-tap} && git push"
+yellow "Follow progress:"
+echo "    gh run watch -R briannadoubt/scope"
 echo ""
-echo "  3. Users install with:"
-echo "       brew tap briannadoubt/tap"
-echo "       brew install scope"
-echo ""
-echo "     Or in one shot:"
-echo "       brew install briannadoubt/tap/scope"
-echo ""
-echo "     Upgrades:"
-echo "       brew upgrade scope"
+yellow "Once it's done, users install with:"
+echo "    brew install briannadoubt/tap/scope"
+echo "    brew upgrade scope"

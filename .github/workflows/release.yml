@@ -1,0 +1,129 @@
+name: Release
+
+# Fires when a `v*.*.*` tag is pushed.
+# Flow:
+#   1. verify tag matches package.json
+#   2. npm publish (with provenance)
+#   3. fetch published tarball, compute sha256
+#   4. patch Formula/scope.rb (url + sha256)
+#   5. commit + push the formula into briannadoubt/homebrew-tap
+#   6. create a GitHub release with auto-generated notes
+#
+# Required repo secrets:
+#   NPM_TOKEN            — npm automation token with publish scope
+#   HOMEBREW_TAP_TOKEN   — fine-grained PAT with `contents: write`
+#                          on briannadoubt/homebrew-tap
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # create GitHub release
+      id-token: write     # npm provenance
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify tag matches package.json
+        id: meta
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME (=$TAG_VERSION) does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+          NPM_NAME="$(node -p "require('./package.json').name")"
+          echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "npm_name=$NPM_NAME"  >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
+
+      - name: Fetch sha256 of published tarball
+        id: sha
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          NPM_NAME: ${{ steps.meta.outputs.npm_name }}
+        run: |
+          set -euo pipefail
+          URL="https://registry.npmjs.org/${NPM_NAME}/-/${NPM_NAME}-${VERSION}.tgz"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          # Allow a few retries — the registry CDN can lag.
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsSL "$URL" -o /tmp/pkg.tgz; then break; fi
+            echo "Tarball not yet available (attempt $attempt) — retrying in 5s..."
+            sleep 5
+          done
+          if [ ! -s /tmp/pkg.tgz ]; then
+            echo "::error::Could not fetch $URL"
+            exit 1
+          fi
+          SHA="$(sha256sum /tmp/pkg.tgz | awk '{print $1}')"
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "sha256: $SHA"
+
+      - name: Patch local Formula/scope.rb
+        env:
+          URL: ${{ steps.sha.outputs.url }}
+          SHA: ${{ steps.sha.outputs.sha256 }}
+        run: |
+          sed -i -E "s|^( *url +).*|\\1\"$URL\"|" Formula/scope.rb
+          sed -i -E "s|^( *sha256 +).*|\\1\"$SHA\"|" Formula/scope.rb
+          cat Formula/scope.rb
+
+      - name: Sync formula into briannadoubt/homebrew-tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          git clone --depth=1 \
+            "https://x-access-token:${GH_TOKEN}@github.com/briannadoubt/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          cp Formula/scope.rb tap/Formula/scope.rb
+          cd tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/scope.rb
+          if git diff --cached --quiet; then
+            echo "Tap formula already up to date, nothing to push."
+          else
+            git commit -m "scope v${VERSION}"
+            git push origin HEAD:main
+          fi
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            Install or upgrade with Homebrew:
+
+            ```
+            brew install briannadoubt/tap/scope
+            brew upgrade scope
+            ```
+
+            Or with npm:
+
+            ```
+            npm install -g ${{ steps.meta.outputs.npm_name }}
+            ```
