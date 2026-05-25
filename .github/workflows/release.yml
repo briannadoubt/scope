@@ -3,17 +3,19 @@ name: Release
 # Fires when a `v*.*.*` tag is pushed.
 # Flow:
 #   1. verify the tag matches package.json
-#   2. fetch the GitHub auto-generated source tarball, compute sha256
-#   3. patch Formula/scope.rb (url + sha256)
-#   4. push the formula into briannadoubt/homebrew-tap
-#   5. create a GitHub release with the install snippet
+#   2. publish to npm via Trusted Publishing (OIDC — no NPM_TOKEN)
+#   3. fetch the GitHub auto-generated source tarball, compute sha256
+#   4. patch Formula/scope.rb (url + sha256)
+#   5. push the formula into briannadoubt/homebrew-tap
+#   6. create a GitHub release with the install snippet
 #
 # Required repo secrets:
 #   HOMEBREW_TAP_DEPLOY_KEY    SSH private key whose pubkey is a write-enabled
 #                              deploy key on briannadoubt/homebrew-tap
 #
-# That's it. No npm account, no NPM_TOKEN — Homebrew installs straight from
-# the GitHub source tarball and runs `npm install` for runtime deps.
+# Required npmjs.com configuration (one-time):
+#   Trusted Publisher → GitHub Actions on briannadoubt/scope, workflow
+#   release.yml. No token needed; npm trusts our OIDC identity.
 
 on:
   push:
@@ -25,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write     # create GitHub release
+      id-token: write     # OIDC for npm Trusted Publishing + provenance
 
     steps:
       - name: Checkout
@@ -33,7 +36,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Verify tag matches package.json
         id: meta
@@ -51,6 +55,12 @@ jobs:
           npm ci
           node bin/scope.js --version
           node bin/scope.js --help | head -5
+
+      - name: Publish to npm (Trusted Publishing)
+        # No NODE_AUTH_TOKEN — npm reads the OIDC token from GHA.
+        # Requires Trusted Publisher to be configured on npmjs.com for this
+        # package + this repo + this workflow file.
+        run: npm publish --provenance --access public
 
       - name: Fetch sha256 of GitHub source tarball
         id: sha
@@ -115,9 +125,18 @@ jobs:
         with:
           generate_release_notes: true
           body: |
-            Install or upgrade with Homebrew:
+            ## Install
+
+            **Homebrew (macOS / Linuxbrew):**
 
             ```
             brew install briannadoubt/tap/scope
             brew upgrade scope
+            ```
+
+            **npm / npx:**
+
+            ```
+            npm install -g scope-kanban
+            npx scope-kanban --help
             ```
