@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(ls /Users/bri/.claude/ 2>/dev/null | head -20 && echo \"---\" && ls /Users/bri/dev/ 2>/dev/null | head -20)"
-    ]
-  }
-}
