@@ -102,6 +102,71 @@ button { font-family: inherit; }
   height: calc(100vh - 53px);
   align-items: start;
 }
+
+/* swimlanes — stacked sections, each its own row of status columns */
+.board.swim {
+  display: block;
+  height: auto;
+  min-height: calc(100vh - 53px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.lane {
+  margin-bottom: 18px;
+  background: rgba(255,255,255,0.015);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.lane-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border-soft);
+  cursor: pointer;
+  user-select: none;
+}
+.lane-head:hover { background: #1c2128; }
+.lane-chevron {
+  font-size: 10px; color: var(--text-muted);
+  transition: transform 120ms;
+  width: 12px; text-align: center;
+}
+.lane.collapsed .lane-chevron { transform: rotate(-90deg); }
+.lane-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.lane-meta { color: var(--text-muted); font-size: 12px; }
+.lane-count {
+  background: var(--bg-elev-2);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  margin-left: auto;
+}
+.lane-progress {
+  width: 120px; height: 4px;
+  background: var(--bg-elev-2);
+  border-radius: 999px; overflow: hidden;
+}
+.lane-progress .fill { height: 100%; background: var(--green); }
+.lane-columns {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  overflow-x: auto;
+}
+.lane.collapsed .lane-columns { display: none; }
+.lane .column {
+  background: var(--bg);
+  min-height: 100px;
+  max-height: 60vh;
+}
 .column {
   background: var(--bg-elev);
   border: 1px solid var(--border);

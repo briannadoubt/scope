@@ -1,0 +1,78 @@
+---
+description: Use the Scope kanban (local CLI + MCP) to plan, track, and report on multi-step work. Apply when the user asks for project planning, status updates, ticket/epic/bug tracking, or coordination across multiple agents.
+alwaysApply: false
+---
+
+# Using Scope
+
+Scope is a local-first kanban for projects, epics, stories, and bugs. It ships
+as a CLI, a GitHub-Projects-style web UI, and a Model Context Protocol server.
+
+## When to use
+
+- Multi-step task ("rebuild auth", "ship feature X") → create an epic plus child stories.
+- Starting a session → list open tickets in the project for context.
+- Finishing a piece of work → mark the ticket `done`, attach the branch / PR.
+- Discovering a real bug → create a `bug` ticket with reproduction steps.
+
+Skip Scope for one-off questions or trivial single-edit requests.
+
+## How to access
+
+If MCP is connected, `mcp__scope__*` tools cover everything. Otherwise:
+
+```bash
+scope --json ticket list -p MA
+scope --json ticket show MA-3
+```
+
+Install if needed: `brew install briannadoubt/tap/scope`
+
+## Data model
+
+| | |
+|---|---|
+| Project | top-level container, has a 2-10 letter key (`MA`) |
+| Epic | high-level body of work, parent for stories/bugs |
+| Story | unit of work toward an epic |
+| Bug | defect, can live under an epic |
+| Status | `backlog` → `todo` → `in_progress` → `in_review` → `done` (+ `cancelled`) |
+| Priority | `low` / `medium` / `high` / `urgent` |
+| Relations | `blocks`, `blocked_by`, `relates_to`, `duplicates`, `duplicate_of` |
+
+## Common operations
+
+```bash
+scope init
+scope project create my-app MA "My App"
+
+scope ticket create MA "Auth refactor" -t epic -p high
+scope ticket create MA "OAuth login"  -t story --parent MA-1
+
+scope branch  MA-2 feat/oauth --in-progress
+scope pr      MA-2 https://github.com/owner/repo/pull/42 --in-review
+scope status  MA-2 done
+
+scope board -p MA
+scope --json ticket show MA-2
+scope comment MA-2 "Token expiry was 5min; bumped to 1h" --by cursor
+scope link add MA-2 blocked_by MA-7
+```
+
+## Guardrails
+
+- Don't create projects without explicit user request.
+- Don't delete tickets — set status to `cancelled` instead.
+- Keep titles human-readable; implementation details go in the description.
+- Update status as work happens, not all at once at the end.
+- Use `--by <name>` so the history shows who touched what.
+
+## Realtime + multi-agent
+
+`scope serve` runs the UI and the HTTP MCP endpoint in one process. Writes
+push to all viewers via SSE in ~100ms. With multiple agents, **read state
+before writing state** — last write wins on conflicting updates.
+
+## Source
+
+https://github.com/briannadoubt/scope

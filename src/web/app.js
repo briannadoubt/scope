@@ -8,6 +8,10 @@ const state = {
   view: 'board', // 'board' | 'overview'
   board: null,
   drawerTicketId: null,
+  groupBy: localStorage.getItem('scope.groupBy') || 'none',
+  collapsedLanes: new Set(
+    JSON.parse(localStorage.getItem('scope.collapsedLanes') || '[]')
+  ),
 };
 
 const STATUS_LABELS = {
@@ -127,6 +131,13 @@ function bindTopbar() {
     flashIndicator('tick');
     await refresh();
   });
+  const groupSel = document.getElementById('groupby');
+  groupSel.value = state.groupBy;
+  groupSel.addEventListener('change', async (e) => {
+    state.groupBy = e.target.value;
+    localStorage.setItem('scope.groupBy', state.groupBy);
+    renderBoard();
+  });
   startEventStream();
 }
 
@@ -227,20 +238,74 @@ function renderBoard() {
   root.innerHTML = '';
   if (!state.board) return;
 
+  if (state.groupBy === 'none') {
+    root.classList.remove('swim');
+    renderColumnRow(root, state.board.buckets, { showHeader: true });
+    return;
+  }
+
+  root.classList.add('swim');
+  const lanes = buildLanes(state.board, state.groupBy);
+  for (const lane of lanes) {
+    const section = document.createElement('section');
+    section.className = 'lane';
+    section.dataset.group = lane.key;
+    if (state.collapsedLanes.has(lane.key)) section.classList.add('collapsed');
+
+    const head = document.createElement('header');
+    head.className = 'lane-head';
+    head.innerHTML = `
+      <span class="lane-chevron">▾</span>
+      <span class="lane-title">${escapeHtml(lane.label)}</span>
+      ${lane.meta ? `<span class="lane-meta">${escapeHtml(lane.meta)}</span>` : ''}
+      ${lane.progress
+        ? `<div class="lane-progress" title="${lane.progress.done}/${lane.progress.total} done">
+             <div class="fill" style="width:${lane.progress.percent}%"></div>
+           </div>`
+        : ''}
+      <span class="lane-count">${lane.count}</span>
+    `;
+    head.addEventListener('click', (e) => {
+      // Don't toggle when clicking inside the progress bar — leave a noop affordance
+      if (e.target.closest('.lane-progress')) return;
+      toggleLane(lane.key);
+      section.classList.toggle('collapsed');
+    });
+    section.appendChild(head);
+
+    const cols = document.createElement('div');
+    cols.className = 'lane-columns';
+    renderColumnRow(cols, lane.buckets, { showHeader: false, lane: lane.key });
+    section.appendChild(cols);
+    root.appendChild(section);
+  }
+}
+
+function renderColumnRow(parent, buckets, { showHeader, lane = null }) {
   for (const status of BOARD_COLUMNS) {
-    const tickets = state.board.buckets[status] || [];
+    const tickets = buckets[status] || [];
     const col = document.createElement('section');
     col.className = 'column';
     col.dataset.status = status;
+    if (lane) col.dataset.lane = lane;
     col.innerHTML = `
-      <div class="column-head">
-        <div class="column-title">
-          <span class="dot ${status}"></span>
-          ${STATUS_LABELS[status]}
-          <span class="column-count">${tickets.length}</span>
-        </div>
-        <button class="column-add" title="New ticket in ${STATUS_LABELS[status]}">+</button>
-      </div>
+      ${showHeader
+        ? `<div class="column-head">
+             <div class="column-title">
+               <span class="dot ${status}"></span>
+               ${STATUS_LABELS[status]}
+               <span class="column-count">${tickets.length}</span>
+             </div>
+             <button class="column-add" title="New ticket in ${STATUS_LABELS[status]}">+</button>
+           </div>`
+        : `<div class="column-head" style="padding:4px 6px;">
+             <div class="column-title" style="font-size:10px;opacity:0.6;">
+               <span class="dot ${status}"></span>
+               ${STATUS_LABELS[status]}
+               <span class="column-count">${tickets.length}</span>
+             </div>
+             <button class="column-add" title="New ticket in ${STATUS_LABELS[status]}">+</button>
+           </div>`}
       <div class="column-body"></div>
     `;
     const body = col.querySelector('.column-body');
@@ -249,8 +314,124 @@ function renderBoard() {
       openTicketModal({ status })
     );
     bindColumnDnD(col);
-    root.appendChild(col);
+    parent.appendChild(col);
   }
+}
+
+function toggleLane(key) {
+  if (state.collapsedLanes.has(key)) state.collapsedLanes.delete(key);
+  else state.collapsedLanes.add(key);
+  localStorage.setItem(
+    'scope.collapsedLanes',
+    JSON.stringify([...state.collapsedLanes])
+  );
+}
+
+/**
+ * Partition the board into lanes for the given group-by dimension.
+ * Returns [{key, label, meta?, progress?, count, buckets: {status: tickets[]}}].
+ */
+function buildLanes(board, groupBy) {
+  const allTickets = Object.values(board.buckets).flat();
+  const epicById = {};
+  for (const t of allTickets) if (t.type === 'epic') epicById[t.id] = t;
+
+  const groups = new Map();
+  const ensure = (key, label, extras = {}) => {
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key, label, count: 0,
+        buckets: Object.fromEntries(BOARD_COLUMNS.map((s) => [s, []])),
+        ...extras,
+      });
+    }
+    return groups.get(key);
+  };
+
+  for (const t of allTickets) {
+    const {key, label, extras, skip} = groupKey(t, groupBy, epicById);
+    if (skip) continue;
+    const g = ensure(key, label, extras);
+    if (g.buckets[t.status]) {
+      g.buckets[t.status].push(t);
+      g.count++;
+    }
+  }
+
+  // Always include a lane for every epic, even if it has no children, so
+  // empty epics still appear as planning rows.
+  if (groupBy === 'epic') {
+    for (const e of Object.values(epicById)) {
+      ensure(e.id, `${e.id} · ${e.title}`, {
+        meta: e.status,
+        progress: epicProgressFromTickets(e.id, allTickets),
+      });
+    }
+  }
+
+  return [...groups.values()].sort(laneSorter(groupBy));
+}
+
+function groupKey(t, groupBy, epicById) {
+  if (groupBy === 'epic') {
+    if (t.type === 'epic') {
+      // Skip the epic-typed card itself when grouped by epic — its title
+      // already shows in the lane header.
+      return { skip: true };
+    }
+    if (t.parent_id && epicById[t.parent_id]) {
+      const e = epicById[t.parent_id];
+      return {
+        key: e.id,
+        label: `${e.id} · ${e.title}`,
+        extras: {
+          meta: e.status,
+          progress: epicProgressFromTickets(e.id, Object.values(epicById).concat()),
+        },
+      };
+    }
+    return { key: '__none', label: '(no epic)' };
+  }
+  if (groupBy === 'assignee') {
+    return t.assignee
+      ? { key: t.assignee, label: `@${t.assignee}` }
+      : { key: '__none', label: '(unassigned)' };
+  }
+  if (groupBy === 'priority') {
+    return { key: t.priority, label: `Priority: ${t.priority}` };
+  }
+  if (groupBy === 'type') {
+    return { key: t.type, label: t.type.toUpperCase() };
+  }
+  return { key: '__none', label: '(none)' };
+}
+
+function epicProgressFromTickets(epicId, allTickets) {
+  let total = 0, done = 0;
+  for (const t of allTickets) {
+    if (t.parent_id === epicId) {
+      total++;
+      if (t.status === 'done') done++;
+    }
+  }
+  return { total, done, percent: total ? Math.round((done / total) * 100) : 0 };
+}
+
+function laneSorter(groupBy) {
+  if (groupBy === 'priority') {
+    const order = { urgent: 0, high: 1, medium: 2, low: 3, __none: 99 };
+    return (a, b) => (order[a.key] ?? 50) - (order[b.key] ?? 50);
+  }
+  if (groupBy === 'type') {
+    const order = { epic: 0, story: 1, bug: 2, __none: 99 };
+    return (a, b) => (order[a.key] ?? 50) - (order[b.key] ?? 50);
+  }
+  // epic / assignee / default: '__none' sinks to the bottom, others alpha
+  return (a, b) => {
+    if (a.key === '__none' && b.key !== '__none') return 1;
+    if (b.key === '__none' && a.key !== '__none') return -1;
+    return String(a.label).localeCompare(String(b.label));
+  };
 }
 
 function renderCard(t) {
