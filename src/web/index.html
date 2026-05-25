@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scope</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand">
+          <span class="brand-mark">◆</span>
+          <span class="brand-name">scope</span>
+        </div>
+        <select id="project-picker" class="picker"></select>
+        <select id="epic-filter" class="picker">
+          <option value="">All tickets</option>
+        </select>
+      </div>
+      <div class="topbar-right">
+        <span id="live-indicator" class="live-dot" title="Live updates active"></span>
+        <button id="refresh-now" class="btn ghost" title="Refresh now">↻</button>
+        <button id="show-overview" class="btn ghost" title="Project overview">Overview</button>
+        <button id="new-project" class="btn ghost">+ Project</button>
+        <button id="new-ticket" class="btn primary">+ New ticket</button>
+      </div>
+    </header>
+
+    <main id="board" class="board"></main>
+
+    <aside id="drawer" class="drawer" hidden>
+      <div class="drawer-inner" id="drawer-content"></div>
+    </aside>
+
+    <div id="modal-root"></div>
+
+    <template id="card-template">
+      <article class="card" draggable="true">
+        <div class="card-head">
+          <span class="badge"></span>
+          <span class="card-id"></span>
+          <span class="card-pri"></span>
+        </div>
+        <div class="card-title"></div>
+        <div class="card-meta"></div>
+      </article>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

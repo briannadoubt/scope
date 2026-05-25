@@ -1,0 +1,377 @@
+import { nowIso, nextTicketId, recordHistory } from './db.js';
+import { emitChange } from './events.js';
+
+/* ---------------- projects ---------------- */
+
+export function createProject(db, { id, key, name, description = '', overview = '' }) {
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(id))
+    throw new Error(`Invalid project id "${id}" — use lowercase letters, digits, hyphens.`);
+  if (!/^[A-Z][A-Z0-9]{1,9}$/.test(key))
+    throw new Error(`Invalid project key "${key}" — use 2-10 uppercase letters/digits, e.g. "SCP".`);
+  const now = nowIso();
+  db.prepare(
+    `INSERT INTO projects (id, key, name, description, overview, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, key, name, description, overview, now, now);
+  const created = getProject(db, id);
+  emitChange({ type: 'project.created', id });
+  return created;
+}
+
+export function getProject(db, idOrKey) {
+  return db
+    .prepare('SELECT * FROM projects WHERE id = ? OR key = ?')
+    .get(idOrKey, idOrKey);
+}
+
+export function listProjects(db) {
+  return db.prepare('SELECT * FROM projects ORDER BY name').all();
+}
+
+export function updateProject(db, idOrKey, fields) {
+  const project = getProject(db, idOrKey);
+  if (!project) throw new Error(`Project not found: ${idOrKey}`);
+  const allowed = ['name', 'description', 'overview'];
+  const updates = [];
+  const values = [];
+  for (const k of allowed) {
+    if (k in fields) {
+      updates.push(`${k} = ?`);
+      values.push(fields[k]);
+    }
+  }
+  if (!updates.length) return project;
+  updates.push('updated_at = ?');
+  values.push(nowIso());
+  values.push(project.id);
+  db.prepare(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  const updated = getProject(db, project.id);
+  emitChange({ type: 'project.updated', id: project.id });
+  return updated;
+}
+
+export function deleteProject(db, idOrKey) {
+  const project = getProject(db, idOrKey);
+  if (!project) return false;
+  db.prepare('DELETE FROM projects WHERE id = ?').run(project.id);
+  emitChange({ type: 'project.deleted', id: project.id });
+  return true;
+}
+
+/* ---------------- tickets ---------------- */
+
+const TICKET_TYPES = new Set(['epic', 'story', 'bug']);
+const STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'cancelled'];
+const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
+
+export function createTicket(
+  db,
+  {
+    projectIdOrKey,
+    type,
+    title,
+    description = '',
+    status = 'backlog',
+    priority = 'medium',
+    parent,
+    branch,
+    prUrl,
+    assignee,
+    labels = [],
+  }
+) {
+  if (!TICKET_TYPES.has(type)) throw new Error(`Invalid type "${type}". Use epic|story|bug.`);
+  if (!STATUSES.includes(status)) throw new Error(`Invalid status "${status}".`);
+  if (!PRIORITIES.includes(priority)) throw new Error(`Invalid priority "${priority}".`);
+  if (!title || !title.trim()) throw new Error('Ticket title is required.');
+
+  const project = getProject(db, projectIdOrKey);
+  if (!project) throw new Error(`Project not found: ${projectIdOrKey}`);
+
+  let parentId = null;
+  if (parent) {
+    const parentTicket = getTicket(db, parent);
+    if (!parentTicket) throw new Error(`Parent ticket not found: ${parent}`);
+    if (parentTicket.type !== 'epic')
+      throw new Error(`Parent must be an epic, got "${parentTicket.type}" (${parentTicket.id}).`);
+    if (parentTicket.project_id !== project.id)
+      throw new Error('Parent epic belongs to a different project.');
+    if (type === 'epic') throw new Error('Epics cannot have an epic parent.');
+    parentId = parentTicket.id;
+  }
+
+  const { id, number } = nextTicketId(db, project.id);
+  const now = nowIso();
+  db.prepare(
+    `INSERT INTO tickets
+       (id, project_id, number, type, title, description, status, priority,
+        parent_id, branch, pr_url, assignee, labels, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    project.id,
+    number,
+    type,
+    title,
+    description,
+    status,
+    priority,
+    parentId,
+    branch ?? null,
+    prUrl ?? null,
+    assignee ?? null,
+    JSON.stringify(labels ?? []),
+    now,
+    now
+  );
+  const created = getTicket(db, id);
+  emitChange({ type: 'ticket.created', id, project: project.id });
+  return created;
+}
+
+export function getTicket(db, id) {
+  const row = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
+  if (!row) return null;
+  return hydrateTicket(row);
+}
+
+function hydrateTicket(row) {
+  return {
+    ...row,
+    labels: safeParseJson(row.labels, []),
+  };
+}
+
+function safeParseJson(s, fallback) {
+  try {
+    return s ? JSON.parse(s) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function listTickets(db, { projectIdOrKey, type, status, parentId, assignee } = {}) {
+  const where = [];
+  const params = [];
+  if (projectIdOrKey) {
+    const project = getProject(db, projectIdOrKey);
+    if (!project) return [];
+    where.push('project_id = ?');
+    params.push(project.id);
+  }
+  if (type) {
+    where.push('type = ?');
+    params.push(type);
+  }
+  if (status) {
+    where.push('status = ?');
+    params.push(status);
+  }
+  if (parentId !== undefined) {
+    if (parentId === null) where.push('parent_id IS NULL');
+    else {
+      where.push('parent_id = ?');
+      params.push(parentId);
+    }
+  }
+  if (assignee) {
+    where.push('assignee = ?');
+    params.push(assignee);
+  }
+  const sql = `SELECT * FROM tickets ${
+    where.length ? 'WHERE ' + where.join(' AND ') : ''
+  } ORDER BY project_id, number`;
+  return db.prepare(sql).all(...params).map(hydrateTicket);
+}
+
+export function updateTicket(db, id, fields, who = null) {
+  const ticket = getTicket(db, id);
+  if (!ticket) throw new Error(`Ticket not found: ${id}`);
+
+  const allowed = [
+    'title',
+    'description',
+    'status',
+    'priority',
+    'parent_id',
+    'branch',
+    'pr_url',
+    'assignee',
+    'labels',
+  ];
+
+  if ('status' in fields && !STATUSES.includes(fields.status))
+    throw new Error(`Invalid status "${fields.status}". One of: ${STATUSES.join(', ')}`);
+  if ('priority' in fields && !PRIORITIES.includes(fields.priority))
+    throw new Error(`Invalid priority "${fields.priority}". One of: ${PRIORITIES.join(', ')}`);
+
+  if ('parent_id' in fields && fields.parent_id) {
+    const parent = getTicket(db, fields.parent_id);
+    if (!parent) throw new Error(`Parent ticket not found: ${fields.parent_id}`);
+    if (parent.type !== 'epic')
+      throw new Error(`Parent must be an epic, got "${parent.type}".`);
+    if (parent.project_id !== ticket.project_id)
+      throw new Error('Parent epic must be in the same project.');
+    if (parent.id === ticket.id) throw new Error('A ticket cannot be its own parent.');
+    if (ticket.type === 'epic') throw new Error('Epics cannot have a parent.');
+    fields.parent_id = parent.id;
+  }
+
+  const updates = [];
+  const values = [];
+  for (const k of allowed) {
+    if (k in fields) {
+      const v = k === 'labels' ? JSON.stringify(fields[k] ?? []) : fields[k];
+      updates.push(`${k} = ?`);
+      values.push(v);
+      const oldRaw = k === 'labels' ? JSON.stringify(ticket[k] ?? []) : ticket[k];
+      recordHistory(db, ticket.id, k, oldRaw, v, who);
+    }
+  }
+  if (!updates.length) return ticket;
+  updates.push('updated_at = ?');
+  values.push(nowIso());
+  values.push(ticket.id);
+  db.prepare(`UPDATE tickets SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  const after = getTicket(db, ticket.id);
+  emitChange({ type: 'ticket.updated', id: ticket.id, project: ticket.project_id });
+  return after;
+}
+
+export function deleteTicket(db, id) {
+  const t = getTicket(db, id);
+  if (!t) return false;
+  db.prepare('DELETE FROM tickets WHERE id = ?').run(t.id);
+  emitChange({ type: 'ticket.deleted', id: t.id, project: t.project_id });
+  return true;
+}
+
+/* ---------------- relations ---------------- */
+
+const RELATION_TYPES = ['blocks', 'blocked_by', 'relates_to', 'duplicates', 'duplicate_of'];
+const INVERSE = {
+  blocks: 'blocked_by',
+  blocked_by: 'blocks',
+  relates_to: 'relates_to',
+  duplicates: 'duplicate_of',
+  duplicate_of: 'duplicates',
+};
+
+export function addRelation(db, fromId, toId, type) {
+  if (!RELATION_TYPES.includes(type))
+    throw new Error(`Invalid relation type "${type}". One of: ${RELATION_TYPES.join(', ')}`);
+  if (fromId === toId) throw new Error('Cannot relate a ticket to itself.');
+  const from = getTicket(db, fromId);
+  const to = getTicket(db, toId);
+  if (!from) throw new Error(`Ticket not found: ${fromId}`);
+  if (!to) throw new Error(`Ticket not found: ${toId}`);
+  const now = nowIso();
+  const stmt = db.prepare(
+    `INSERT OR IGNORE INTO ticket_relations (from_ticket_id, to_ticket_id, type, created_at)
+     VALUES (?, ?, ?, ?)`
+  );
+  const tx = db.transaction(() => {
+    stmt.run(from.id, to.id, type, now);
+    stmt.run(to.id, from.id, INVERSE[type], now);
+  });
+  tx();
+  emitChange({ type: 'relation.added', from: from.id, to: to.id, relType: type });
+  return listRelations(db, from.id);
+}
+
+export function removeRelation(db, fromId, toId, type) {
+  if (!RELATION_TYPES.includes(type)) throw new Error(`Invalid relation type "${type}".`);
+  const tx = db.transaction(() => {
+    db.prepare(
+      `DELETE FROM ticket_relations WHERE from_ticket_id = ? AND to_ticket_id = ? AND type = ?`
+    ).run(fromId, toId, type);
+    db.prepare(
+      `DELETE FROM ticket_relations WHERE from_ticket_id = ? AND to_ticket_id = ? AND type = ?`
+    ).run(toId, fromId, INVERSE[type]);
+  });
+  tx();
+  emitChange({ type: 'relation.removed', from: fromId, to: toId, relType: type });
+}
+
+export function listRelations(db, ticketId) {
+  return db
+    .prepare(
+      `SELECT r.type, r.to_ticket_id, t.title, t.status, t.type AS ticket_type
+       FROM ticket_relations r
+       LEFT JOIN tickets t ON t.id = r.to_ticket_id
+       WHERE r.from_ticket_id = ?
+       ORDER BY r.type, r.to_ticket_id`
+    )
+    .all(ticketId);
+}
+
+/* ---------------- comments & history ---------------- */
+
+export function addComment(db, ticketId, body, author = null) {
+  const t = getTicket(db, ticketId);
+  if (!t) throw new Error(`Ticket not found: ${ticketId}`);
+  const res = db
+    .prepare(
+      `INSERT INTO ticket_comments (ticket_id, author, body, created_at)
+       VALUES (?, ?, ?, ?)`
+    )
+    .run(t.id, author, body, nowIso());
+  emitChange({ type: 'comment.added', id: t.id, project: t.project_id });
+  return { id: res.lastInsertRowid, ticket_id: t.id, author, body };
+}
+
+export function listComments(db, ticketId) {
+  return db
+    .prepare(
+      `SELECT id, author, body, created_at FROM ticket_comments
+       WHERE ticket_id = ? ORDER BY created_at ASC`
+    )
+    .all(ticketId);
+}
+
+export function listHistory(db, ticketId) {
+  return db
+    .prepare(
+      `SELECT field, old_value, new_value, changed_by, changed_at
+       FROM ticket_history WHERE ticket_id = ? ORDER BY changed_at ASC`
+    )
+    .all(ticketId);
+}
+
+/* ---------------- epic helpers ---------------- */
+
+export function listEpicChildren(db, epicId) {
+  return db
+    .prepare(
+      `SELECT * FROM tickets WHERE parent_id = ? ORDER BY type, number`
+    )
+    .all(epicId)
+    .map(hydrateTicket);
+}
+
+export function epicProgress(db, epicId) {
+  const rows = db
+    .prepare(
+      `SELECT status, COUNT(*) as n FROM tickets WHERE parent_id = ? GROUP BY status`
+    )
+    .all(epicId);
+  const counts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
+  let total = 0;
+  for (const r of rows) {
+    counts[r.status] = r.n;
+    total += r.n;
+  }
+  return {
+    total,
+    counts,
+    done: counts.done,
+    percent: total ? Math.round((counts.done / total) * 100) : 0,
+  };
+}
+
+/* ---------------- constants ---------------- */
+
+export const SCHEMA_STATUSES = STATUSES;
+export const SCHEMA_PRIORITIES = PRIORITIES;
+export const SCHEMA_RELATION_TYPES = RELATION_TYPES;
+export const SCHEMA_TICKET_TYPES = [...TICKET_TYPES];

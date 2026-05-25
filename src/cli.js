@@ -1,0 +1,728 @@
+import { Command, Option } from 'commander';
+import chalk from 'chalk';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import {
+  openDb,
+  findScopeDir,
+  defaultScopeDir,
+  SCOPE_DIR_NAME,
+  DB_FILE_NAME,
+} from './db.js';
+import {
+  createProject,
+  getProject,
+  listProjects,
+  updateProject,
+  deleteProject,
+  createTicket,
+  getTicket,
+  listTickets,
+  updateTicket,
+  deleteTicket,
+  addRelation,
+  removeRelation,
+  listRelations,
+  addComment,
+  listComments,
+  listHistory,
+  listEpicChildren,
+  epicProgress,
+  SCHEMA_STATUSES,
+  SCHEMA_PRIORITIES,
+  SCHEMA_RELATION_TYPES,
+} from './repo.js';
+import { startServer } from './server.js';
+import {
+  boardView,
+  projectDetail,
+  table,
+  ticketDetail,
+  ticketRow,
+  typeBadge,
+  colorStatus,
+} from './format.js';
+
+/* ---------------- helpers ---------------- */
+
+function openOrDie() {
+  const dir = findScopeDir();
+  if (!dir) {
+    console.error(
+      chalk.red(
+        `No ${SCOPE_DIR_NAME}/ directory found. Run \`scope init\` in your project root first.`
+      )
+    );
+    process.exit(1);
+  }
+  return { db: openDb(dir), scopeDir: dir };
+}
+
+function out(cmd, data, formatter) {
+  const opts = cmd.optsWithGlobals();
+  if (opts.json) {
+    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    return;
+  }
+  if (formatter) {
+    const s = formatter(data);
+    if (s) process.stdout.write(s + '\n');
+  }
+}
+
+function fail(msg) {
+  console.error(chalk.red(msg));
+  process.exit(1);
+}
+
+function readBodyFromOpts({ description, descriptionFile, edit }) {
+  if (descriptionFile) {
+    try {
+      return readFileSync(descriptionFile, 'utf8');
+    } catch (e) {
+      fail(`Could not read --description-file: ${e.message}`);
+    }
+  }
+  if (typeof description === 'string') return description;
+  if (edit) return editorPrompt('');
+  return undefined;
+}
+
+function editorPrompt(initial) {
+  const editor = process.env.EDITOR || process.env.VISUAL || 'vi';
+  const tmp = join(tmpdir(), `scope-${Date.now()}.md`);
+  writeFileSync(tmp, initial ?? '');
+  const r = spawnSync(editor, [tmp], { stdio: 'inherit' });
+  if (r.status !== 0) fail(`Editor exited with status ${r.status}`);
+  return readFileSync(tmp, 'utf8');
+}
+
+function parseLabels(s) {
+  if (!s) return [];
+  return s
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+/* ---------------- program ---------------- */
+
+export function buildProgram() {
+  const program = new Command();
+  program
+    .name('scope')
+    .description(
+      'Local-first kanban for projects, epics, stories, and bugs. Built for agents.'
+    )
+    .version('0.1.0')
+    .option('--json', 'output JSON instead of pretty text', false);
+
+  /* ---------- init ---------- */
+  program
+    .command('init')
+    .description(`Create a ${SCOPE_DIR_NAME}/ directory in the current folder.`)
+    .option('-f, --force', 'reinitialize if it already exists', false)
+    .action((opts, cmd) => {
+      const dir = defaultScopeDir();
+      if (existsSync(dir) && !opts.force) {
+        console.error(chalk.yellow(`${SCOPE_DIR_NAME}/ already exists at ${dir}`));
+        process.exit(0);
+      }
+      mkdirSync(dir, { recursive: true });
+      const db = openDb(dir);
+      db.close();
+      out(
+        cmd,
+        { scope_dir: dir, db: join(dir, DB_FILE_NAME) },
+        (d) =>
+          chalk.green('✓') +
+          ` Initialized scope at ${chalk.bold(d.scope_dir)}\n` +
+          chalk.gray(`  db: ${d.db}\n  Next: scope project create <id> <KEY> <name>`)
+      );
+    });
+
+  /* ---------- project ---------- */
+  const project = program.command('project').description('Manage projects.');
+
+  project
+    .command('create <id> <key> <name...>')
+    .description('Create a project. <id> lowercase-kebab, <key> 2-10 uppercase letters (e.g. SCP).')
+    .option('-d, --description <text>', 'short description')
+    .option('--overview <text>', 'long overview (goals, architecture, etc.)')
+    .option('--overview-file <path>', 'read overview from a file (often a README)')
+    .option('-e, --edit', 'edit overview in $EDITOR', false)
+    .action((id, key, nameWords, opts, cmd) => {
+      const { db } = openOrDie();
+      let overview = opts.overview ?? '';
+      if (opts.overviewFile) overview = readFileSync(opts.overviewFile, 'utf8');
+      if (opts.edit) overview = editorPrompt(overview);
+      try {
+        const p = createProject(db, {
+          id,
+          key: key.toUpperCase(),
+          name: nameWords.join(' '),
+          description: opts.description ?? '',
+          overview,
+        });
+        out(cmd, p, (p) =>
+          chalk.green('✓') + ` Created project ${chalk.bold(p.key)} (${p.id}): ${p.name}`
+        );
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  project
+    .command('list')
+    .alias('ls')
+    .description('List projects.')
+    .action((opts, cmd) => {
+      const { db } = openOrDie();
+      const rows = listProjects(db);
+      out(cmd, rows, (rows) =>
+        table(
+          rows.map((r) => ({
+            key: chalk.bold(r.key),
+            id: r.id,
+            name: r.name,
+            description: r.description,
+          })),
+          [
+            { key: 'key', header: 'KEY' },
+            { key: 'id', header: 'ID' },
+            { key: 'name', header: 'NAME', width: 30 },
+            { key: 'description', header: 'DESCRIPTION', width: 50 },
+          ]
+        )
+      );
+    });
+
+  project
+    .command('show <idOrKey>')
+    .description('Show project details with its epics and tickets.')
+    .action((idOrKey, opts, cmd) => {
+      const { db } = openOrDie();
+      const p = getProject(db, idOrKey);
+      if (!p) fail(`Project not found: ${idOrKey}`);
+      const tickets = listTickets(db, { projectIdOrKey: p.id });
+      const epics = tickets.filter((t) => t.type === 'epic');
+      out(cmd, { ...p, tickets, epics }, (data) =>
+        projectDetail(data, { tickets: data.tickets, epics: data.epics })
+      );
+    });
+
+  project
+    .command('edit <idOrKey>')
+    .description('Edit a project.')
+    .option('-n, --name <name>')
+    .option('-d, --description <text>')
+    .option('--overview <text>')
+    .option('--overview-file <path>')
+    .option('-e, --edit', 'edit overview in $EDITOR', false)
+    .action((idOrKey, opts, cmd) => {
+      const { db } = openOrDie();
+      const p = getProject(db, idOrKey);
+      if (!p) fail(`Project not found: ${idOrKey}`);
+      const fields = {};
+      if (opts.name) fields.name = opts.name;
+      if (opts.description !== undefined) fields.description = opts.description;
+      if (opts.overview !== undefined) fields.overview = opts.overview;
+      if (opts.overviewFile) fields.overview = readFileSync(opts.overviewFile, 'utf8');
+      if (opts.edit) fields.overview = editorPrompt(p.overview ?? '');
+      const updated = updateProject(db, p.id, fields);
+      out(cmd, updated, (u) => chalk.green('✓') + ` Updated ${u.key}`);
+    });
+
+  project
+    .command('delete <idOrKey>')
+    .description('Delete a project and all its tickets.')
+    .option('-y, --yes', 'skip confirmation', false)
+    .action((idOrKey, opts, cmd) => {
+      const { db } = openOrDie();
+      const p = getProject(db, idOrKey);
+      if (!p) fail(`Project not found: ${idOrKey}`);
+      if (!opts.yes) {
+        fail(`Refusing to delete ${p.key} without --yes. This removes all tickets too.`);
+      }
+      deleteProject(db, p.id);
+      out(cmd, { deleted: p.id }, (d) =>
+        chalk.green('✓') + ` Deleted project ${d.deleted}`
+      );
+    });
+
+  /* ---------- ticket ---------- */
+  const ticket = program.command('ticket').description('Manage tickets (epics, stories, bugs).');
+
+  ticket
+    .command('create <projectKey> <title...>')
+    .description('Create a ticket in a project.')
+    .addOption(
+      new Option('-t, --type <type>', 'ticket type')
+        .choices(['epic', 'story', 'bug'])
+        .default('story')
+    )
+    .option('-d, --description <text>')
+    .option('--description-file <path>')
+    .option('-e, --edit', 'edit description in $EDITOR', false)
+    .addOption(
+      new Option('-s, --status <status>', 'initial status')
+        .choices(SCHEMA_STATUSES)
+        .default('backlog')
+    )
+    .addOption(
+      new Option('-p, --priority <priority>', 'priority').choices(SCHEMA_PRIORITIES).default('medium')
+    )
+    .option('--parent <ticketId>', 'parent epic (for stories/bugs)')
+    .option('--branch <name>', 'git branch')
+    .option('--pr <url>', 'pull request URL')
+    .option('--assignee <name>', 'assignee handle')
+    .option('--labels <csv>', 'comma-separated labels')
+    .action((projectKey, titleWords, opts, cmd) => {
+      const { db } = openOrDie();
+      const description = readBodyFromOpts(opts) ?? '';
+      try {
+        const t = createTicket(db, {
+          projectIdOrKey: projectKey,
+          type: opts.type,
+          title: titleWords.join(' '),
+          description,
+          status: opts.status,
+          priority: opts.priority,
+          parent: opts.parent,
+          branch: opts.branch,
+          prUrl: opts.pr,
+          assignee: opts.assignee,
+          labels: parseLabels(opts.labels),
+        });
+        out(cmd, t, (t) =>
+          chalk.green('✓') +
+          ` Created ${typeBadge(t.type)} ${chalk.bold(t.id)}: ${t.title}`
+        );
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  ticket
+    .command('list')
+    .alias('ls')
+    .description('List tickets, optionally filtered.')
+    .option('-p, --project <key>', 'filter by project')
+    .addOption(new Option('-t, --type <type>').choices(['epic', 'story', 'bug']))
+    .addOption(new Option('-s, --status <status>').choices(SCHEMA_STATUSES))
+    .option('--parent <epicId>', 'filter by parent epic ("none" for top-level)')
+    .option('--assignee <name>')
+    .action((opts, cmd) => {
+      const { db } = openOrDie();
+      const filter = {
+        projectIdOrKey: opts.project,
+        type: opts.type,
+        status: opts.status,
+        assignee: opts.assignee,
+      };
+      if (opts.parent) {
+        filter.parentId = opts.parent === 'none' ? null : opts.parent;
+      }
+      const tickets = listTickets(db, filter);
+      out(cmd, tickets, (tickets) =>
+        table(tickets.map(ticketRow), [
+          { key: 'id', header: 'ID' },
+          { key: 'type', header: 'TYPE' },
+          { key: 'title', header: 'TITLE', width: 50 },
+          { key: 'status', header: 'STATUS' },
+          { key: 'priority', header: 'PRI' },
+          { key: 'parent', header: 'EPIC' },
+          { key: 'branch', header: 'BRANCH', width: 24 },
+          { key: 'pr', header: 'PR', width: 30 },
+        ])
+      );
+    });
+
+  ticket
+    .command('show <id>')
+    .description('Show a ticket with its children, relations, and comments.')
+    .action((id, opts, cmd) => {
+      const { db } = openOrDie();
+      const t = getTicket(db, id);
+      if (!t) fail(`Ticket not found: ${id}`);
+      const relations = listRelations(db, t.id);
+      const comments = listComments(db, t.id);
+      const children = t.type === 'epic' ? listEpicChildren(db, t.id) : [];
+      const progress = t.type === 'epic' ? epicProgress(db, t.id) : undefined;
+      out(
+        cmd,
+        { ...t, relations, comments, children, progress },
+        (data) =>
+          ticketDetail(t, {
+            children: data.children,
+            relations: data.relations,
+            comments: data.comments,
+            progress: data.progress,
+          })
+      );
+    });
+
+  ticket
+    .command('edit <id>')
+    .description('Edit fields on a ticket.')
+    .option('--title <text>')
+    .option('-d, --description <text>')
+    .option('--description-file <path>')
+    .option('-e, --edit', 'open description in $EDITOR', false)
+    .addOption(new Option('-s, --status <status>').choices(SCHEMA_STATUSES))
+    .addOption(new Option('-p, --priority <priority>').choices(SCHEMA_PRIORITIES))
+    .option('--parent <epicId>', 'set parent epic ("none" to clear)')
+    .option('--branch <name>', 'git branch ("none" to clear)')
+    .option('--pr <url>', 'pull request URL ("none" to clear)')
+    .option('--assignee <name>')
+    .option('--labels <csv>')
+    .option('--by <author>', 'attribute the change in history')
+    .action((id, opts, cmd) => {
+      const { db } = openOrDie();
+      const t = getTicket(db, id);
+      if (!t) fail(`Ticket not found: ${id}`);
+      const fields = {};
+      if (opts.title) fields.title = opts.title;
+      const body = readBodyFromOpts(opts);
+      if (body !== undefined) fields.description = body;
+      if (opts.status) fields.status = opts.status;
+      if (opts.priority) fields.priority = opts.priority;
+      if (opts.parent !== undefined)
+        fields.parent_id = opts.parent === 'none' ? null : opts.parent;
+      if (opts.branch !== undefined)
+        fields.branch = opts.branch === 'none' ? null : opts.branch;
+      if (opts.pr !== undefined) fields.pr_url = opts.pr === 'none' ? null : opts.pr;
+      if (opts.assignee !== undefined) fields.assignee = opts.assignee;
+      if (opts.labels !== undefined) fields.labels = parseLabels(opts.labels);
+      try {
+        const updated = updateTicket(db, t.id, fields, opts.by);
+        out(cmd, updated, (u) => chalk.green('✓') + ` Updated ${chalk.bold(u.id)}`);
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  ticket
+    .command('delete <id>')
+    .description('Delete a ticket.')
+    .option('-y, --yes', 'skip confirmation', false)
+    .action((id, opts, cmd) => {
+      const { db } = openOrDie();
+      const t = getTicket(db, id);
+      if (!t) fail(`Ticket not found: ${id}`);
+      if (!opts.yes && t.type === 'epic') {
+        const kids = listEpicChildren(db, t.id);
+        if (kids.length)
+          fail(
+            `Refusing to delete epic ${t.id} with ${kids.length} children without --yes (children will be detached, not deleted).`
+          );
+      }
+      deleteTicket(db, t.id);
+      out(cmd, { deleted: t.id }, (d) => chalk.green('✓') + ` Deleted ${d.deleted}`);
+    });
+
+  /* ---------- status / branch / pr shortcuts ---------- */
+
+  program
+    .command('status <id> <status>')
+    .description(`Set a ticket's status. (${SCHEMA_STATUSES.join('|')})`)
+    .option('--by <author>')
+    .action((id, status, opts, cmd) => {
+      const { db } = openOrDie();
+      try {
+        const t = updateTicket(db, id, { status }, opts.by);
+        out(cmd, t, (t) =>
+          chalk.green('✓') +
+          ` ${chalk.bold(t.id)} → ${colorStatus(t.status)}`
+        );
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  program
+    .command('branch <id> [branch]')
+    .description('Get or set the branch for a ticket. Pass "none" to clear.')
+    .option('--by <author>')
+    .option('--in-progress', 'also flip the status to in_progress', false)
+    .action((id, branch, opts, cmd) => {
+      const { db } = openOrDie();
+      const t = getTicket(db, id);
+      if (!t) fail(`Ticket not found: ${id}`);
+      if (branch === undefined) {
+        out(cmd, { id: t.id, branch: t.branch }, (d) => d.branch ?? '(none)');
+        return;
+      }
+      const value = branch === 'none' ? null : branch;
+      const fields = { branch: value };
+      if (opts.inProgress && value) fields.status = 'in_progress';
+      const updated = updateTicket(db, t.id, fields, opts.by);
+      out(cmd, updated, (u) =>
+        chalk.green('✓') +
+        ` ${chalk.bold(u.id)} branch = ${u.branch ?? '(none)'}${
+          opts.inProgress ? `, status = ${colorStatus(u.status)}` : ''
+        }`
+      );
+    });
+
+  program
+    .command('pr <id> [url]')
+    .description('Get or set the PR URL for a ticket. Pass "none" to clear.')
+    .option('--by <author>')
+    .option('--in-review', 'also flip the status to in_review', false)
+    .option('--merged', 'also flip the status to done', false)
+    .action((id, url, opts, cmd) => {
+      const { db } = openOrDie();
+      const t = getTicket(db, id);
+      if (!t) fail(`Ticket not found: ${id}`);
+      if (url === undefined) {
+        out(cmd, { id: t.id, pr_url: t.pr_url }, (d) => d.pr_url ?? '(none)');
+        return;
+      }
+      const value = url === 'none' ? null : url;
+      const fields = { pr_url: value };
+      if (opts.merged) fields.status = 'done';
+      else if (opts.inReview && value) fields.status = 'in_review';
+      const updated = updateTicket(db, t.id, fields, opts.by);
+      out(cmd, updated, (u) =>
+        chalk.green('✓') +
+        ` ${chalk.bold(u.id)} pr = ${u.pr_url ?? '(none)'}, status = ${colorStatus(u.status)}`
+      );
+    });
+
+  /* ---------- relations ---------- */
+
+  const link = program.command('link').description('Create or remove relationships between tickets.');
+
+  link
+    .command('add <fromId> <type> <toId>')
+    .description(`Link two tickets. Types: ${SCHEMA_RELATION_TYPES.join('|')}`)
+    .action((fromId, type, toId, opts, cmd) => {
+      const { db } = openOrDie();
+      try {
+        const rels = addRelation(db, fromId, toId, type);
+        out(cmd, rels, () =>
+          chalk.green('✓') + ` ${fromId} ${chalk.gray(type)} ${toId}`
+        );
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  link
+    .command('remove <fromId> <type> <toId>')
+    .alias('rm')
+    .description('Remove a relationship.')
+    .action((fromId, type, toId, opts, cmd) => {
+      const { db } = openOrDie();
+      try {
+        removeRelation(db, fromId, toId, type);
+        out(cmd, { ok: true }, () => chalk.green('✓') + ` removed`);
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  link
+    .command('list <ticketId>')
+    .alias('ls')
+    .description('List relationships for a ticket.')
+    .action((id, opts, cmd) => {
+      const { db } = openOrDie();
+      const rels = listRelations(db, id);
+      out(cmd, rels, (rels) =>
+        table(
+          rels.map((r) => ({
+            type: r.type,
+            to: chalk.bold(r.to_ticket_id),
+            title: r.title ?? '',
+            status: r.status ? colorStatus(r.status) : '',
+          })),
+          [
+            { key: 'type', header: 'TYPE' },
+            { key: 'to', header: 'TO' },
+            { key: 'title', header: 'TITLE', width: 50 },
+            { key: 'status', header: 'STATUS' },
+          ]
+        )
+      );
+    });
+
+  /* ---------- epic helpers ---------- */
+
+  const epic = program.command('epic').description('Epic-focused convenience commands.');
+
+  epic
+    .command('list [projectKey]')
+    .alias('ls')
+    .description('List epics, optionally filtered to one project.')
+    .action((projectKey, opts, cmd) => {
+      const { db } = openOrDie();
+      const epics = listTickets(db, { projectIdOrKey: projectKey, type: 'epic' });
+      const enriched = epics.map((e) => ({
+        ...e,
+        progress: epicProgress(db, e.id),
+      }));
+      out(cmd, enriched, (rows) =>
+        table(
+          rows.map((e) => ({
+            id: chalk.bold(e.id),
+            title: e.title,
+            status: colorStatus(e.status),
+            progress: `${e.progress.done}/${e.progress.total} (${e.progress.percent}%)`,
+          })),
+          [
+            { key: 'id', header: 'ID' },
+            { key: 'title', header: 'TITLE', width: 50 },
+            { key: 'status', header: 'STATUS' },
+            { key: 'progress', header: 'PROGRESS' },
+          ]
+        )
+      );
+    });
+
+  epic
+    .command('children <epicId>')
+    .description('List stories and bugs belonging to an epic.')
+    .action((epicId, opts, cmd) => {
+      const { db } = openOrDie();
+      const e = getTicket(db, epicId);
+      if (!e) fail(`Epic not found: ${epicId}`);
+      if (e.type !== 'epic') fail(`${epicId} is not an epic (it's a ${e.type}).`);
+      const children = listEpicChildren(db, e.id);
+      out(cmd, children, (rows) =>
+        table(rows.map(ticketRow), [
+          { key: 'id', header: 'ID' },
+          { key: 'type', header: 'TYPE' },
+          { key: 'title', header: 'TITLE', width: 50 },
+          { key: 'status', header: 'STATUS' },
+          { key: 'priority', header: 'PRI' },
+        ])
+      );
+    });
+
+  /* ---------- comments / history ---------- */
+
+  program
+    .command('comment <ticketId> <body...>')
+    .description('Add a comment to a ticket.')
+    .option('--by <author>')
+    .action((id, body, opts, cmd) => {
+      const { db } = openOrDie();
+      try {
+        const c = addComment(db, id, body.join(' '), opts.by);
+        out(cmd, c, () => chalk.green('✓') + ` Comment added on ${chalk.bold(id)}`);
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  program
+    .command('history <ticketId>')
+    .description('Show change history for a ticket.')
+    .action((id, opts, cmd) => {
+      const { db } = openOrDie();
+      const t = getTicket(db, id);
+      if (!t) fail(`Ticket not found: ${id}`);
+      const rows = listHistory(db, t.id);
+      out(cmd, rows, (rows) =>
+        table(rows, [
+          { key: 'changed_at', header: 'WHEN' },
+          { key: 'changed_by', header: 'WHO' },
+          { key: 'field', header: 'FIELD' },
+          { key: 'old_value', header: 'FROM', width: 30 },
+          { key: 'new_value', header: 'TO', width: 30 },
+        ])
+      );
+    });
+
+  /* ---------- board / ui ---------- */
+
+  program
+    .command('board')
+    .description('Render a kanban board in the terminal.')
+    .option('-p, --project <key>', 'filter by project')
+    .option('--epic <id>', 'only tickets in a given epic')
+    .action((opts, cmd) => {
+      const { db } = openOrDie();
+      const tickets = listTickets(db, {
+        projectIdOrKey: opts.project,
+        parentId: opts.epic,
+      });
+      out(cmd, tickets, boardView);
+    });
+
+  program
+    .command('ui')
+    .description('Launch the local web UI (GitHub Projects-style board).')
+    .option('-p, --port <port>', 'port to listen on', '4321')
+    .option('--no-open', "don't open the browser automatically")
+    .action(async (opts) => {
+      const { db, scopeDir } = openOrDie();
+      const port = Number.parseInt(opts.port, 10);
+      await startServer({ db, scopeDir, port, open: opts.open });
+    });
+
+  /* ---------- mcp ---------- */
+
+  program
+    .command('mcp')
+    .description(
+      'Run scope as a Model Context Protocol server over stdio. Register this in your MCP client.'
+    )
+    .option(
+      '--scope-dir <path>',
+      'override the .scope directory (else uses $SCOPE_DIR or walks up from CWD)'
+    )
+    .option('--auto-init', 'create the .scope directory if it does not exist', false)
+    .action(async (opts) => {
+      const { runMcpStdio } = await import('./mcp.js');
+      try {
+        await runMcpStdio({ scopeDir: opts.scopeDir, autoInit: opts.autoInit });
+      } catch (e) {
+        console.error(chalk.red(e.message || String(e)));
+        process.exit(1);
+      }
+    });
+
+  /* ---------- serve (UI + HTTP MCP in one process) ---------- */
+
+  program
+    .command('serve')
+    .description(
+      'Run the web UI and an HTTP MCP endpoint on one port. Multiple agents (and a browser) can connect simultaneously.'
+    )
+    .option('-p, --port <port>', 'port to listen on', '4321')
+    .option('--no-open', "don't open the browser automatically")
+    .option('--no-ui', 'disable the web UI (MCP-only HTTP server)')
+    .option('--no-mcp', 'disable the MCP endpoint (UI only — same as `scope ui`)')
+    .action(async (opts) => {
+      const { db, scopeDir } = openOrDie();
+      const port = Number.parseInt(opts.port, 10);
+      let mcpFactory;
+      if (opts.mcp !== false) {
+        const { buildMcpServer } = await import('./mcp.js');
+        mcpFactory = () => buildMcpServer({ scopeDir, db }).server;
+      }
+      await startServer({
+        db,
+        scopeDir,
+        port,
+        open: opts.open && opts.ui !== false,
+        mcpFactory,
+        serveUi: opts.ui !== false,
+      });
+    });
+
+  return program;
+}
+
+export function run(argv) {
+  const program = buildProgram();
+  program.parseAsync(argv).catch((e) => {
+    console.error(chalk.red(e.message || String(e)));
+    process.exit(1);
+  });
+}
