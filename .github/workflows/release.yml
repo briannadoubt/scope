@@ -12,10 +12,10 @@ name: Release
 # Required repo secrets:
 #   HOMEBREW_TAP_DEPLOY_KEY    SSH private key whose pubkey is a write-enabled
 #                              deploy key on briannadoubt/homebrew-tap
-#
-# Required npmjs.com configuration (one-time):
-#   Trusted Publisher → GitHub Actions on briannadoubt/scope, workflow
-#   release.yml. No token needed; npm trusts our OIDC identity.
+#   NPM_TOKEN                  npm granular access token with Packages:
+#                              Read+Write on All packages, Bypass 2FA enabled
+#                              (Trusted Publishing wasn't yet available for
+#                              this account when we set this up).
 
 on:
   push:
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write     # create GitHub release
-      id-token: write     # OIDC for npm Trusted Publishing + provenance
+      id-token: write     # provenance attestation on npm publish
 
     steps:
       - name: Checkout
@@ -56,10 +56,12 @@ jobs:
           node bin/scope.js --version
           node bin/scope.js --help | head -5
 
-      - name: Publish to npm (Trusted Publishing)
-        # No NODE_AUTH_TOKEN — npm reads the OIDC token from GHA.
-        # Requires Trusted Publisher to be configured on npmjs.com for this
-        # package + this repo + this workflow file.
+      - name: Publish to npm
+        # Provenance still works (uses OIDC) — we just need NODE_AUTH_TOKEN
+        # for auth because Trusted Publishing wasn't available for this
+        # account yet. Swap to OIDC-only when npm enables it.
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --provenance --access public
 
       - name: Fetch sha256 of GitHub source tarball
