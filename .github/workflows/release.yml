@@ -10,9 +10,10 @@ name: Release
 #   6. create a GitHub release with auto-generated notes
 #
 # Required repo secrets:
-#   NPM_TOKEN            — npm automation token with publish scope
-#   HOMEBREW_TAP_TOKEN   — fine-grained PAT with `contents: write`
-#                          on briannadoubt/homebrew-tap
+#   NPM_TOKEN                  — npm automation token with publish scope
+#   HOMEBREW_TAP_DEPLOY_KEY    — SSH private key whose matching pubkey is
+#                                a write-enabled deploy key on
+#                                briannadoubt/homebrew-tap
 
 on:
   push:
@@ -89,14 +90,19 @@ jobs:
           sed -i -E "s|^( *sha256 +).*|\\1\"$SHA\"|" Formula/scope.rb
           cat Formula/scope.rb
 
+      - name: Load tap deploy key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+
       - name: Sync formula into briannadoubt/homebrew-tap
         env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
           set -euo pipefail
+          ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
           git clone --depth=1 \
-            "https://x-access-token:${GH_TOKEN}@github.com/briannadoubt/homebrew-tap.git" tap
+            git@github.com:briannadoubt/homebrew-tap.git tap
           mkdir -p tap/Formula
           cp Formula/scope.rb tap/Formula/scope.rb
           cd tap

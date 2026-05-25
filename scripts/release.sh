@@ -17,8 +17,9 @@
 #   4. Creates a GitHub release with auto-generated notes.
 #
 # Required GitHub repo secrets (set once):
-#   NPM_TOKEN            npm automation token (Publish scope)
-#   HOMEBREW_TAP_TOKEN   PAT with `contents: write` on briannadoubt/homebrew-tap
+#   NPM_TOKEN                  npm automation token (Publish scope)
+#   HOMEBREW_TAP_DEPLOY_KEY    SSH private key; its pubkey is a write-enabled
+#                              deploy key on briannadoubt/homebrew-tap
 
 set -euo pipefail
 
