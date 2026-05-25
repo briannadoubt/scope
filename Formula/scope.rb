@@ -9,8 +9,19 @@ class Scope < Formula
   depends_on "node"
 
   def install
-    system "npm", "install", *Language::Node.std_npm_install_args(libexec)
-    bin.install_symlink Dir["#{libexec}/bin/*"]
+    # Install runtime dependencies in-place. --omit=dev keeps the install small;
+    # there are no devDeps but the flag also future-proofs.
+    system "npm", "ci", "--omit=dev", "--no-audit", "--no-fund"
+
+    # Ship the whole tree (bin/, src/, node_modules/, package.json, LICENSE)
+    libexec.install Dir["*"]
+
+    # Expose the CLI on PATH
+    (bin/"scope").write <<~SH
+      #!/bin/bash
+      exec "#{Formula["node"].opt_bin}/node" "#{libexec}/bin/scope.js" "$@"
+    SH
+    chmod 0755, bin/"scope"
   end
 
   test do
