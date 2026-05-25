@@ -40,6 +40,27 @@ want() {
   case ",${TOOLS}," in *",$1,"*) return 0 ;; *) return 1 ;; esac
 }
 
+# Fetch a skill file. If $SCOPE_SKILLS_DIR is set (as it is when invoked from
+# `scope skills install`), copy from the bundled local directory; otherwise
+# download from the GitHub raw URL.
+fetch() {
+  local rel="$1" out="$2"
+  if [[ -n "${SCOPE_SKILLS_DIR:-}" && -f "$SCOPE_SKILLS_DIR/$rel" ]]; then
+    cp "$SCOPE_SKILLS_DIR/$rel" "$out"
+  else
+    curl -fsSL "$RAW/$rel" -o "$out"
+  fi
+}
+# Stream a skill file (for append-mode codex install).
+fetch_cat() {
+  local rel="$1"
+  if [[ -n "${SCOPE_SKILLS_DIR:-}" && -f "$SCOPE_SKILLS_DIR/$rel" ]]; then
+    cat "$SCOPE_SKILLS_DIR/$rel"
+  else
+    curl -fsSL "$RAW/$rel"
+  fi
+}
+
 install_claude() {
   if ! want claude; then return 0; fi
   local dest="$HOME/.claude/skills/scope"
@@ -48,7 +69,7 @@ install_claude() {
   fi
   step "Installing Claude skill → $dest"
   mkdir -p "$dest"
-  curl -fsSL "$RAW/claude/scope/SKILL.md" -o "$dest/SKILL.md"
+  fetch "claude/scope/SKILL.md" "$dest/SKILL.md"
   green "  ✓ Claude skill installed. Restart Claude Code to pick it up."
 }
 
@@ -64,12 +85,12 @@ install_codex() {
     cp "$dest" "$dest.bak"
     {
       printf '\n\n<!-- BEGIN scope kanban guidance -->\n'
-      curl -fsSL "$RAW/codex/AGENTS.md"
+      fetch_cat "codex/AGENTS.md"
       printf '\n<!-- END scope kanban guidance -->\n'
     } >> "$dest"
   else
     step "Installing Codex guidance → $dest"
-    curl -fsSL "$RAW/codex/AGENTS.md" -o "$dest"
+    fetch "codex/AGENTS.md" "$dest"
   fi
   green "  ✓ Codex guidance installed."
 }
@@ -83,12 +104,12 @@ install_cursor() {
   local dest="$target_root/.cursor/rules/scope.mdc"
   step "Installing Cursor rule → $dest"
   mkdir -p "$(dirname "$dest")"
-  curl -fsSL "$RAW/cursor/scope.mdc" -o "$dest"
+  fetch "cursor/scope.mdc" "$dest"
   green "  ✓ Cursor rule installed. (Per-project; pass --project for another repo.)"
 }
 
-if ! command -v curl >/dev/null 2>&1; then
-  red "curl is required."; exit 1
+if [[ -z "${SCOPE_SKILLS_DIR:-}" ]] && ! command -v curl >/dev/null 2>&1; then
+  red "curl is required when SCOPE_SKILLS_DIR is not set."; exit 1
 fi
 
 install_claude

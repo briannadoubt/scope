@@ -1,8 +1,9 @@
 import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 
@@ -113,6 +114,17 @@ function parseLabels(s) {
     .split(',')
     .map((x) => x.trim())
     .filter(Boolean);
+}
+
+/** Where each tool's skill file would be installed. */
+function detectTargets(_tool, projectDir) {
+  const home = homedir();
+  const root = projectDir ? resolve(projectDir) : process.cwd();
+  return {
+    claude: join(home, '.claude/skills/scope/SKILL.md'),
+    codex: join(home, '.codex/AGENTS.md') + chalk.gray(' (appends if exists)'),
+    cursor: join(root, '.cursor/rules/scope.mdc'),
+  };
 }
 
 /* ---------------- program ---------------- */
@@ -671,6 +683,114 @@ export function buildProgram() {
       const { db, scopeDir } = openOrDie();
       const port = Number.parseInt(opts.port, 10);
       await startServer({ db, scopeDir, port, open: opts.open });
+    });
+
+  /* ---------- skills ---------- */
+
+  const skills = program
+    .command('skills')
+    .description('Install or inspect the bundled agent skill (Claude / Codex / Cursor).');
+
+  // Resolve the skills/ directory shipped alongside this install. Works whether
+  // you're running from a brew install, npm link, or a checked-out clone.
+  const skillsDir = (() => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    return resolve(here, '..', 'skills');
+  })();
+
+  skills
+    .command('install', { isDefault: true })
+    .description(
+      'Install the Scope agent skill into Claude Code / Codex / Cursor using the local copy that ships with this install.'
+    )
+    .option(
+      '-t, --tool <list>',
+      'comma-separated subset: claude,codex,cursor (default: auto-detect)'
+    )
+    .option('--project <path>', 'project root for Cursor rule install (defaults to CWD)')
+    .option('--dry-run', 'print what would be installed without writing', false)
+    .allowUnknownOption()
+    .action(async (opts, cmd) => {
+      const script = join(skillsDir, 'install.sh');
+      if (!existsSync(script)) {
+        fail(
+          `Bundled skills/install.sh not found at ${script}.\n` +
+          `This shouldn't happen for a brew install. Try: brew reinstall briannadoubt/tap/scope`
+        );
+      }
+      const args = [];
+      if (opts.tool) args.push('--tool', opts.tool);
+      if (opts.project) args.push('--project', opts.project);
+      // Local-mode runner: copy files from the bundled skills dir instead of
+      // curl-fetching them. We pass SCOPE_SKILLS_DIR so install.sh prefers local.
+      const env = { ...process.env, SCOPE_SKILLS_DIR: skillsDir };
+      if (opts.dryRun) {
+        const data = {
+          script,
+          skills_dir: skillsDir,
+          args,
+          would_install: detectTargets(opts.tool, opts.project),
+        };
+        out(cmd, data, (d) => {
+          let s = chalk.gray('# dry run — nothing written') + '\n';
+          s += `script:     ${d.script}\n`;
+          s += `skills dir: ${d.skills_dir}\n`;
+          s += `would install:\n`;
+          for (const [k, v] of Object.entries(d.would_install)) {
+            s += `  ${k.padEnd(7)} → ${v}\n`;
+          }
+          return s;
+        });
+        return;
+      }
+      const r = spawnSync('bash', [script, ...args], { stdio: 'inherit', env });
+      if (r.status !== 0) process.exit(r.status ?? 1);
+    });
+
+  skills
+    .command('path')
+    .description('Print the absolute path to the bundled skills directory.')
+    .action((opts, cmd) => {
+      out(cmd, { skills_dir: skillsDir }, (d) => d.skills_dir);
+    });
+
+  skills
+    .command('list')
+    .alias('ls')
+    .description('Show the per-tool skill wrappers and where they install to.')
+    .action((opts, cmd) => {
+      const targets = detectTargets(undefined, process.cwd());
+      const rows = [
+        {
+          tool: 'claude',
+          source: join(skillsDir, 'claude/scope/SKILL.md'),
+          target: targets.claude,
+          detected: existsSync(targets.claude.split(' ')[0].replace(/^~/, process.env.HOME)) ||
+                    existsSync((process.env.HOME || '') + '/.claude'),
+        },
+        {
+          tool: 'codex',
+          source: join(skillsDir, 'codex/AGENTS.md'),
+          target: targets.codex,
+          detected: existsSync((process.env.HOME || '') + '/.codex'),
+        },
+        {
+          tool: 'cursor',
+          source: join(skillsDir, 'cursor/scope.mdc'),
+          target: targets.cursor,
+          detected: existsSync(join(process.cwd(), '.cursor')),
+        },
+      ];
+      out(cmd, rows, (rows) =>
+        rows
+          .map(
+            (r) =>
+              `${chalk.bold(r.tool.padEnd(7))} ${r.detected ? chalk.green('●') : chalk.gray('○')} ${chalk.gray(
+                'src:'
+              )} ${r.source}\n         ${chalk.gray('dst:')} ${r.target}`
+          )
+          .join('\n')
+      );
     });
 
   /* ---------- mcp ---------- */
