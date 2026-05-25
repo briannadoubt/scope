@@ -1,14 +1,15 @@
 class Scope < Formula
   desc "Local-first kanban for projects, epics, stories, and bugs — CLI + web UI + MCP"
   homepage "https://github.com/briannadoubt/scope"
-  url "https://registry.npmjs.org/scope-kanban/-/scope-kanban-0.1.0.tgz"
-  sha256 "REPLACE_AFTER_NPM_PUBLISH"
+  url "https://github.com/briannadoubt/scope/archive/refs/tags/v0.1.0.tar.gz"
+  sha256 "REPLACE_AFTER_FIRST_RELEASE"
   license "MIT"
+  head "https://github.com/briannadoubt/scope.git", branch: "main"
 
   depends_on "node"
 
   def install
-    system "npm", "install", *std_npm_args
+    system "npm", "install", *Language::Node.std_npm_install_args(libexec)
     bin.install_symlink Dir["#{libexec}/bin/*"]
   end
 

@@ -2,18 +2,18 @@ name: Release
 
 # Fires when a `v*.*.*` tag is pushed.
 # Flow:
-#   1. verify tag matches package.json
-#   2. npm publish (with provenance)
-#   3. fetch published tarball, compute sha256
-#   4. patch Formula/scope.rb (url + sha256)
-#   5. commit + push the formula into briannadoubt/homebrew-tap
-#   6. create a GitHub release with auto-generated notes
+#   1. verify the tag matches package.json
+#   2. fetch the GitHub auto-generated source tarball, compute sha256
+#   3. patch Formula/scope.rb (url + sha256)
+#   4. push the formula into briannadoubt/homebrew-tap
+#   5. create a GitHub release with the install snippet
 #
 # Required repo secrets:
-#   NPM_TOKEN                  — npm automation token with publish scope
-#   HOMEBREW_TAP_DEPLOY_KEY    — SSH private key whose matching pubkey is
-#                                a write-enabled deploy key on
-#                                briannadoubt/homebrew-tap
+#   HOMEBREW_TAP_DEPLOY_KEY    SSH private key whose pubkey is a write-enabled
+#                              deploy key on briannadoubt/homebrew-tap
+#
+# That's it. No npm account, no NPM_TOKEN — Homebrew installs straight from
+# the GitHub source tarball and runs `npm install` for runtime deps.
 
 on:
   push:
@@ -25,7 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write     # create GitHub release
-      id-token: write     # npm provenance
 
     steps:
       - name: Checkout
@@ -35,7 +34,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Verify tag matches package.json
         id: meta
@@ -46,39 +44,35 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME (=$TAG_VERSION) does not match package.json version $PKG_VERSION"
             exit 1
           fi
-          NPM_NAME="$(node -p "require('./package.json').name")"
           echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
-          echo "npm_name=$NPM_NAME"  >> "$GITHUB_OUTPUT"
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Smoke test
+        run: |
+          npm ci
+          node bin/scope.js --version
+          node bin/scope.js --help | head -5
 
-      - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public
-
-      - name: Fetch sha256 of published tarball
+      - name: Fetch sha256 of GitHub source tarball
         id: sha
         env:
           VERSION: ${{ steps.meta.outputs.version }}
-          NPM_NAME: ${{ steps.meta.outputs.npm_name }}
         run: |
           set -euo pipefail
-          URL="https://registry.npmjs.org/${NPM_NAME}/-/${NPM_NAME}-${VERSION}.tgz"
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
-          # Allow a few retries — the registry CDN can lag.
-          for attempt in 1 2 3 4 5 6; do
-            if curl -fsSL "$URL" -o /tmp/pkg.tgz; then break; fi
-            echo "Tarball not yet available (attempt $attempt) — retrying in 5s..."
-            sleep 5
+          URL="https://github.com/${{ github.repository }}/archive/refs/tags/v${VERSION}.tar.gz"
+          # GitHub serves these on-demand once the tag exists — should be instant
+          # but a few retries are cheap insurance.
+          for i in 1 2 3 4 5 6; do
+            if curl -fsSL "$URL" -o /tmp/src.tar.gz; then break; fi
+            echo "Tarball not yet available (attempt $i) — retrying in 3s..."
+            sleep 3
           done
-          if [ ! -s /tmp/pkg.tgz ]; then
+          if [ ! -s /tmp/src.tar.gz ]; then
             echo "::error::Could not fetch $URL"
             exit 1
           fi
-          SHA="$(sha256sum /tmp/pkg.tgz | awk '{print $1}')"
-          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          SHA="$(sha256sum /tmp/src.tar.gz | awk '{print $1}')"
+          echo "url=$URL"       >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA"    >> "$GITHUB_OUTPUT"
           echo "sha256: $SHA"
 
       - name: Patch local Formula/scope.rb
@@ -126,10 +120,4 @@ jobs:
             ```
             brew install briannadoubt/tap/scope
             brew upgrade scope
-            ```
-
-            Or with npm:
-
-            ```
-            npm install -g ${{ steps.meta.outputs.npm_name }}
             ```

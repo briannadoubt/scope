@@ -10,14 +10,13 @@
 #   3. Pushes the commit and tag.
 #
 # What the GitHub Actions workflow then does (.github/workflows/release.yml):
-#   1. Publishes to npm (with provenance).
-#   2. Computes sha256 of the published tarball.
-#   3. Patches Formula/scope.rb (url + sha256) and pushes it into
-#      briannadoubt/homebrew-tap.
-#   4. Creates a GitHub release with auto-generated notes.
+#   1. Verifies the tag matches package.json.
+#   2. Fetches the GitHub source tarball, computes sha256.
+#   3. Patches Formula/scope.rb (url + sha256).
+#   4. Pushes the formula into briannadoubt/homebrew-tap.
+#   5. Creates a GitHub release with auto-generated notes.
 #
-# Required GitHub repo secrets (set once):
-#   NPM_TOKEN                  npm automation token (Publish scope)
+# Required GitHub repo secret (set once):
 #   HOMEBREW_TAP_DEPLOY_KEY    SSH private key; its pubkey is a write-enabled
 #                              deploy key on briannadoubt/homebrew-tap
 
@@ -47,7 +46,6 @@ if [[ "$BRANCH" != "main" ]]; then
 fi
 
 step "Bumping version ($BUMP) and tagging"
-# npm version creates a commit AND a tag in one go.
 NEW_VERSION="$(npm version "$BUMP" -m "Release v%s")"
 green "Version is now $NEW_VERSION"
 
@@ -56,13 +54,12 @@ git push origin "$BRANCH" --follow-tags
 
 green ""
 green "✓ Pushed $NEW_VERSION. GitHub Actions will now:"
-echo "    • publish to npm"
-echo "    • compute sha256"
+echo "    • fetch the source tarball and compute its sha256"
 echo "    • update Formula/scope.rb in briannadoubt/homebrew-tap"
 echo "    • create a GitHub release"
 echo ""
 yellow "Follow progress:"
-echo "    gh run watch -R briannadoubt/scope"
+echo "    gh run watch --repo briannadoubt/scope"
 echo ""
 yellow "Once it's done, users install with:"
 echo "    brew install briannadoubt/tap/scope"
