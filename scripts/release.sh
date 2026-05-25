@@ -16,6 +16,8 @@
 #   - npm logged in: `npm whoami`
 #   - clean working tree
 #   - origin remote set: github.com/briannadoubt/scope
+#   - tap repo cloned somewhere local: github.com/briannadoubt/homebrew-tap
+#     (override location with SCOPE_TAP_DIR=/path/to/homebrew-tap)
 #
 # This script does NOT push to git or to the tap repo — those are the last
 # manual steps so you stay in control.
@@ -91,20 +93,44 @@ git commit -m "Formula: bump to v$NEW_VERSION ($SHA256)"
 green ""
 green "✓ Released v$NEW_VERSION to npm"
 green ""
+
+# 6. optionally sync the formula straight into a local clone of the tap
+TAP_DIR="${SCOPE_TAP_DIR:-}"
+if [[ -z "$TAP_DIR" ]]; then
+  # try a couple of common locations
+  for candidate in "$HOME/dev/homebrew-tap" "$HOME/code/homebrew-tap" "$HOME/src/homebrew-tap" "$HOME/projects/homebrew-tap"; do
+    if [[ -d "$candidate/.git" ]]; then TAP_DIR="$candidate"; break; fi
+  done
+fi
+if [[ -n "$TAP_DIR" && -d "$TAP_DIR/.git" ]]; then
+  step "Syncing formula into $TAP_DIR"
+  mkdir -p "$TAP_DIR/Formula"
+  cp "$FORMULA" "$TAP_DIR/Formula/scope.rb"
+  (
+    cd "$TAP_DIR"
+    git add Formula/scope.rb
+    git commit -m "scope v$NEW_VERSION" || yellow "(nothing to commit in tap)"
+  )
+  yellow "Tap commit ready. To push: (cd $TAP_DIR && git push)"
+else
+  yellow "No local clone of briannadoubt/homebrew-tap found."
+  echo "  Set SCOPE_TAP_DIR to your tap clone, or copy the formula manually:"
+  echo "    cp $FORMULA /path/to/homebrew-tap/Formula/scope.rb"
+fi
+
 yellow "Next steps (manual):"
 echo "  1. Push the source repo:"
 echo "       git push origin main --follow-tags"
 echo ""
-echo "  2. Update the tap repo (github.com/briannadoubt/homebrew-scope):"
-echo "       cp $FORMULA /path/to/homebrew-scope/Formula/scope.rb"
-echo "       cd /path/to/homebrew-scope"
-echo "       git add Formula/scope.rb"
-echo "       git commit -m 'scope v$NEW_VERSION'"
-echo "       git push"
+echo "  2. Push the tap (if it was synced above):"
+echo "       cd \${SCOPE_TAP_DIR:-/path/to/homebrew-tap} && git push"
 echo ""
 echo "  3. Users install with:"
-echo "       brew tap briannadoubt/scope"
+echo "       brew tap briannadoubt/tap"
 echo "       brew install scope"
 echo ""
-echo "     Or upgrade with:"
+echo "     Or in one shot:"
+echo "       brew install briannadoubt/tap/scope"
+echo ""
+echo "     Upgrades:"
 echo "       brew upgrade scope"
