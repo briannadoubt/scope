@@ -61,30 +61,32 @@ handful of common commands. See [`scope.md`](./scope.md) for the canonical
 text — the per-tool files are mostly the same content with different
 frontmatter.
 
-## Don't forget the actual tool
+## Wiring the MCP server
 
-Skills tell an agent *how* to use Scope; the agent still needs Scope
-installed:
-
-```bash
-brew install briannadoubt/tap/scope
-```
-
-For MCP, add this to the agent's MCP config (`~/.claude.json`, Cursor MCP
-settings, or `~/.codex/config.toml`):
+Skills tell an agent *how* to use Scope. To give it the tools, add an MCP
+server entry to its config (`~/.claude.json`, `~/.codex/config.toml`, Cursor
+MCP settings, etc.). **Zero install** — `npx` fetches scope on first use:
 
 ```json
 {
   "mcpServers": {
     "scope": {
-      "command": "scope",
-      "args": ["mcp"]
+      "command": "npx",
+      "args": ["-y", "scope-kanban", "mcp"]
     }
   }
 }
 ```
 
-Or, for a shared HTTP MCP endpoint (run `scope serve` somewhere first):
+The web UI comes up automatically on `http://localhost:4321` whenever an
+MCP process starts, so you can watch the board move in real time. If the
+port is taken (multiple agents registered), they all share the first one's
+UI. Pass `--no-ui` to opt out.
+
+Prefer the brew install? Replace `command` with `scope` and `args` with
+`["mcp"]`.
+
+For a single shared HTTP endpoint across many agents:
 
 ```json
 {
@@ -96,3 +98,5 @@ Or, for a shared HTTP MCP endpoint (run `scope serve` somewhere first):
   }
 }
 ```
+
+(Run `scope serve` once on the host machine first.)

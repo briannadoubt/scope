@@ -798,19 +798,92 @@ export function buildProgram() {
   program
     .command('mcp')
     .description(
-      'Run scope as a Model Context Protocol server over stdio. Register this in your MCP client.'
+      'Run scope as a Model Context Protocol server over stdio. By default also brings up the web UI on a local port so you (and other agents) can see what is happening.'
     )
     .option(
       '--scope-dir <path>',
       'override the .scope directory (else uses $SCOPE_DIR or walks up from CWD)'
     )
     .option('--auto-init', 'create the .scope directory if it does not exist', false)
+    .option('--no-ui', "don't start the local web UI")
+    .option(
+      '-p, --port <port>',
+      'port for the web UI; silently skipped if already in use',
+      '4321'
+    )
+    .option('--open', 'open the UI in a browser after startup', false)
     .action(async (opts) => {
-      const { runMcpStdio } = await import('./mcp.js');
+      const port = Number.parseInt(opts.port, 10);
+
+      // Open the DB once and share it between the (optional) UI and the
+      // stdio MCP server. Both speak to the same WAL-mode SQLite file.
+      let scopeDir = opts.scopeDir
+        ? resolve(opts.scopeDir)
+        : findScopeDir();
+      if (!scopeDir) {
+        if (opts.autoInit) {
+          scopeDir = defaultScopeDir();
+          mkdirSync(scopeDir, { recursive: true });
+        } else {
+          process.stderr.write(
+            chalk.red(
+              `No ${SCOPE_DIR_NAME}/ found. Run \`scope init\`, pass --scope-dir, ` +
+                `set $SCOPE_DIR, or rerun with --auto-init.\n`
+            )
+          );
+          process.exit(1);
+        }
+      }
+      const db = openDb(scopeDir);
+
+      // Try to bring up the web UI alongside the stdio MCP. If the port is
+      // taken (another `scope mcp`/`scope serve` is already hosting), skip
+      // silently — the first one wins, everyone else just speaks MCP.
+      let httpServer = null;
+      if (opts.ui !== false) {
+        try {
+          httpServer = await startServer({
+            db,
+            scopeDir,
+            port,
+            open: opts.open,
+            mcpFactory: null,
+            serveUi: true,
+            quiet: true,
+          });
+        } catch (e) {
+          if (e?.code === 'EADDRINUSE') {
+            process.stderr.write(
+              chalk.gray(
+                `scope ui already running at http://localhost:${port} — sharing it.\n`
+              )
+            );
+          } else {
+            process.stderr.write(
+              chalk.yellow(`Could not start UI: ${e.message}\n`)
+            );
+          }
+        }
+      }
+
+      // Start the stdio MCP server. This takes over stdin/stdout.
+      const { buildMcpServer } = await import('./mcp.js');
+      const { StdioServerTransport } = await import(
+        '@modelcontextprotocol/sdk/server/stdio.js'
+      );
       try {
-        await runMcpStdio({ scopeDir: opts.scopeDir, autoInit: opts.autoInit });
+        const { server: mcpServer } = buildMcpServer({ db, scopeDir });
+        const transport = new StdioServerTransport();
+        await mcpServer.connect(transport);
+        // When the stdio peer disconnects, tear the UI down too.
+        const shutdown = () => {
+          try { httpServer?.close(); } catch {}
+        };
+        process.stdin.on('end', shutdown);
+        process.stdin.on('close', shutdown);
       } catch (e) {
-        console.error(chalk.red(e.message || String(e)));
+        process.stderr.write(chalk.red(e.message || String(e)) + '\n');
+        if (httpServer) httpServer.close();
         process.exit(1);
       }
     });

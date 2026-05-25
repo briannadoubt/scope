@@ -50,7 +50,14 @@ export function startServer({
   open: openBrowser,
   mcpFactory,
   serveUi = true,
+  // When true, route banner output to stderr instead of stdout. Required when
+  // sharing a process with `scope mcp` (stdio), since stdout is the JSON-RPC
+  // wire and any non-protocol writes break the channel.
+  quiet = false,
 }) {
+  const log = quiet
+    ? (...args) => process.stderr.write(args.join(' ') + '\n')
+    : (...args) => process.stdout.write(args.join(' ') + '\n');
   const app = express();
   app.use(express.json({ limit: '5mb' }));
 
@@ -272,23 +279,25 @@ export function startServer({
     });
   }
 
-  return new Promise((resolve) => {
-    const server = app.listen(port, () => {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port);
+    server.once('listening', () => {
       const url = `http://localhost:${port}`;
       if (serveUi) {
-        console.log(chalk.green('✓') + ` scope ui running at ${chalk.bold(url)}`);
+        log(chalk.green('✓') + ` scope ui running at ${chalk.bold(url)}`);
       }
       if (mcpFactory) {
-        console.log(
+        log(
           chalk.green('✓') +
             ` scope mcp endpoint at ${chalk.bold(url + '/mcp')} (streamable HTTP, stateless)`
         );
       }
-      console.log(chalk.gray(`  db: ${scopeDir}`));
-      console.log(chalk.gray('  press Ctrl-C to stop'));
+      log(chalk.gray(`  db: ${scopeDir}`));
+      if (!quiet) log(chalk.gray('  press Ctrl-C to stop'));
       if (openBrowser && serveUi) open(url).catch(() => {});
       resolve(server);
     });
+    server.once('error', (err) => reject(err));
   });
 }
 

@@ -61,21 +61,33 @@ The little dot next to the refresh button is your live indicator:
 `scope` exposes itself over MCP so agents can call typed tools instead of
 shelling out. Two transports:
 
-### Stdio (single agent, subprocess)
+### Stdio (zero install — recommended)
 
-Register `scope mcp` as a subprocess in your agent's config.
+`npx` fetches scope on first use and caches it. **The web UI comes up
+automatically** on http://localhost:4321 alongside the stdio MCP, so you can
+watch tickets move in real time as the agent works. If the port is already in
+use (e.g. you have multiple agents registered), the rest silently share the
+first one's UI.
 
 ```jsonc
 // ~/.claude.json, ~/.codex/config.toml (TOML equiv), Cursor MCP, etc.
 {
   "mcpServers": {
     "scope": {
-      "command": "scope",
-      "args": ["mcp"]
+      "command": "npx",
+      "args": ["-y", "scope-kanban", "mcp"]
     }
   }
 }
 ```
+
+Already have scope installed via brew? Drop the `npx -y` and use `scope` directly:
+
+```jsonc
+{ "mcpServers": { "scope": { "command": "scope", "args": ["mcp"] } } }
+```
+
+Want no UI from MCP processes? `"args": ["-y", "scope-kanban", "mcp", "--no-ui"]`.
 
 ### HTTP (multi-agent + UI in one process)
 
@@ -157,7 +169,7 @@ Ticket IDs look like `MA-3` (project key + number).
 | `scope board [-p <key>] [--epic <id>]` | Terminal kanban view |
 | `scope ui [-p <port>]` | Web UI only |
 | `scope serve [-p <port>] [--no-ui] [--no-mcp]` | UI + HTTP MCP |
-| `scope mcp` | Stdio MCP server |
+| `scope mcp [--no-ui] [-p <port>] [--open]` | Stdio MCP server. Also auto-starts the web UI on port 4321 (silent skip if taken). |
 | `scope skills install [--tool ...] [--project ...]` | Install agent skill |
 
 Every command accepts `--json` for machine-readable output.
