@@ -1,9 +1,17 @@
 import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
+
+const PKG = JSON.parse(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'),
+    'utf8'
+  )
+);
 import {
   openDb,
   findScopeDir,
@@ -116,7 +124,7 @@ export function buildProgram() {
     .description(
       'Local-first kanban for projects, epics, stories, and bugs. Built for agents.'
     )
-    .version('0.1.0')
+    .version(PKG.version)
     .option('--json', 'output JSON instead of pretty text', false);
 
   /* ---------- init ---------- */
