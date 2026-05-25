@@ -6,7 +6,9 @@ class Scope < Formula
   license "MIT"
   head "https://github.com/briannadoubt/scope.git", branch: "main"
 
-  depends_on "node"
+  # Pin to LTS so prebuilt better-sqlite3 binaries are available. Latest "node"
+  # tracks the active branch (currently 26.x), which native modules lag behind.
+  depends_on "node@22"
 
   def install
     # Install runtime dependencies in-place. --omit=dev keeps the install small;
@@ -19,7 +21,7 @@ class Scope < Formula
     # Expose the CLI on PATH
     (bin/"scope").write <<~SH
       #!/bin/bash
-      exec "#{Formula["node"].opt_bin}/node" "#{libexec}/bin/scope.js" "$@"
+      exec "#{Formula["node@22"].opt_bin}/node" "#{libexec}/bin/scope.js" "$@"
     SH
     chmod 0755, bin/"scope"
   end
