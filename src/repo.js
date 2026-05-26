@@ -338,6 +338,61 @@ export function listHistory(db, ticketId) {
     .all(ticketId);
 }
 
+/**
+ * Project-scoped history feed, newest first, with cursor-based pagination.
+ *
+ * @param {object} db
+ * @param {string} projectIdOrKey
+ * @param {object} [opts]
+ * @param {number} [opts.limit=100]  - max rows to return (clamped to 1..500)
+ * @param {string} [opts.before]     - ISO timestamp; only rows with
+ *                                     changed_at strictly before this cursor.
+ *                                     Use the last row's changed_at to paginate.
+ * @returns {Array<{
+ *   id: number,
+ *   ticket_id: string,
+ *   ticket_title: string,
+ *   ticket_type: string,
+ *   field: string,
+ *   old_value: string|null,
+ *   new_value: string|null,
+ *   changed_by: string|null,
+ *   changed_at: string,
+ * }>}
+ */
+export function listProjectHistory(db, projectIdOrKey, opts = {}) {
+  const project = getProject(db, projectIdOrKey);
+  if (!project) throw new Error(`Project not found: ${projectIdOrKey}`);
+  const rawLimit = Number(opts.limit);
+  const limit = Number.isFinite(rawLimit)
+    ? Math.max(1, Math.min(500, Math.floor(rawLimit)))
+    : 100;
+  const params = [project.id];
+  let where = 'WHERE t.project_id = ?';
+  if (opts.before) {
+    // Tuple cursor: rows strictly "older" than (changed_at, id) in the
+    // composite (changed_at DESC, id DESC) order. Including id as a
+    // tiebreaker avoids losing rows that share a millisecond timestamp
+    // (very common when several updates happen in the same tick).
+    where += ' AND (h.changed_at < ? OR (h.changed_at = ? AND h.id < ?))';
+    params.push(String(opts.before), String(opts.before));
+    const beforeId = Number(opts.beforeId);
+    params.push(Number.isFinite(beforeId) ? beforeId : Number.MAX_SAFE_INTEGER);
+  }
+  params.push(limit);
+  return db
+    .prepare(
+      `SELECT h.id, h.ticket_id, t.title AS ticket_title, t.type AS ticket_type,
+              h.field, h.old_value, h.new_value, h.changed_by, h.changed_at
+       FROM ticket_history h
+       JOIN tickets t ON t.id = h.ticket_id
+       ${where}
+       ORDER BY h.changed_at DESC, h.id DESC
+       LIMIT ?`
+    )
+    .all(...params);
+}
+
 /* ---------------- epic helpers ---------------- */
 
 export function listEpicChildren(db, epicId) {
