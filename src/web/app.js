@@ -1094,6 +1094,10 @@ function groupKey(t, groupBy, epicById) {
         },
       };
     }
+    // Orphan bugs get their own catch-all lane so they don't drown in the
+    // (no epic) bucket alongside unrelated stories. Drive-by reports without
+    // a home are easier to triage when they're visually grouped.
+    if (t.type === 'bug') return { key: '__bugs', label: 'Random Bugs' };
     return { key: '__none', label: '(no epic)' };
   }
   if (groupBy === 'assignee') {
@@ -1130,10 +1134,14 @@ function laneSorter(groupBy) {
     const order = { epic: 0, story: 1, bug: 2, __none: 99 };
     return (a, b) => (order[a.key] ?? 50) - (order[b.key] ?? 50);
   }
-  // epic / assignee / default: '__none' sinks to the bottom, others alpha
+  // epic / assignee / default: catch-all lanes sink to the bottom — __bugs
+  // (orphan bugs) just above __none (everything else without a parent), so
+  // real epic lanes stay sorted alphabetically up top.
+  const sinkOrder = (k) => (k === '__none' ? 2 : k === '__bugs' ? 1 : 0);
   return (a, b) => {
-    if (a.key === '__none' && b.key !== '__none') return 1;
-    if (b.key === '__none' && a.key !== '__none') return -1;
+    const sa = sinkOrder(a.key);
+    const sb = sinkOrder(b.key);
+    if (sa !== sb) return sa - sb;
     return String(a.label).localeCompare(String(b.label));
   };
 }
