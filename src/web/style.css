@@ -103,6 +103,50 @@ button { font-family: inherit; }
 .trigger.active .t-label { color: var(--accent); }
 .trigger.active .t-icon  { color: var(--accent); }
 
+/* Toggle switch — labelled iOS-style slider used in the topbar. */
+.switch-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.switch-field:hover { color: var(--text); }
+.switch { position: relative; display: inline-block; width: 32px; height: 18px; }
+.switch input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; margin: 0; cursor: pointer;
+}
+.switch-track {
+  position: absolute; inset: 0;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  transition: background 120ms, border-color 120ms;
+}
+.switch-thumb {
+  position: absolute; top: 1px; left: 1px;
+  width: 14px; height: 14px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1), background 120ms;
+}
+.switch input:checked + .switch-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.switch input:checked + .switch-track .switch-thumb {
+  background: #fff;
+  transform: translateX(14px);
+}
+.switch input:focus-visible + .switch-track {
+  box-shadow: 0 0 0 2px rgba(124, 106, 247, 0.4);
+}
+
 /* Breadcrumb — workspace › project as a single trigger. The labels shrink
    with ellipsis so the bar never grows or wraps on narrow widths. */
 .breadcrumb { padding-left: 8px; }
@@ -405,6 +449,19 @@ button { font-family: inherit; }
   font-size: 11px;
   margin-left: auto;
 }
+.lane-open-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 120ms, background 120ms;
+}
+.lane-open-btn:hover { opacity: 1; background: var(--bg-elev-2); }
 .lane-progress {
   width: 120px; height: 4px;
   background: var(--bg-elev-2);
@@ -480,6 +537,18 @@ button { font-family: inherit; }
   padding-right: 2px;
 }
 .column.drop-target { box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* Brief highlight on cards moved by another client (SSE). Local drags don't
+   get this — the user already knows they moved that card themselves. */
+.card.just-moved { animation: card-just-moved 2.2s ease-out; }
+@keyframes card-just-moved {
+  0%   { box-shadow: 0 0 0 2px var(--accent), 0 0 18px 4px rgba(124, 106, 247, 0.6); border-color: var(--accent); }
+  60%  { box-shadow: 0 0 0 2px var(--accent), 0 0 14px 3px rgba(124, 106, 247, 0.4); border-color: var(--accent); }
+  100% { box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.just-moved { animation: none; box-shadow: 0 0 0 2px var(--accent); }
+}
 
 /* status dots */
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
@@ -732,3 +801,149 @@ button { font-family: inherit; }
 .overview .epic-card:hover { border-color: #444c56; }
 .overview .epic-card .epic-title { font-weight: 600; margin: 4px 0 6px; }
 .overview .epic-card .epic-stats { font-size: 11px; color: var(--text-muted); }
+
+/* ------------- toasts ------------- */
+#toast-root {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  z-index: 10000;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 360px;
+  padding: 10px 12px 10px 14px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-muted);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast-error  { border-left-color: var(--red); }
+.toast-info   { border-left-color: var(--accent); }
+.toast-close {
+  background: transparent;
+  border: 0;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+  margin-left: auto;
+}
+.toast-close:hover { color: var(--text); }
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: opacity 80ms; transform: none; }
+  .toast.show { transform: none; }
+}
+
+/* ------------- markdown description ------------- */
+.description-section { margin-top: 12px; }
+.description-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.description-head h3 { margin: 0; }
+.description-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius);
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.description-toggle:hover { color: var(--text); background: var(--bg-elev-2); }
+.description-preview {
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  min-height: 60px;
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: text;
+}
+.description-preview[data-empty="true"] { padding: 8px 12px; min-height: 0; }
+.description-preview .muted { color: var(--text-dim); margin: 0; font-style: italic; }
+.description-preview h1,
+.description-preview h2,
+.description-preview h3 { margin: 12px 0 6px; font-weight: 600; }
+.description-preview h1 { font-size: 18px; }
+.description-preview h2 { font-size: 15px; }
+.description-preview h3 { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.description-preview p { margin: 6px 0; }
+.description-preview p:first-child { margin-top: 0; }
+.description-preview p:last-child { margin-bottom: 0; }
+.description-preview ul,
+.description-preview ol { margin: 6px 0; padding-left: 22px; }
+.description-preview li { margin: 2px 0; }
+.description-preview code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: var(--bg-elev-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.description-preview pre {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.description-preview pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+}
+.description-preview a { color: var(--accent); text-decoration: none; }
+.description-preview a:hover { text-decoration: underline; }
+.description-preview strong { font-weight: 600; }
+.description-preview em { font-style: italic; }
+
+/* ------------- mermaid ------------- */
+.mermaid-diagram {
+  margin: 10px 0;
+  text-align: center;
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 12px;
+  overflow-x: auto;
+}
+.mermaid-diagram svg { max-width: 100%; height: auto; }
+.mermaid-offline,
+.mermaid-error {
+  position: relative;
+}
+.mermaid-offline::before,
+.mermaid-error::before {
+  content: attr(data-note);
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.mermaid-error::before { color: var(--red); }

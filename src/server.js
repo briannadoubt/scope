@@ -1,8 +1,10 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { networkInterfaces } from 'node:os';
 import open from 'open';
 import chalk from 'chalk';
+import Bonjour from 'bonjour-service';
 import { bus, wsContext } from './events.js';
 import {
   createProject,
@@ -28,6 +30,7 @@ import {
   SCHEMA_RELATION_TYPES,
 } from './repo.js';
 import { WorkspaceManager } from './workspaces.js';
+import { loadOrCreateToken, authMiddleware, lanHosts } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -56,10 +59,14 @@ export function startServer({
   port,
   open: openBrowser,
   quiet = false,
+  silent = false,
+  discoverable = true,
 }) {
-  const log = quiet
-    ? (...args) => process.stderr.write(args.join(' ') + '\n')
-    : (...args) => process.stdout.write(args.join(' ') + '\n');
+  const log = silent
+    ? () => {}
+    : quiet
+      ? (...args) => process.stderr.write(args.join(' ') + '\n')
+      : (...args) => process.stdout.write(args.join(' ') + '\n');
 
   const mgr = workspaces ?? new WorkspaceManager();
   // Always rehydrate persisted workspaces first so the UI sees them.
@@ -68,7 +75,9 @@ export function startServer({
   // the registry — idempotent for already-known dirs.
   if (scopeDir) mgr.attach(scopeDir);
 
+  const token = loadOrCreateToken();
   const app = express();
+  app.use(authMiddleware({ token, allowedHosts: lanHosts() }));
   app.use(express.json({ limit: '5mb' }));
 
   /* ---------- workspace helpers ---------- */
@@ -290,20 +299,59 @@ export function startServer({
   });
 
   return new Promise((resolve, reject) => {
-    const server = app.listen(port);
+    const server = app.listen(port, '0.0.0.0');
     server.once('listening', () => {
-      const url = `http://localhost:${port}`;
-      log(chalk.green('✓') + ` scope running at ${chalk.bold(url)}`);
+      const actualPort = server.address().port;
+      const localUrl = `http://localhost:${actualPort}`;
+      const lanIp = pickLanIp();
+      // Bonjour holds the event loop open and opens UDP multicast sockets, so
+      // tests pass discoverable: false to skip it. In prod, the default flow
+      // publishes both the scope.local hostname and the _scope._tcp service.
+      const bonjour = discoverable ? new Bonjour() : null;
+      const advert = bonjour
+        ? bonjour.publish({
+            name: 'scope',
+            host: 'scope.local',
+            type: 'scope',
+            protocol: 'tcp',
+            port: actualPort,
+            txt: { path: '/', auth: 'bearer' },
+          })
+        : null;
+      const prettyUrl = `http://scope.local:${port}`;
+      const bookmarkUrl = `${prettyUrl}/?token=${token}`;
+      log(chalk.green('✓') + ` scope running at ${chalk.bold(prettyUrl)}`);
+      log(chalk.gray(`  also: ${localUrl}${lanIp ? `  •  http://${lanIp}:${port}` : ''}`));
+      log(chalk.yellow('  ↳ bookmark this URL once (sets an auth cookie):'));
+      log('    ' + chalk.bold(bookmarkUrl));
       const list = mgr.list();
       log(chalk.gray(`  workspaces: ${list.length}`));
       for (const w of list) {
         log(chalk.gray(`    • ${w.label}  ${chalk.dim(w.scope_dir)}`));
       }
       if (!quiet) log(chalk.gray('  press Ctrl-C to stop'));
-      if (openBrowser) open(url).catch(() => {});
+      if (openBrowser) open(bookmarkUrl).catch(() => open(localUrl + `/?token=${token}`).catch(() => {}));
       server._workspaces = mgr;
+      server._bonjour = bonjour;
+      server._bonjourAdvert = advert;
+      const origClose = server.close.bind(server);
+      server.close = (cb) => {
+        try { advert?.stop?.(); } catch {}
+        try { bonjour?.unpublishAll(() => bonjour.destroy()); } catch {}
+        return origClose(cb);
+      };
       resolve(server);
     });
     server.once('error', (err) => reject(err));
   });
+}
+
+function pickLanIp() {
+  const ifs = networkInterfaces();
+  for (const list of Object.values(ifs)) {
+    for (const i of list || []) {
+      if (i.family === 'IPv4' && !i.internal) return i.address;
+    }
+  }
+  return null;
 }

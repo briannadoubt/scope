@@ -21,6 +21,13 @@
         <span class="caret" aria-hidden="true">▾</span>
       </button>
       <span class="topbar-spacer"></span>
+      <label class="switch-field" title="Auto-scroll to ticket on remote moves">
+        <span class="switch-label">Auto-scroll</span>
+        <span class="switch">
+          <input id="autoscroll-toggle" type="checkbox" checked />
+          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+        </span>
+      </label>
       <span id="live-indicator" class="live-dot" title="Live updates active"></span>
       <button id="overflow-trigger" class="trigger icon" type="button" title="More">⋯</button>
       <button id="new-ticket" class="btn primary" type="button">
@@ -35,6 +42,7 @@
     </aside>
 
     <div id="modal-root"></div>
+    <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
 
     <template id="card-template">
       <article class="card" draggable="true">

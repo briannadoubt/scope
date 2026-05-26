@@ -12,6 +12,7 @@ const state = {
   drawerTicketId: null,
   groupBy: localStorage.getItem('scope.groupBy') || 'none',
   showDoneEpics: localStorage.getItem('scope.showDoneEpics') === 'true',
+  autoScroll: localStorage.getItem('scope.autoScroll') !== 'false',
   allEpics: [],
   collapsedLanes: new Set(
     JSON.parse(localStorage.getItem('scope.collapsedLanes') || '[]')
@@ -127,8 +128,13 @@ async function refresh() {
   if (!state.currentProject) return renderEmpty();
   await loadEpicsForFilter();
   if (state.view === 'overview') return renderOverview();
+  const oldPositions = captureCardPositions();
+  const oldBoard = state.board;
   await loadBoard();
   renderBoard();
+  animateCardMoves(oldPositions);
+  burstConfettiForNewDone(oldBoard, state.board);
+  if (state.autoScroll) scrollToMovedCards(findMovedTicketIds(oldBoard, state.board), 380);
 }
 
 async function loadEpicsForFilter() {
@@ -150,6 +156,109 @@ async function loadBoard() {
   lastBoardHash = hashBoard(state.board);
 }
 
+/* ------------- mermaid ------------- */
+
+// Lazy-load mermaid only when a description actually contains a mermaid fence.
+// Cached as a Promise so concurrent renders share one network round-trip.
+let _mermaidPromise = null;
+function loadMermaid() {
+  if (_mermaidPromise) return _mermaidPromise;
+  _mermaidPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.type = 'module';
+    // Pinned version so a CDN change can't break diagrams unannounced.
+    script.textContent = `
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
+      window.__mermaid = mermaid;
+      window.dispatchEvent(new Event('__mermaid-ready'));
+    `;
+    const onReady = () => { window.removeEventListener('__mermaid-ready', onReady); resolve(window.__mermaid); };
+    window.addEventListener('__mermaid-ready', onReady);
+    script.addEventListener('error', () => reject(new Error('Failed to load mermaid')));
+    document.head.appendChild(script);
+    // Failsafe timeout — if the CDN is unreachable the fences degrade to source.
+    setTimeout(() => {
+      if (!window.__mermaid) reject(new Error('mermaid load timeout'));
+    }, 8000);
+  }).catch((err) => { _mermaidPromise = null; throw err; });
+  return _mermaidPromise;
+}
+
+/**
+ * Find any rendered fenced blocks tagged `mermaid` inside `root` and replace
+ * each with the rendered SVG. Runs after renderMarkdown has produced
+ * `<pre><code class="lang-mermaid">...</code></pre>`. Falls back gracefully
+ * when the CDN is unreachable.
+ */
+async function hydrateMermaid(root) {
+  if (!root) return;
+  const blocks = root.querySelectorAll('pre > code.lang-mermaid');
+  if (!blocks.length) return;
+  let mermaid;
+  try { mermaid = await loadMermaid(); }
+  catch {
+    for (const code of blocks) {
+      const pre = code.parentElement;
+      pre.classList.add('mermaid-offline');
+      pre.setAttribute('data-note', 'mermaid (offline — showing source)');
+    }
+    return;
+  }
+  let idx = 0;
+  for (const code of blocks) {
+    const pre = code.parentElement;
+    if (!pre || pre.dataset.rendered === '1') continue;
+    const src = code.textContent;
+    const id = `mmd-${Date.now()}-${idx++}`;
+    try {
+      const { svg } = await mermaid.render(id, src);
+      const wrap = document.createElement('div');
+      wrap.className = 'mermaid-diagram';
+      wrap.innerHTML = svg;
+      pre.replaceWith(wrap);
+    } catch (err) {
+      pre.classList.add('mermaid-error');
+      pre.setAttribute('data-note', `mermaid: ${err.message || 'parse error'}`);
+      pre.dataset.rendered = '1';
+    }
+  }
+}
+
+/* ------------- toasts ------------- */
+
+/**
+ * Show an inline toast. Replaces window.alert() so transient errors don't
+ * block the UI thread (or trap focus). Stacks vertically in the bottom-right.
+ * variant: 'error' (default) | 'info'.
+ */
+function toast(message, { variant = 'error', timeout = 4500 } = {}) {
+  const root = document.getElementById('toast-root');
+  if (!root) return;
+  const el = document.createElement('div');
+  el.className = `toast toast-${variant}`;
+  el.setAttribute('role', variant === 'error' ? 'alert' : 'status');
+  el.textContent = String(message ?? '');
+  const close = document.createElement('button');
+  close.className = 'toast-close';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.textContent = '×';
+  close.addEventListener('click', () => dismiss());
+  el.appendChild(close);
+  root.appendChild(el);
+  // Force a reflow so the enter transition plays.
+  void el.offsetHeight;
+  el.classList.add('show');
+  let timer = setTimeout(dismiss, timeout);
+  function dismiss() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    el.classList.remove('show');
+    el.addEventListener('transitionend', () => el.remove(), { once: true });
+    // Belt-and-suspenders for environments where transitionend may not fire.
+    setTimeout(() => el.remove(), 600);
+  }
+}
+
 /* ------------- topbar ------------- */
 
 function bindTopbar() {
@@ -157,6 +266,12 @@ function bindTopbar() {
   document.getElementById('breadcrumb-trigger').addEventListener('click', openBreadcrumbPopover);
   document.getElementById('view-trigger').addEventListener('click', openViewPopover);
   document.getElementById('overflow-trigger').addEventListener('click', openOverflowMenu);
+  const autoInput = document.getElementById('autoscroll-toggle');
+  autoInput.checked = state.autoScroll;
+  autoInput.addEventListener('change', () => {
+    state.autoScroll = autoInput.checked;
+    localStorage.setItem('scope.autoScroll', state.autoScroll ? 'true' : 'false');
+  });
   startEventStream();
 }
 
@@ -535,10 +650,17 @@ function scheduleRefresh(_detail) {
       const board = await api(`/api/board?${params}`);
       const hash = hashBoard(board);
       if (hash !== lastBoardHash) {
+        const oldPositions = captureCardPositions();
+        const oldBoard = state.board;
         lastBoardHash = hash;
         state.board = board;
         renderBoard();
         flashIndicator('tick');
+        animateCardMoves(oldPositions);
+        burstConfettiForNewDone(oldBoard, state.board);
+        const moved = findMovedTicketIds(oldBoard, state.board);
+        if (state.autoScroll) scrollToMovedCards(moved, 380);
+        highlightMovedCards(moved);
       }
     } catch {
       /* next event will retry */
@@ -557,6 +679,171 @@ function hashBoard(board) {
   return parts.join('|');
 }
 
+/* ------------- animations ------------- */
+
+function captureCardPositions() {
+  const positions = new Map();
+  for (const card of document.querySelectorAll('.card')) {
+    positions.set(card.dataset.id, card.getBoundingClientRect());
+  }
+  return positions;
+}
+
+function animateCardMoves(oldPositions) {
+  if (!oldPositions || !oldPositions.size) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (const card of document.querySelectorAll('.card')) {
+    const id = card.dataset.id;
+    const oldRect = oldPositions.get(id);
+    if (!oldRect) continue;
+    const newRect = card.getBoundingClientRect();
+    const dx = oldRect.left - newRect.left;
+    const dy = oldRect.top - newRect.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+    card.style.transform = `translate(${dx}px, ${dy}px)`;
+    card.style.transition = 'none';
+    card.getBoundingClientRect(); // force layout
+    requestAnimationFrame(() => {
+      card.style.transition = 'transform 350ms cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+      card.style.transform = '';
+      card.addEventListener('transitionend', () => {
+        card.style.transition = '';
+      }, { once: true });
+    });
+  }
+}
+
+function findMovedTicketIds(oldBoard, newBoard) {
+  if (!oldBoard || !newBoard) return [];
+  const oldStatus = new Map();
+  for (const [status, tickets] of Object.entries(oldBoard.buckets || {})) {
+    for (const t of tickets) oldStatus.set(t.id, status);
+  }
+  const moved = [];
+  for (const [status, tickets] of Object.entries(newBoard.buckets || {})) {
+    for (const t of tickets) {
+      if (oldStatus.has(t.id) && oldStatus.get(t.id) !== status) moved.push(t.id);
+    }
+  }
+  return moved;
+}
+
+// Tickets whose SSE-driven move should still show the highlight. Tracked at
+// module scope so subsequent re-renders (triggered by unrelated SSE updates
+// like comment timestamps) re-apply the class instead of dropping it.
+const recentlyMovedIds = new Set();
+function highlightMovedCards(ids) {
+  if (!ids.length) return;
+  for (const id of ids) {
+    recentlyMovedIds.add(id);
+    setTimeout(() => {
+      recentlyMovedIds.delete(id);
+      const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+      if (card) card.classList.remove('just-moved');
+    }, 2400);
+  }
+  // Apply on the current DOM too (renderCard reads the set on subsequent renders).
+  setTimeout(() => {
+    for (const id of ids) {
+      const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+      if (!card) continue;
+      card.classList.remove('just-moved');
+      void card.offsetWidth;
+      card.classList.add('just-moved');
+    }
+  }, 360);
+}
+
+function scrollToMovedCards(ids, delay) {
+  if (!ids.length) return;
+  setTimeout(() => {
+    for (const id of ids) {
+      const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+      if (!card) continue;
+      // Clear any FLIP transform so getBoundingClientRect reads the final layout.
+      card.style.transform = '';
+      card.style.transition = '';
+      const rect = card.getBoundingClientRect();
+      // Vertical: scroll the window so the card sits in the viewport's middle.
+      const targetY = window.scrollY + rect.top - window.innerHeight / 2 + rect.height / 2;
+      window.scrollTo({ top: targetY, behavior: 'smooth' });
+      // Horizontal: scrollIntoView doesn't propagate reliably into containers
+      // with overflow-x:auto + overflow-y:visible, so walk up and scroll the
+      // first horizontal-overflow ancestor ourselves.
+      let h = card.parentElement;
+      while (h && h !== document.body) {
+        const cs = getComputedStyle(h);
+        const scrollsX = (cs.overflowX === 'auto' || cs.overflowX === 'scroll') && h.scrollWidth > h.clientWidth;
+        if (scrollsX) {
+          const hRect = h.getBoundingClientRect();
+          const targetX = h.scrollLeft + rect.left - hRect.left - h.clientWidth / 2 + rect.width / 2;
+          h.scrollTo({ left: targetX, behavior: 'smooth' });
+          break;
+        }
+        h = h.parentElement;
+      }
+      break;
+    }
+  }, delay);
+}
+
+function burstConfettiForNewDone(oldBoard, newBoard) {
+  if (!oldBoard || !newBoard) return;
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const oldDone = new Set((oldBoard.buckets?.done || []).map((t) => t.id));
+  const hasNew = (newBoard.buckets?.done || []).some((t) => !oldDone.has(t.id));
+  if (hasNew) burstConfetti();
+}
+
+function burstConfetti() {
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+
+  const COLORS = ['#7c6af7', '#54d0a0', '#f5a623', '#e05c5c', '#4aa8d8', '#f7d154'];
+  const particles = Array.from({ length: 28 }, (_, i) => ({
+    x: (i / 27) * canvas.width * 1.1 - canvas.width * 0.05 + (Math.random() - 0.5) * (canvas.width / 28) * 1.4,
+    y: -10 - Math.random() * 60,
+    vx: (Math.random() - 0.5) * 0.7,
+    vy: 0.5 + Math.random() * 0.7,
+    w: 7 + Math.random() * 6,
+    h: 3 + Math.random() * 3,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    rot: Math.random() * Math.PI * 2,
+    rotV: (Math.random() - 0.5) * 0.04,
+    life: 1,
+    decay: 0.002 + Math.random() * 0.002,
+  }));
+
+  function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = 0;
+    for (const p of particles) {
+      p.vy += 0.018; // very gentle gravity
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.rotV;
+      if (p.y > canvas.height + 20) { p.life = 0; }
+      p.life -= p.decay;
+      if (p.life <= 0) continue;
+      alive++;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, p.life * 3); // fade out only in last third
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    if (alive > 0) requestAnimationFrame(tick);
+    else canvas.remove();
+  }
+  requestAnimationFrame(tick);
+}
+
 /* ------------- board ------------- */
 
 function renderEmpty(msg) {
@@ -568,13 +855,30 @@ function renderEmpty(msg) {
 
 function renderBoard() {
   const root = document.getElementById('board');
+  // Capture scroll state before wiping. Without this the browser clamps
+  // window.scrollY to 0 the instant `root.innerHTML = ''` collapses the page,
+  // and any subsequent re-render leaves the user scrolled to the top.
+  const savedWindowY = window.scrollY;
+  const savedLaneScroll = new Map();
+  for (const lane of document.querySelectorAll('.lane-columns')) {
+    const key = lane.closest('.lane')?.dataset.group;
+    if (key != null) savedLaneScroll.set(key, lane.scrollLeft);
+  }
   root.style.display = '';
   root.innerHTML = '';
-  if (!state.board) return;
+  const restoreScroll = () => {
+    if (savedWindowY) window.scrollTo({ top: savedWindowY, behavior: 'instant' });
+    for (const lane of document.querySelectorAll('.lane-columns')) {
+      const key = lane.closest('.lane')?.dataset.group;
+      if (key != null && savedLaneScroll.has(key)) lane.scrollLeft = savedLaneScroll.get(key);
+    }
+  };
+  if (!state.board) { restoreScroll(); return; }
 
   if (state.groupBy === 'none') {
     root.classList.remove('swim');
     renderColumnRow(root, state.board.buckets, { showHeader: true });
+    restoreScroll();
     return;
   }
 
@@ -607,7 +911,14 @@ function renderBoard() {
            </div>`
         : ''}
       <span class="lane-count">${lane.count}</span>
+      ${isEpic ? '<button class="lane-open-btn" title="Open epic">↗</button>' : ''}
     `;
+    if (isEpic) {
+      head.querySelector('.lane-open-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDrawer(lane.epicId);
+      });
+    }
     head.addEventListener('click', (e) => {
       // Don't toggle when clicking inside the progress bar — leave a noop affordance
       if (e.target.closest('.lane-progress')) return;
@@ -622,6 +933,7 @@ function renderBoard() {
     section.appendChild(cols);
     root.appendChild(section);
   }
+  restoreScroll();
 }
 
 function renderColumnRow(parent, buckets, { showHeader, lane = null }) {
@@ -808,6 +1120,7 @@ function renderCard(t) {
   const node = tpl.content.cloneNode(true);
   const card = node.querySelector('.card');
   card.dataset.id = t.id;
+  if (recentlyMovedIds.has(t.id)) card.classList.add('just-moved');
   card.querySelector('.badge').classList.add(t.type);
   card.querySelector('.badge').textContent = t.type;
   card.querySelector('.card-id').textContent = t.id;
@@ -894,7 +1207,7 @@ function bindColumnDnD(col) {
       });
       await refresh();
     } catch (err) {
-      alert(err.message);
+      toast(err.message);
     }
   });
 }
@@ -979,9 +1292,15 @@ function renderDrawer(t) {
     </div>
     ${epicProgress}
 
-    <div class="section">
-      <h3>Description</h3>
-      <textarea data-field="description" placeholder="Markdown supported">${escapeHtml(t.description ?? '')}</textarea>
+    <div class="section description-section">
+      <div class="description-head">
+        <h3>Description</h3>
+        <button type="button" class="description-toggle" data-mode="view" title="Toggle edit/preview">Edit</button>
+      </div>
+      <div class="description-preview" data-empty="${!t.description}">${
+        t.description ? renderMarkdown(t.description) : '<p class="muted">No description yet.</p>'
+      }</div>
+      <textarea class="description-edit" data-field="description" hidden placeholder="Markdown supported (#, **bold**, *italic*, \`code\`, lists, [links](https://...))">${escapeHtml(t.description ?? '')}</textarea>
     </div>
 
     <div class="actions">
@@ -1070,6 +1389,37 @@ function renderDrawer(t) {
   el.querySelector('#save-ticket').addEventListener('click', () => saveDrawer(t));
   el.querySelector('#delete-ticket').addEventListener('click', () => deleteDrawer(t));
 
+  // Description: click preview or "Edit" toggles to textarea; "Preview" goes back.
+  const preview = el.querySelector('.description-preview');
+  const editor = el.querySelector('.description-edit');
+  const toggle = el.querySelector('.description-toggle');
+  const showEdit = () => {
+    preview.hidden = true;
+    editor.hidden = false;
+    toggle.textContent = 'Preview';
+    toggle.dataset.mode = 'edit';
+    editor.focus();
+  };
+  const showPreview = () => {
+    preview.innerHTML = editor.value
+      ? renderMarkdown(editor.value)
+      : '<p class="muted">No description yet.</p>';
+    preview.dataset.empty = String(!editor.value);
+    editor.hidden = true;
+    preview.hidden = false;
+    toggle.textContent = 'Edit';
+    toggle.dataset.mode = 'view';
+    hydrateMermaid(preview);
+  };
+  toggle.addEventListener('click', () => {
+    if (toggle.dataset.mode === 'view') showEdit(); else showPreview();
+  });
+  preview.addEventListener('click', (e) => {
+    if (e.target.closest('a')) return; // let links work
+    showEdit();
+  });
+  hydrateMermaid(preview);
+
   el.querySelectorAll('.child').forEach((c) =>
     c.addEventListener('click', () => openDrawer(c.dataset.id))
   );
@@ -1102,7 +1452,7 @@ function renderDrawer(t) {
       openDrawer(t.id);
       await refresh();
     } catch (err) {
-      alert(err.message);
+      toast(err.message);
     }
   });
   el.querySelector('#comment-add').addEventListener('click', async () => {
@@ -1139,7 +1489,7 @@ async function saveDrawer(t) {
     await refresh();
     openDrawer(t.id);
   } catch (err) {
-    alert(err.message);
+    toast(err.message);
   }
 }
 
@@ -1248,7 +1598,7 @@ function openProjectModal() {
 }
 
 async function openTicketModal({ status = 'backlog', parent = '' } = {}) {
-  if (!state.currentProject) return alert('Create a project first.');
+  if (!state.currentProject) return toast('Create a project first.', { variant: 'info' });
   const epics = await api(
     `/api/tickets?project=${encodeURIComponent(state.currentProject)}&type=epic`
   );
@@ -1371,6 +1721,7 @@ async function renderOverview() {
       await refresh();
     })
   );
+  hydrateMermaid(root);
 }
 
 /* ------------- utils ------------- */
