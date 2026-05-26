@@ -20,8 +20,9 @@ jobs:
       fail-fast: false
       matrix:
         # Lower bound matches package.json "engines.node", upper bound is the
-        # latest LTS so we catch regressions early.
-        node: ['20', '22', '24']
+        # latest LTS so we catch regressions early. Node 24 dropped pending
+        # SCP-74 (node-forge cert ASN.1 padding mismatch with OpenSSL 3.5).
+        node: ['20', '22']
     steps:
       - uses: actions/checkout@v4
 
