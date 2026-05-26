@@ -2,6 +2,8 @@
 
 const state = {
   meta: null,
+  workspaces: [],
+  currentWorkspace: localStorage.getItem('scope.workspace') || null,
   projects: [],
   currentProject: null,
   epicFilter: '',
@@ -27,10 +29,25 @@ const BOARD_COLUMNS = ['backlog', 'todo', 'in_progress', 'in_review', 'done'];
 
 /* ------------- API ------------- */
 
+/**
+ * Fetch wrapper. Auto-threads the current workspace into every URL that
+ * starts with /api/ (and doesn't already specify one) via the X-Scope-Workspace
+ * header. Workspace and event-source URLs are passthrough.
+ */
 async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  if (
+    state.currentWorkspace &&
+    path.startsWith('/api/') &&
+    !path.includes('/api/workspaces') &&
+    !path.includes('/api/meta') &&
+    !/[?&]workspace=/.test(path)
+  ) {
+    headers['X-Scope-Workspace'] = state.currentWorkspace;
+  }
   const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
     ...opts,
+    headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   if (!res.ok) {
@@ -45,14 +62,47 @@ async function api(path, opts = {}) {
 
 async function init() {
   state.meta = await api('/api/meta');
-  await reloadProjects();
+  await reloadWorkspaces();
   bindTopbar();
+  // Pick workspace: previously-selected if still attached, else first.
+  if (
+    !state.currentWorkspace ||
+    !state.workspaces.find((w) => w.id === state.currentWorkspace)
+  ) {
+    state.currentWorkspace = state.workspaces[0]?.id || null;
+  }
+  document.getElementById('workspace-picker').value = state.currentWorkspace || '';
+  if (!state.currentWorkspace) {
+    renderEmpty('No workspaces attached. Start a `scope mcp` somewhere or attach via the API.');
+    return;
+  }
+  await reloadProjects();
   if (state.projects.length === 0) {
     openProjectModal();
   } else {
     state.currentProject = state.projects[0].id;
     document.getElementById('project-picker').value = state.currentProject;
     await refresh();
+  }
+}
+
+async function reloadWorkspaces() {
+  state.workspaces = await api('/api/workspaces');
+  const picker = document.getElementById('workspace-picker');
+  picker.innerHTML = '';
+  if (state.workspaces.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(no workspaces)';
+    picker.appendChild(opt);
+    return;
+  }
+  for (const w of state.workspaces) {
+    const opt = document.createElement('option');
+    opt.value = w.id;
+    opt.textContent = w.label;
+    opt.title = w.scope_dir;
+    picker.appendChild(opt);
   }
 }
 
@@ -110,6 +160,23 @@ async function loadBoard() {
 /* ------------- topbar ------------- */
 
 function bindTopbar() {
+  document.getElementById('workspace-picker').addEventListener('change', async (e) => {
+    state.currentWorkspace = e.target.value || null;
+    if (state.currentWorkspace) {
+      localStorage.setItem('scope.workspace', state.currentWorkspace);
+    } else {
+      localStorage.removeItem('scope.workspace');
+    }
+    state.epicFilter = '';
+    state.currentProject = null;
+    state.view = 'board';
+    await reloadProjects();
+    if (state.projects.length) {
+      state.currentProject = state.projects[0].id;
+      document.getElementById('project-picker').value = state.currentProject;
+    }
+    await refresh();
+  });
   document.getElementById('project-picker').addEventListener('change', async (e) => {
     state.currentProject = e.target.value;
     state.epicFilter = '';
@@ -170,12 +237,39 @@ function flashIndicator(klass = 'tick') {
 
 function startEventStream() {
   if (eventSource) eventSource.close();
-  eventSource = new EventSource('/events');
+  const params = new URLSearchParams();
+  if (state.currentWorkspace) params.set('workspace', state.currentWorkspace);
+  const url = '/events' + (params.toString() ? `?${params}` : '');
+  eventSource = new EventSource(url);
   eventSource.addEventListener('open', () => setIndicator(null));
   eventSource.addEventListener('error', () => setIndicator('disconnected'));
   eventSource.addEventListener('hello', () => setIndicator(null));
-  eventSource.addEventListener('change', (e) => {
-    scheduleRefresh(safeParse(e.data));
+  eventSource.addEventListener('change', async (e) => {
+    const detail = safeParse(e.data);
+    if (
+      detail?.type === 'workspace.attached' ||
+      detail?.type === 'workspace.detached'
+    ) {
+      // Refresh the workspace picker without dropping the user's selection.
+      await reloadWorkspaces();
+      const sel = document.getElementById('workspace-picker');
+      if (state.currentWorkspace && state.workspaces.find((w) => w.id === state.currentWorkspace)) {
+        sel.value = state.currentWorkspace;
+      } else if (state.workspaces.length) {
+        // Our workspace went away — fall back to the first one.
+        state.currentWorkspace = state.workspaces[0].id;
+        localStorage.setItem('scope.workspace', state.currentWorkspace);
+        sel.value = state.currentWorkspace;
+        await reloadProjects();
+        if (state.projects.length) {
+          state.currentProject = state.projects[0].id;
+          document.getElementById('project-picker').value = state.currentProject;
+        }
+        await refresh();
+      }
+      return;
+    }
+    scheduleRefresh(detail);
   });
 }
 
@@ -227,9 +321,11 @@ function hashBoard(board) {
 
 /* ------------- board ------------- */
 
-function renderEmpty() {
+function renderEmpty(msg) {
   document.getElementById('board').innerHTML =
-    '<div class="empty">No projects yet. Click <b>+ Project</b> to create one.</div>';
+    '<div class="empty">' +
+    (msg || 'No projects yet. Click <b>+ Project</b> to create one.') +
+    '</div>';
 }
 
 function renderBoard() {

@@ -38,6 +38,10 @@ scope serve                              # → http://localhost:4321
 - **`scope serve`** — UI + HTTP MCP on one port. Multiple agents over HTTP
   and a human in the browser all share one SQLite DB; writes from any source
   push to every viewer over Server-Sent Events within ~100ms.
+- **Federated hub** — every `scope mcp` subprocess (in any repo) registers
+  its local `.scope/` with the hub at `localhost:4321`. The UI gets a
+  workspace switcher; each repo keeps its own `.db` file (so it travels with
+  `git clone`). First MCP to start becomes the hub; the rest attach.
 
 ## The web UI
 

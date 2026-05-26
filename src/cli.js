@@ -680,9 +680,9 @@ export function buildProgram() {
     .option('-p, --port <port>', 'port to listen on', '4321')
     .option('--no-open', "don't open the browser automatically")
     .action(async (opts) => {
-      const { db, scopeDir } = openOrDie();
+      const { scopeDir } = openOrDie();
       const port = Number.parseInt(opts.port, 10);
-      await startServer({ db, scopeDir, port, open: opts.open });
+      await startServer({ scopeDir, port, open: opts.open });
     });
 
   /* ---------- skills ---------- */
@@ -814,9 +814,9 @@ export function buildProgram() {
     .option('--open', 'open the UI in a browser after startup', false)
     .action(async (opts) => {
       const port = Number.parseInt(opts.port, 10);
+      const { basename } = await import('node:path');
 
-      // Open the DB once and share it between the (optional) UI and the
-      // stdio MCP server. Both speak to the same WAL-mode SQLite file.
+      // Resolve the local .scope/ for this invocation.
       let scopeDir = opts.scopeDir
         ? resolve(opts.scopeDir)
         : findScopeDir();
@@ -835,29 +835,59 @@ export function buildProgram() {
         }
       }
       const db = openDb(scopeDir);
+      const ourLabel = basename(resolve(scopeDir, '..')) || 'workspace';
 
-      // Try to bring up the web UI alongside the stdio MCP. If the port is
-      // taken (another `scope mcp`/`scope serve` is already hosting), skip
-      // silently — the first one wins, everyone else just speaks MCP.
+      // Try to bring up the hub on `port`. If we bind it, we ARE the hub —
+      // register ourselves as a workspace and start serving the UI. If the
+      // port is taken, someone else is the hub; POST our scope_dir to it so
+      // we still show up in the central UI.
       let httpServer = null;
+      let weAreHub = false;
       if (opts.ui !== false) {
         try {
+          const { WorkspaceManager } = await import('./workspaces.js');
+          const mgr = new WorkspaceManager();
+          mgr.load();
+          mgr.attach(scopeDir, { label: ourLabel });
           httpServer = await startServer({
-            db,
-            scopeDir,
+            workspaces: mgr,
             port,
             open: opts.open,
             mcpFactory: null,
             serveUi: true,
             quiet: true,
           });
+          weAreHub = true;
         } catch (e) {
           if (e?.code === 'EADDRINUSE') {
-            process.stderr.write(
-              chalk.gray(
-                `scope ui already running at http://localhost:${port} — sharing it.\n`
-              )
-            );
+            // Hub elsewhere — register our workspace via HTTP so we appear in
+            // the shared UI.
+            try {
+              const r = await fetch(`http://localhost:${port}/api/workspaces`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ scope_dir: scopeDir, label: ourLabel }),
+              });
+              if (r.ok) {
+                process.stderr.write(
+                  chalk.gray(
+                    `scope hub at http://localhost:${port} — registered "${ourLabel}" workspace.\n`
+                  )
+                );
+              } else {
+                process.stderr.write(
+                  chalk.yellow(
+                    `Could not register workspace with hub (${r.status} ${r.statusText}). MCP still works locally.\n`
+                  )
+                );
+              }
+            } catch (regErr) {
+              process.stderr.write(
+                chalk.yellow(
+                  `Could not reach hub at :${port}: ${regErr.message}. MCP still works locally.\n`
+                )
+              );
+            }
           } else {
             process.stderr.write(
               chalk.yellow(`Could not start UI: ${e.message}\n`)
@@ -875,15 +905,18 @@ export function buildProgram() {
         const { server: mcpServer } = buildMcpServer({ db, scopeDir });
         const transport = new StdioServerTransport();
         await mcpServer.connect(transport);
-        // When the stdio peer disconnects, tear the UI down too.
+        // When the stdio peer disconnects, tear the UI down too (only if WE
+        // started it — don't kill someone else's hub).
         const shutdown = () => {
-          try { httpServer?.close(); } catch {}
+          if (weAreHub) {
+            try { httpServer?.close(); } catch {}
+          }
         };
         process.stdin.on('end', shutdown);
         process.stdin.on('close', shutdown);
       } catch (e) {
         process.stderr.write(chalk.red(e.message || String(e)) + '\n');
-        if (httpServer) httpServer.close();
+        if (weAreHub && httpServer) httpServer.close();
         process.exit(1);
       }
     });
@@ -900,16 +933,30 @@ export function buildProgram() {
     .option('--no-ui', 'disable the web UI (MCP-only HTTP server)')
     .option('--no-mcp', 'disable the MCP endpoint (UI only — same as `scope ui`)')
     .action(async (opts) => {
-      const { db, scopeDir } = openOrDie();
+      const { scopeDir } = openOrDie();
       const port = Number.parseInt(opts.port, 10);
+
+      // Build a workspace manager up front so the MCP HTTP factory and the
+      // server share the same registry. Load persisted workspaces, then attach
+      // the local one.
+      const { WorkspaceManager } = await import('./workspaces.js');
+      const mgr = new WorkspaceManager();
+      mgr.load();
+      mgr.attach(scopeDir);
+
       let mcpFactory;
       if (opts.mcp !== false) {
         const { buildMcpServer } = await import('./mcp.js');
-        mcpFactory = () => buildMcpServer({ scopeDir, db }).server;
+        // HTTP MCP currently targets the first attached workspace (the one
+        // you ran `scope serve` in). Workspace-routed MCP is a follow-up.
+        mcpFactory = () => {
+          const first = mgr.list()[0];
+          const w = mgr.get(first.id);
+          return buildMcpServer({ scopeDir: w.scope_dir, db: w.db }).server;
+        };
       }
       await startServer({
-        db,
-        scopeDir,
+        workspaces: mgr,
         port,
         open: opts.open && opts.ui !== false,
         mcpFactory,
