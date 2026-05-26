@@ -6,7 +6,7 @@ import {
   createProject, getProject, listProjects, updateProject, deleteProject,
   createTicket, getTicket, listTickets, updateTicket, deleteTicket,
   addRelation, removeRelation, listRelations,
-  addComment, listComments, listHistory,
+  addComment, listComments, listHistory, listProjectHistory,
   listEpicChildren, epicProgress,
 } from '../src/repo.js';
 
@@ -316,6 +316,61 @@ test('epicProgress counts children by status and reports percent done', () => {
     const ep = epicProgress(db, empty.id);
     assert.equal(ep.total, 0);
     assert.equal(ep.percent, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test('listProjectHistory returns rows newest-first, joined with ticket meta, and paginates via before=', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    createProject(db, { id: 'app', key: 'APP', name: 'App' });
+    createProject(db, { id: 'other', key: 'OTH', name: 'Other' });
+    const t1 = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'first' });
+    const t2 = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'second' });
+    const tOther = createTicket(db, { projectIdOrKey: 'other', type: 'story', title: 'unrelated' });
+
+    // Make a handful of history rows across both projects.
+    updateTicket(db, t1.id, { status: 'todo' }, 'ui');
+    updateTicket(db, t1.id, { status: 'in_progress' }, 'agent');
+    updateTicket(db, t2.id, { priority: 'high' }, 'cli');
+    updateTicket(db, tOther.id, { status: 'todo' }, 'ui');
+
+    const all = listProjectHistory(db, 'app');
+    // Other project's row must be excluded.
+    assert.ok(all.every((r) => r.ticket_id === t1.id || r.ticket_id === t2.id));
+    assert.equal(all.length, 3);
+    // Newest first.
+    for (let i = 0; i < all.length - 1; i++) {
+      assert.ok(all[i].changed_at >= all[i + 1].changed_at);
+    }
+    // Joined ticket meta.
+    const sample = all[0];
+    assert.ok(sample.ticket_title);
+    assert.ok(sample.ticket_type);
+    assert.ok(sample.field);
+
+    // Limit honored + clamped to [1, 500].
+    assert.equal(listProjectHistory(db, 'app', { limit: 1 }).length, 1);
+    assert.equal(listProjectHistory(db, 'app', { limit: 99999 }).length, 3);
+    assert.equal(listProjectHistory(db, 'app', { limit: 0 }).length, 1);
+
+    // Cursor: before=(changed_at,id) returns only strictly-older rows under
+    // the composite (changed_at DESC, id DESC) ordering. Pass the row's id
+    // as a tiebreaker because rapid updates often share a millisecond.
+    const cursorRow = all[0];
+    const older = listProjectHistory(db, 'app', {
+      before: cursorRow.changed_at,
+      beforeId: cursorRow.id,
+    });
+    assert.equal(older.length, all.length - 1);
+    assert.ok(older.every((r) =>
+      r.changed_at < cursorRow.changed_at ||
+      (r.changed_at === cursorRow.changed_at && r.id < cursorRow.id)
+    ));
+
+    // Unknown project throws.
+    assert.throws(() => listProjectHistory(db, 'nope'), /Project not found/);
   } finally {
     cleanup();
   }

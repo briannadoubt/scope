@@ -30,6 +30,7 @@ import {
   addComment,
   listComments,
   listHistory,
+  listProjectHistory,
   listEpicChildren,
   epicProgress,
   SCHEMA_STATUSES,
@@ -331,6 +332,15 @@ export function startServer({
   app.post('/api/tickets/:id/comments', ws((req, res, w) => {
     const c = addComment(w.db, req.params.id, req.body.body, req.body.author);
     res.status(201).json(c);
+  }));
+
+  /* ---------- history ---------- */
+
+  app.get('/api/history', ws((req, res, w) => {
+    const { project, limit, before, beforeId } = req.query;
+    if (!project) return res.status(400).json({ error: 'project is required' });
+    const rows = listProjectHistory(w.db, project, { limit, before, beforeId });
+    res.json({ entries: rows, limit: rows.length, before: before ?? null });
   }));
 
   /* ---------- board ---------- */

@@ -188,6 +188,58 @@ test('board endpoint groups tickets into status buckets', async () => {
   }
 });
 
+test('GET /api/history returns project-scoped, newest-first entries with cursor pagination', async () => {
+  const t = await startTestServer();
+  try {
+    await apiFetch(t.baseUrl, '/api/projects', { method: 'POST', body: { id: 'a', key: 'A1', name: 'a' } });
+    await apiFetch(t.baseUrl, '/api/projects', { method: 'POST', body: { id: 'b', key: 'B1', name: 'b' } });
+    const tk = (await apiFetch(t.baseUrl, '/api/tickets', {
+      method: 'POST', body: { projectIdOrKey: 'a', type: 'story', title: 'x' },
+    })).data;
+    const other = (await apiFetch(t.baseUrl, '/api/tickets', {
+      method: 'POST', body: { projectIdOrKey: 'b', type: 'story', title: 'y' },
+    })).data;
+    // Generate history rows.
+    await apiFetch(t.baseUrl, `/api/tickets/${tk.id}`, { method: 'PATCH', body: { status: 'todo', __by: 'ui' } });
+    await apiFetch(t.baseUrl, `/api/tickets/${tk.id}`, { method: 'PATCH', body: { status: 'in_progress', __by: 'agent' } });
+    await apiFetch(t.baseUrl, `/api/tickets/${other.id}`, { method: 'PATCH', body: { status: 'todo', __by: 'ui' } });
+
+    const missing = await apiFetch(t.baseUrl, '/api/history');
+    assert.equal(missing.status, 400);
+
+    const all = await apiFetch(t.baseUrl, '/api/history?project=a');
+    assert.equal(all.status, 200);
+    assert.ok(Array.isArray(all.data.entries));
+    assert.equal(all.data.entries.length, 2);
+    // Other project's row excluded.
+    assert.ok(all.data.entries.every((r) => r.ticket_id === tk.id));
+    // Ticket meta joined in.
+    assert.equal(all.data.entries[0].ticket_title, 'x');
+    assert.equal(all.data.entries[0].ticket_type, 'story');
+    // Newest first.
+    assert.ok(all.data.entries[0].changed_at >= all.data.entries[1].changed_at);
+
+    // Pagination via composite cursor (changed_at + id).
+    const cursorRow = all.data.entries[0];
+    const page = await apiFetch(
+      t.baseUrl,
+      `/api/history?project=a&before=${encodeURIComponent(cursorRow.changed_at)}&beforeId=${cursorRow.id}`,
+    );
+    assert.equal(page.status, 200);
+    assert.equal(page.data.entries.length, all.data.entries.length - 1);
+    assert.ok(page.data.entries.every((r) =>
+      r.changed_at < cursorRow.changed_at ||
+      (r.changed_at === cursorRow.changed_at && r.id < cursorRow.id)
+    ));
+
+    // Limit clamp.
+    const lim = await apiFetch(t.baseUrl, '/api/history?project=a&limit=1');
+    assert.equal(lim.data.entries.length, 1);
+  } finally {
+    await t.close();
+  }
+});
+
 test('DELETE /api/tickets/:id removes the ticket', async () => {
   const t = await startTestServer();
   try {

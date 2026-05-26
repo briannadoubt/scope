@@ -7,7 +7,8 @@ const state = {
   projects: [],
   currentProject: null,
   epicFilter: '',
-  view: 'board', // 'board' | 'overview'
+  view: 'board', // 'board' | 'overview' | 'history'
+  history: null, // { entries: [...] } for the history view
   board: null,
   drawerTicketId: null,
   groupBy: localStorage.getItem('scope.groupBy') || 'none',
@@ -128,6 +129,7 @@ async function refresh() {
   if (!state.currentProject) return renderEmpty();
   await loadEpicsForFilter();
   if (state.view === 'overview') return renderOverview();
+  if (state.view === 'history') return renderHistory();
   const oldPositions = captureCardPositions();
   const oldBoard = state.board;
   await loadBoard();
@@ -491,6 +493,7 @@ function openOverflowMenu() {
   pop.innerHTML = `
     <button type="button" class="menu-item" data-act="refresh"><span class="mi-icon">↻</span> Refresh</button>
     <button type="button" class="menu-item" data-act="overview"><span class="mi-icon">☰</span> ${state.view === 'overview' ? 'Back to board' : 'Project overview'}</button>
+    <button type="button" class="menu-item" data-act="history"><span class="mi-icon">⏱</span> ${state.view === 'history' ? 'Back to board' : 'History'}</button>
     <div class="menu-sep"></div>
     <button type="button" class="menu-item" data-act="new-project"><span class="mi-icon">＋</span> New project</button>
   `;
@@ -501,6 +504,10 @@ function openOverflowMenu() {
       if (act === 'refresh') { flashIndicator('tick'); await repairHubConnection(); }
       else if (act === 'overview') {
         state.view = state.view === 'overview' ? 'board' : 'overview';
+        await refresh();
+      }
+      else if (act === 'history') {
+        state.view = state.view === 'history' ? 'board' : 'history';
         await refresh();
       }
       else if (act === 'new-project') openProjectModal();
@@ -515,6 +522,7 @@ let pendingRefresh = false;
 let lastBoardHash = '';
 
 function applyPaused() {
+  if (state.view === 'history') return false;     // history view handles its own SSE refresh
   if (state.view !== 'board') return true;       // overview / other view — re-renders on its own
   if (state.drawerTicketId) return true;          // user is editing
   if (document.querySelector('.modal-backdrop')) return true;
@@ -622,8 +630,24 @@ function startEventStream() {
       }
       return;
     }
-    scheduleRefresh(detail);
+    pushLiveFeed(detail);
+    if (state.view === 'history') {
+      scheduleHistoryRefresh();
+    } else {
+      scheduleRefresh(detail);
+    }
   });
+}
+
+let pendingHistoryRefresh = false;
+function scheduleHistoryRefresh() {
+  if (pendingHistoryRefresh) return;
+  pendingHistoryRefresh = true;
+  setTimeout(async () => {
+    pendingHistoryRefresh = false;
+    if (state.view !== 'history') return;
+    try { await renderHistory(); } catch { /* swallow; next event retries */ }
+  }, 120);
 }
 
 function safeParse(s) {
@@ -1709,8 +1733,15 @@ async function renderOverview() {
             : '<div style="color: var(--text-dim)">No epics yet.</div>'
         }
       </div>
+      <div class="overview-foot">
+        <button type="button" class="link-btn" id="overview-history-link">View history →</button>
+      </div>
     </div>
   `;
+  root.querySelector('#overview-history-link')?.addEventListener('click', async () => {
+    state.view = 'history';
+    await refresh();
+  });
   root.querySelectorAll('.epic-card').forEach((el) =>
     el.addEventListener('click', async () => {
       state.view = 'board';
@@ -1722,6 +1753,237 @@ async function renderOverview() {
     })
   );
   hydrateMermaid(root);
+}
+
+/* ------------- history view ------------- */
+
+const HISTORY_PAGE_SIZE = 100;
+
+async function renderHistory() {
+  if (!state.currentProject) return renderEmpty();
+  const root = document.getElementById('board');
+  root.style.display = 'block';
+  // Render shell first so the empty/loading state shows immediately.
+  root.innerHTML = `
+    <div class="history">
+      <div class="history-head">
+        <h1>History</h1>
+        <button type="button" class="btn ghost" id="history-back">← Back to board</button>
+      </div>
+      <p class="history-sub">Every change to every ticket in this project, newest first.</p>
+      <div class="history-list" id="history-list">
+        <div class="history-loading">Loading…</div>
+      </div>
+      <div class="history-foot">
+        <button type="button" class="btn ghost" id="history-more" hidden>Load older</button>
+      </div>
+    </div>
+  `;
+  root.querySelector('#history-back').addEventListener('click', async () => {
+    state.view = 'board';
+    await refresh();
+  });
+  try {
+    const data = await api(
+      `/api/history?project=${encodeURIComponent(state.currentProject)}&limit=${HISTORY_PAGE_SIZE}`
+    );
+    state.history = data;
+    paintHistoryList(data.entries);
+  } catch (e) {
+    root.querySelector('#history-list').innerHTML =
+      `<div class="history-empty">Couldn't load history: ${escapeHtml(e.message)}</div>`;
+  }
+
+  const moreBtn = root.querySelector('#history-more');
+  if ((state.history?.entries?.length || 0) >= HISTORY_PAGE_SIZE) {
+    moreBtn.hidden = false;
+    moreBtn.addEventListener('click', async () => {
+      const last = state.history.entries[state.history.entries.length - 1];
+      if (!last) return;
+      moreBtn.disabled = true;
+      try {
+        const older = await api(
+          `/api/history?project=${encodeURIComponent(state.currentProject)}&limit=${HISTORY_PAGE_SIZE}&before=${encodeURIComponent(last.changed_at)}&beforeId=${encodeURIComponent(last.id)}`
+        );
+        state.history.entries.push(...older.entries);
+        paintHistoryList(state.history.entries);
+        if (older.entries.length < HISTORY_PAGE_SIZE) moreBtn.hidden = true;
+      } catch (e) {
+        toast(e.message);
+      } finally {
+        moreBtn.disabled = false;
+      }
+    });
+  }
+}
+
+function paintHistoryList(entries) {
+  const list = document.getElementById('history-list');
+  if (!list) return;
+  if (!entries.length) {
+    list.innerHTML = `<div class="history-empty">No history yet. Make a change to a ticket and it'll show up here.</div>`;
+    return;
+  }
+  list.innerHTML = entries.map(historyRowHtml).join('');
+  list.querySelectorAll('.history-row').forEach((row) => {
+    row.addEventListener('click', () => {
+      const id = row.dataset.ticket;
+      if (id) openDrawer(id);
+    });
+  });
+}
+
+function historyRowHtml(h) {
+  const when = relativeTime(h.changed_at);
+  const who = h.changed_by ? escapeHtml(h.changed_by) : 'unknown';
+  const ttype = (h.ticket_type || 'story').toLowerCase();
+  const field = escapeHtml(h.field);
+  const oldV = formatHistoryValue(h.old_value);
+  const newV = formatHistoryValue(h.new_value);
+  return `
+    <div class="history-row" data-ticket="${escapeHtml(h.ticket_id)}" title="${escapeHtml(h.changed_at)}">
+      <span class="badge ${ttype}">${ttype}</span>
+      <span class="history-tid">${escapeHtml(h.ticket_id)}</span>
+      <span class="history-title">${escapeHtml(h.ticket_title || '')}</span>
+      <span class="history-change">
+        <span class="history-field">${field}</span>
+        ${h.old_value != null ? `<span class="history-old">${oldV}</span><span class="history-arrow">→</span>` : ''}
+        <span class="history-new">${newV}</span>
+      </span>
+      <span class="history-who">@${who}</span>
+      <span class="history-when">${escapeHtml(when)}</span>
+    </div>
+  `;
+}
+
+function formatHistoryValue(v) {
+  if (v == null || v === '') return '<span class="history-empty-val">∅</span>';
+  const s = String(v);
+  const trimmed = s.length > 80 ? s.slice(0, 77) + '…' : s;
+  return `<span class="history-val">${escapeHtml(trimmed)}</span>`;
+}
+
+function relativeTime(iso) {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return iso;
+  const diff = Math.max(0, Date.now() - then);
+  const s = Math.floor(diff / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+/* ------------- live action feed (large screens) ------------- */
+// SCP-67: floating column of SSE-driven activity toasts. Distinct from the
+// alert toast() helper above — this is an ambient feed, not a notification.
+
+const LIVE_FEED_MIN_WIDTH = 1280;
+const LIVE_FEED_MAX = 6;
+const LIVE_FEED_TTL_MS = 6000;
+
+function isLiveFeedEnabled() {
+  return window.innerWidth >= LIVE_FEED_MIN_WIDTH;
+}
+
+function ensureLiveFeedRoot() {
+  let root = document.getElementById('live-feed');
+  if (!root) {
+    root = document.createElement('div');
+    root.id = 'live-feed';
+    root.setAttribute('aria-live', 'polite');
+    root.setAttribute('aria-label', 'Live activity feed');
+    document.body.appendChild(root);
+  }
+  return root;
+}
+
+function pushLiveFeed(detail) {
+  if (!detail || !detail.type) return;
+  if (!isLiveFeedEnabled()) return;
+  // Drop workspace lifecycle events — they aren't ticket activity.
+  if (detail.type.startsWith('workspace.')) return;
+  // Only render activity that belongs to the current workspace (the server
+  // already filters by workspace on subscribe, but be defensive).
+  if (
+    detail.workspace &&
+    state.currentWorkspace &&
+    detail.workspace !== state.currentWorkspace
+  ) return;
+
+  const root = ensureLiveFeedRoot();
+  const el = document.createElement('div');
+  el.className = 'live-toast';
+  const icon = liveFeedIcon(detail.type);
+  const desc = liveFeedDescription(detail);
+  const tid = detail.id || detail.ticket || '';
+  el.innerHTML = `
+    <span class="live-icon" aria-hidden="true">${icon}</span>
+    <div class="live-body">
+      ${tid ? `<div class="live-id">${escapeHtml(tid)}</div>` : ''}
+      <div class="live-desc">${escapeHtml(desc)}</div>
+    </div>
+    <span class="live-when">now</span>
+    ${tid && /^[A-Z][A-Z0-9]*-\d+$/.test(tid) ? `<button type="button" class="live-open" title="Open ${escapeHtml(tid)}" aria-label="Open ${escapeHtml(tid)}">↗</button>` : ''}
+  `;
+  const openBtn = el.querySelector('.live-open');
+  if (openBtn) {
+    openBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDrawer(tid);
+    });
+  }
+  root.appendChild(el);
+  // Cap stacked toasts.
+  while (root.children.length > LIVE_FEED_MAX) {
+    root.firstElementChild.remove();
+  }
+  // Enter transition.
+  requestAnimationFrame(() => el.classList.add('show'));
+  // Auto-dismiss.
+  const dismiss = () => {
+    if (!el.isConnected) return;
+    el.classList.remove('show');
+    el.classList.add('leaving');
+    setTimeout(() => el.remove(), 240);
+  };
+  const timer = setTimeout(dismiss, LIVE_FEED_TTL_MS);
+  el.addEventListener('mouseenter', () => clearTimeout(timer), { once: true });
+}
+
+function liveFeedIcon(type) {
+  if (type.startsWith('ticket.created')) return '✦';
+  if (type.startsWith('ticket.deleted')) return '×';
+  if (type === 'comment.added' || type.startsWith('comment.')) return '💬';
+  if (type.startsWith('relation.')) return '↔';
+  if (type.startsWith('project.')) return '◆';
+  return '•';
+}
+
+function liveFeedDescription(detail) {
+  const t = detail.type || 'change';
+  switch (t) {
+    case 'ticket.created': return 'created';
+    case 'ticket.updated': {
+      if (detail.fields && Array.isArray(detail.fields) && detail.fields.length) {
+        return `updated ${detail.fields.join(', ')}`;
+      }
+      return 'updated';
+    }
+    case 'ticket.deleted': return 'deleted';
+    case 'comment.added': return 'new comment';
+    case 'relation.added': return 'relation added';
+    case 'relation.removed': return 'relation removed';
+    case 'project.created': return 'project created';
+    case 'project.updated': return 'project updated';
+    default: return t;
+  }
 }
 
 /* ------------- utils ------------- */
