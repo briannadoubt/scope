@@ -685,6 +685,123 @@ export function buildProgram() {
       await startServer({ scopeDir, port, open: opts.open });
     });
 
+  /* ---------- workspace (hub registration) ---------- */
+
+  const workspace = program
+    .command('workspace')
+    .alias('ws')
+    .description(
+      'Attach, detach, and list workspaces on the running hub (http://localhost:<port>).'
+    );
+
+  workspace
+    .command('add [path]')
+    .description(
+      'Attach a .scope/ to the running hub. PATH defaults to the .scope/ found by walking up from cwd.'
+    )
+    .option('-l, --label <name>', 'human-readable label (defaults to repo dir name)')
+    .option('-p, --port <port>', 'hub port', '4321')
+    .action(async (pathArg, opts, cmd) => {
+      const port = Number.parseInt(opts.port, 10);
+      let target;
+      if (pathArg) {
+        target = resolve(pathArg);
+        // Accept either /repo or /repo/.scope — normalize to .scope/
+        if (!target.endsWith('/.scope') && !target.endsWith('/' + SCOPE_DIR_NAME)) {
+          const candidate = join(target, SCOPE_DIR_NAME);
+          if (existsSync(candidate)) target = candidate;
+        }
+      } else {
+        target = findScopeDir();
+      }
+      if (!target) {
+        fail(
+          `No path given and no ${SCOPE_DIR_NAME}/ found from cwd. ` +
+            `Run 'scope init' there first, or pass an explicit path.`
+        );
+      }
+      if (!existsSync(target)) fail(`Path does not exist: ${target}`);
+
+      try {
+        const res = await fetch(`http://localhost:${port}/api/workspaces`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ scope_dir: target, label: opts.label }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) fail(body.error || `HTTP ${res.status}`);
+        out(cmd, body, (w) =>
+          chalk.green('✓') +
+            ` Attached ${chalk.bold(w.label)} (${w.id.slice(0, 7)})  ${chalk.gray(w.scope_dir)}`
+        );
+      } catch (e) {
+        if (e?.cause?.code === 'ECONNREFUSED' || /ECONNREFUSED/.test(e.message)) {
+          fail(
+            `No hub running at http://localhost:${port}. Start one with ` +
+              `\`scope serve\` or \`scope mcp\` (in any repo) first.`
+          );
+        }
+        fail(e.message);
+      }
+    });
+
+  workspace
+    .command('list')
+    .alias('ls')
+    .description('List workspaces attached to the running hub.')
+    .option('-p, --port <port>', 'hub port', '4321')
+    .action(async (opts, cmd) => {
+      const port = Number.parseInt(opts.port, 10);
+      try {
+        const res = await fetch(`http://localhost:${port}/api/workspaces`);
+        if (!res.ok) fail(`HTTP ${res.status}`);
+        const list = await res.json();
+        out(cmd, list, (rows) =>
+          rows.length
+            ? table(
+                rows.map((w) => ({
+                  id: chalk.bold(w.id.slice(0, 10)),
+                  label: w.label,
+                  scope_dir: chalk.gray(w.scope_dir),
+                })),
+                [
+                  { key: 'id', header: 'ID' },
+                  { key: 'label', header: 'LABEL', width: 24 },
+                  { key: 'scope_dir', header: 'PATH', width: 60 },
+                ]
+              )
+            : chalk.gray('(no workspaces attached)')
+        );
+      } catch (e) {
+        if (e?.cause?.code === 'ECONNREFUSED' || /ECONNREFUSED/.test(e.message)) {
+          fail(`No hub running at http://localhost:${port}.`);
+        }
+        fail(e.message);
+      }
+    });
+
+  workspace
+    .command('remove <id>')
+    .alias('rm')
+    .description('Detach a workspace from the running hub (does not delete the .scope/ files).')
+    .option('-p, --port <port>', 'hub port', '4321')
+    .action(async (id, opts, cmd) => {
+      const port = Number.parseInt(opts.port, 10);
+      try {
+        const res = await fetch(`http://localhost:${port}/api/workspaces/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) fail(body.error || `HTTP ${res.status}`);
+        out(cmd, body, () => chalk.green('✓') + ` Detached ${chalk.bold(id)}`);
+      } catch (e) {
+        if (e?.cause?.code === 'ECONNREFUSED' || /ECONNREFUSED/.test(e.message)) {
+          fail(`No hub running at http://localhost:${port}.`);
+        }
+        fail(e.message);
+      }
+    });
+
   /* ---------- skills ---------- */
 
   const skills = program

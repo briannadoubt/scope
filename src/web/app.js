@@ -160,6 +160,7 @@ async function loadBoard() {
 /* ------------- topbar ------------- */
 
 function bindTopbar() {
+  document.getElementById('add-workspace').addEventListener('click', openAddWorkspaceModal);
   document.getElementById('workspace-picker').addEventListener('change', async (e) => {
     state.currentWorkspace = e.target.value || null;
     if (state.currentWorkspace) {
@@ -889,6 +890,54 @@ function openModal(html) {
 }
 function closeModal() {
   document.getElementById('modal-root').innerHTML = '';
+}
+
+function openAddWorkspaceModal() {
+  const modal = openModal(`
+    <h3>Attach a workspace</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;">
+      Point at an existing <code>.scope/</code> directory. The hub will open
+      it, watch it for changes, and show its projects in the workspace picker.
+    </p>
+    <label>Path to .scope/ <input id="w-path" placeholder="/path/to/repo/.scope" /></label>
+    <label>Label (optional) <input id="w-label" placeholder="defaults to the repo dir name" /></label>
+    <div class="error" id="w-err"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="w-cancel">Cancel</button>
+      <button class="btn primary" id="w-attach">Attach</button>
+    </div>
+  `);
+  const pathInput = modal.querySelector('#w-path');
+  pathInput.focus();
+  modal.querySelector('#w-cancel').addEventListener('click', closeModal);
+  modal.querySelector('#w-attach').addEventListener('click', async () => {
+    const scope_dir = pathInput.value.trim();
+    const label = modal.querySelector('#w-label').value.trim() || undefined;
+    if (!scope_dir) {
+      modal.querySelector('#w-err').textContent = 'Path is required.';
+      return;
+    }
+    try {
+      const w = await api('/api/workspaces', {
+        method: 'POST',
+        body: { scope_dir, label },
+      });
+      closeModal();
+      // SSE will refresh the picker, but make the new workspace active immediately.
+      await reloadWorkspaces();
+      state.currentWorkspace = w.id;
+      localStorage.setItem('scope.workspace', w.id);
+      document.getElementById('workspace-picker').value = w.id;
+      await reloadProjects();
+      state.currentProject = state.projects[0]?.id || null;
+      if (state.currentProject) {
+        document.getElementById('project-picker').value = state.currentProject;
+      }
+      await refresh();
+    } catch (e) {
+      modal.querySelector('#w-err').textContent = e.message;
+    }
+  });
 }
 
 function openProjectModal() {
