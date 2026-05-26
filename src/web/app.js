@@ -135,7 +135,6 @@ async function refresh() {
   await loadBoard();
   renderBoard();
   animateCardMoves(oldPositions);
-  burstConfettiForNewDone(oldBoard, state.board);
   if (state.autoScroll) scrollToMovedCards(findMovedTicketIds(oldBoard, state.board), 380);
 }
 
@@ -1225,10 +1224,12 @@ function bindColumnDnD(col) {
     const status = col.dataset.status;
     if (!id || !status) return;
     try {
+      const fromStatus = dragState?.from?.parentElement?.dataset?.status;
       await api(`/api/tickets/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         body: { status, __by: 'ui' },
       });
+      if (status === 'done' && fromStatus !== 'done') burstConfetti();
       await refresh();
     } catch (err) {
       toast(err.message);
@@ -1510,6 +1511,7 @@ async function saveDrawer(t) {
       method: 'PATCH',
       body: fields,
     });
+    if (fields.status === 'done' && t.status !== 'done') burstConfetti();
     await refresh();
     openDrawer(t.id);
   } catch (err) {
