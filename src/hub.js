@@ -21,29 +21,72 @@ import { homedir } from 'node:os';
  * hub.
  */
 
+import https from 'node:https';
+
 const HUB_DIR = join(homedir(), '.scope-hub');
 const HUB_FILE = join(HUB_DIR, 'hub.json');
 
 export const DEFAULT_HUB_PORT = 4321;
 export const HUB_PORT_RANGE = 10;
 
+// Loopback probes don't need to validate the hub's self-signed leaf — same
+// machine, same user. We're only checking liveness + that it speaks scope.
+const loopbackInsecureAgent = new https.Agent({ rejectUnauthorized: false });
+
+async function probeOne(url, timeoutMs) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const opts = { signal: ac.signal };
+    if (url.startsWith('https://')) opts.dispatcher = undefined; // node's undici
+    // node:fetch picks up custom https agents via the `agent` option in
+    // node-fetch, but the global fetch uses undici. We need a different
+    // approach for HTTPS — fall back to https.get for self-signed probes.
+    if (url.startsWith('https://')) {
+      return await new Promise((resolve) => {
+        const req = https.get(url, { agent: loopbackInsecureAgent, signal: ac.signal }, (res) => {
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', (c) => { data += c; });
+          res.on('end', () => {
+            try { resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, body: JSON.parse(data) }); }
+            catch { resolve(null); }
+          });
+        });
+        req.on('error', () => resolve(null));
+      });
+    }
+    const r = await fetch(url, opts);
+    if (!r.ok) return null;
+    return { ok: true, body: await r.json() };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /**
  * Probe a port to see if a scope hub is answering on it. Returns the parsed
  * `/api/meta` body (which includes the hub descriptor) or null.
+ *
+ * Tries HTTPS first (the post-SCP-54 default) and falls back to HTTP for
+ * legacy hubs / tests that opt out of TLS.
  */
 export async function probeHub(port, { timeoutMs = 400 } = {}) {
-  try {
-    const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), timeoutMs);
-    const r = await fetch(`http://localhost:${port}/api/meta`, { signal: ac.signal });
-    clearTimeout(t);
-    if (!r.ok) return null;
-    const body = await r.json();
-    if (!body || typeof body !== 'object' || !body.hub) return null;
-    return body;
-  } catch {
-    return null;
+  for (const url of [
+    `https://localhost:${port}/api/meta`,
+    `http://localhost:${port}/api/meta`,
+  ]) {
+    const r = await probeOne(url, timeoutMs);
+    if (r?.ok && r.body && typeof r.body === 'object' && r.body.hub) {
+      // Stash the scheme on the body so callers can build URLs without
+      // re-probing.
+      r.body._scheme = url.startsWith('https') ? 'https' : 'http';
+      return r.body;
+    }
   }
+  return null;
 }
 
 function readDiscovery() {
@@ -75,7 +118,7 @@ export async function findRunningHub(preferredPort = DEFAULT_HUB_PORT) {
   if (disc?.port) {
     tried.add(disc.port);
     const meta = await probeHub(disc.port);
-    if (meta) return { port: disc.port, url: `http://localhost:${disc.port}`, meta };
+    if (meta) return { port: disc.port, url: `${meta._scheme || 'http'}://localhost:${disc.port}`, meta };
   }
   for (let p = preferredPort; p < preferredPort + HUB_PORT_RANGE; p++) {
     if (tried.has(p)) continue;
@@ -83,7 +126,7 @@ export async function findRunningHub(preferredPort = DEFAULT_HUB_PORT) {
     if (meta) {
       // Refresh the discovery pointer so the next caller finds it instantly.
       writeDiscovery({ ...(disc || {}), port: p, updated_at: new Date().toISOString() });
-      return { port: p, url: `http://localhost:${p}`, meta };
+      return { port: p, url: `${meta._scheme || 'http'}://localhost:${p}`, meta };
     }
   }
   // Stale discovery file — clear it so we don't keep probing a dead port.
@@ -91,9 +134,50 @@ export async function findRunningHub(preferredPort = DEFAULT_HUB_PORT) {
   return null;
 }
 
+/**
+ * fetch wrapper that tolerates the hub's self-signed leaf when talking to a
+ * loopback hub. Use this for any CLI→hub call.
+ */
+export async function hubFetch(url, init = {}) {
+  if (url.startsWith('https://')) {
+    return await new Promise((resolve, reject) => {
+      try {
+        const u = new URL(url);
+        const req = https.request(
+          {
+            method: init.method || 'GET',
+            hostname: u.hostname,
+            port: u.port,
+            path: u.pathname + u.search,
+            headers: init.headers || {},
+            agent: loopbackInsecureAgent,
+          },
+          (res) => {
+            let data = '';
+            res.setEncoding('utf8');
+            res.on('data', (c) => { data += c; });
+            res.on('end', () => {
+              resolve({
+                ok: res.statusCode >= 200 && res.statusCode < 300,
+                status: res.statusCode,
+                async json() { try { return JSON.parse(data); } catch { return {}; } },
+                async text() { return data; },
+              });
+            });
+          }
+        );
+        req.on('error', reject);
+        if (init.body) req.write(init.body);
+        req.end();
+      } catch (e) { reject(e); }
+    });
+  }
+  return await fetch(url, init);
+}
+
 async function registerWorkspace(url, scopeDir, label) {
   try {
-    await fetch(`${url}/api/workspaces`, {
+    await hubFetch(`${url}/api/workspaces`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ scope_dir: scopeDir, label }),
@@ -152,17 +236,20 @@ export async function ensureHub({
         open: false, // we open ourselves after writing discovery
         quiet: true,
       });
+      // Our own listener is HTTPS by default (startServer's default).
+      const scheme = server._tls ? 'https' : 'http';
       writeDiscovery({
         port: p,
         pid: process.pid,
+        scheme,
         started_at: new Date().toISOString(),
       });
       installShutdownHandlers(p);
       if (openBrowser) {
-        try { (await import('open')).default(`http://localhost:${p}`); } catch {}
+        try { (await import('open')).default(`${scheme}://localhost:${p}`); } catch {}
       }
       return {
-        url: `http://localhost:${p}`,
+        url: `${scheme}://localhost:${p}`,
         port: p,
         weAreHub: true,
         server,
@@ -175,7 +262,7 @@ export async function ensureHub({
       // port. Probe before walking past it.
       const meta = await probeHub(p);
       if (meta) {
-        const url = `http://localhost:${p}`;
+        const url = `${meta._scheme || 'http'}://localhost:${p}`;
         if (scopeDir) await registerWorkspace(url, scopeDir, label);
         writeDiscovery({ port: p, updated_at: new Date().toISOString() });
         if (openBrowser) {

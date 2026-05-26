@@ -44,7 +44,10 @@ import {
   SCHEMA_RELATION_TYPES,
 } from './repo.js';
 import { startServer } from './server.js';
-import { ensureHub, findRunningHub, startHubWatchdog, DEFAULT_HUB_PORT } from './hub.js';
+import { ensureHub, findRunningHub, startHubWatchdog, hubFetch, DEFAULT_HUB_PORT } from './hub.js';
+import { loadOrCreateCa, CA_CERT_PATH, CA_KEY_PATH, CA_DIR, fingerprintHex } from './ca.js';
+import { listDevices, renameDevice, findDeviceByName, removeDevice } from './devices.js';
+import { revokeSerial, unrevokeSerial, listRevoked } from './revocation.js';
 import {
   boardView,
   projectDetail,
@@ -734,7 +737,7 @@ export function buildProgram() {
         );
       }
       try {
-        const res = await fetch(`${hub.url}/api/workspaces`, {
+        const res = await hubFetch(`${hub.url}/api/workspaces`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ scope_dir: target, label: opts.label }),
@@ -760,7 +763,7 @@ export function buildProgram() {
       const hub = await findRunningHub(preferredPort);
       if (!hub) fail(`No scope hub running (scanned ports ${preferredPort}+).`);
       try {
-        const res = await fetch(`${hub.url}/api/workspaces`);
+        const res = await hubFetch(`${hub.url}/api/workspaces`);
         if (!res.ok) fail(`HTTP ${res.status}`);
         const list = await res.json();
         out(cmd, list, (rows) =>
@@ -794,7 +797,7 @@ export function buildProgram() {
       const hub = await findRunningHub(preferredPort);
       if (!hub) fail(`No scope hub running (scanned ports ${preferredPort}+).`);
       try {
-        const res = await fetch(`${hub.url}/api/workspaces/${encodeURIComponent(id)}`, {
+        const res = await hubFetch(`${hub.url}/api/workspaces/${encodeURIComponent(id)}`, {
           method: 'DELETE',
         });
         const body = await res.json().catch(() => ({}));
@@ -911,6 +914,276 @@ export function buildProgram() {
           )
           .join('\n')
       );
+    });
+
+  /* ---------- ca ---------- */
+
+  const ca = program
+    .command('ca')
+    .description('Manage the local certificate authority (~/.scope-hub/ca/).');
+
+  ca
+    .command('fingerprint')
+    .description('Print the SHA-256 fingerprint of the local CA cert. Generates the CA on first run.')
+    .action((opts, cmd) => {
+      const c = loadOrCreateCa();
+      out(
+        cmd,
+        {
+          fingerprint: c.fingerprint,
+          ca_cert: CA_CERT_PATH,
+          ca_key: CA_KEY_PATH,
+          created: c.created,
+        },
+        (d) => {
+          let s = d.fingerprint;
+          if (d.created) s = chalk.green('✓') + ` generated new CA\n` + s;
+          return s;
+        }
+      );
+    });
+
+  ca
+    .command('trust')
+    .description(
+      'Add ~/.scope-hub/ca/ca.crt to the macOS System keychain as a trusted ' +
+      'root so browsers stop showing a cert warning. Requires sudo (the System ' +
+      'keychain is admin-owned).'
+    )
+    .option('--user', 'install into the login keychain instead of the System keychain (no sudo, but only trusted for the current user)', false)
+    .option('--dry-run', 'print the command without running it', false)
+    .action((opts, cmd) => {
+      const c = loadOrCreateCa();
+      const keychain = opts.user
+        ? join(homedir(), 'Library/Keychains/login.keychain-db')
+        : '/Library/Keychains/System.keychain';
+      // `security add-trusted-cert` is the supported macOS way to add a
+      // trust anchor. -d marks it as a root, -r trustRoot says "trust for
+      // SSL etc.", -k <keychain> picks which store to write to.
+      const args = ['add-trusted-cert', '-d', '-r', 'trustRoot', '-k', keychain, CA_CERT_PATH];
+      const argv = opts.user ? ['security', ...args] : ['sudo', 'security', ...args];
+      if (opts.dryRun) {
+        out(cmd, { command: argv.join(' '), ca_cert: CA_CERT_PATH, fingerprint: c.fingerprint, keychain }, (d) => d.command);
+        return;
+      }
+      if (process.platform !== 'darwin') {
+        fail(`scope ca trust currently supports macOS only (you're on ${process.platform}). On Linux, copy ${CA_CERT_PATH} into /usr/local/share/ca-certificates/ and run update-ca-certificates.`);
+      }
+      const r = spawnSync(argv[0], argv.slice(1), { stdio: 'inherit' });
+      if (r.status !== 0) fail(`security exited with status ${r.status}`);
+      process.stdout.write(
+        chalk.green('✓') + ` Added ${chalk.bold(CA_CERT_PATH)} as a trusted root in ${keychain}\n` +
+        chalk.gray('  Browsers should stop showing the cert warning. Restart open browser tabs to pick up the change.\n')
+      );
+    });
+
+  ca
+    .command('untrust')
+    .description('Remove the Scope CA from the macOS keychain (reverses `scope ca trust`).')
+    .option('--user', 'remove from the login keychain instead of System', false)
+    .option('--dry-run', 'print the command without running it', false)
+    .action((opts, cmd) => {
+      const keychain = opts.user
+        ? join(homedir(), 'Library/Keychains/login.keychain-db')
+        : '/Library/Keychains/System.keychain';
+      const args = ['remove-trusted-cert', '-d', CA_CERT_PATH];
+      const argv = opts.user ? ['security', ...args] : ['sudo', 'security', ...args];
+      if (opts.dryRun) {
+        out(cmd, { command: argv.join(' '), ca_cert: CA_CERT_PATH, keychain }, (d) => d.command);
+        return;
+      }
+      if (process.platform !== 'darwin') {
+        fail(`scope ca untrust currently supports macOS only.`);
+      }
+      const r = spawnSync(argv[0], argv.slice(1), { stdio: 'inherit' });
+      if (r.status !== 0) fail(`security exited with status ${r.status}`);
+      process.stdout.write(chalk.green('✓') + ` Removed Scope CA trust from ${keychain}\n`);
+    });
+
+  ca
+    .command('path')
+    .description('Print the on-disk path to the CA directory.')
+    .action((opts, cmd) => {
+      out(cmd, { ca_dir: CA_DIR, ca_cert: CA_CERT_PATH, ca_key: CA_KEY_PATH }, (d) => d.ca_dir);
+    });
+
+  /* ---------- pair / devices ---------- */
+
+  program
+    .command('pair')
+    .description(
+      'Begin pairing a new native client. Prints a one-time 6-digit code; ' +
+      'the device POSTs its CSR to /api/pair/complete with the code. Blocks ' +
+      'until a device pairs or the code expires (default 5min).'
+    )
+    .option('-p, --port <port>', 'preferred hub port', String(DEFAULT_HUB_PORT))
+    .action(async (opts, cmd) => {
+      const preferredPort = Number.parseInt(opts.port, 10);
+      const hub = await findRunningHub(preferredPort);
+      if (!hub) fail(`No scope hub running on ports ${preferredPort}+. Start one with \`scope serve\`.`);
+      try {
+        const beginRes = await hubFetch(`${hub.url}/api/pair/begin`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (!beginRes.ok) {
+          const body = await beginRes.json();
+          fail(body.error || `HTTP ${beginRes.status}`);
+        }
+        const { code, expires_at, ttl_ms } = await beginRes.json();
+
+        const ca = loadOrCreateCa();
+        // Banner — keep machine-readable bits in --json mode.
+        if (cmd.optsWithGlobals().json) {
+          out(cmd, { code, expires_at, ttl_ms, hub_url: hub.url, ca_fingerprint: ca.fingerprint });
+        } else {
+          process.stdout.write(
+            '\n' +
+            chalk.bold('Pairing code: ') + chalk.bold.green(code) + '\n' +
+            chalk.gray(`  expires at:    ${expires_at} (${Math.round(ttl_ms / 1000)}s)`) + '\n' +
+            chalk.gray(`  hub:           ${hub.url}`) + '\n' +
+            chalk.gray(`  CA fingerprint:`) + '\n' +
+            '    ' + chalk.gray(ca.fingerprint) + '\n' +
+            '\nOn the new device, run the pairing flow against:\n' +
+            chalk.bold(`  ${hub.url}/api/pair/complete`) + '\n' +
+            chalk.gray('  body: { code, csr_pem, device_name }') + '\n' +
+            '\nWaiting for device...\n'
+          );
+        }
+
+        // Poll for completion by re-issuing the same code? No — once a device
+        // pairs, devices.json gains a new record. We watch that file (lightly
+        // — a 1s poll is plenty for an interactive flow with a 5min window).
+        const startedAt = Date.now();
+        const before = new Set(listDevices().map((d) => d.name + '@' + d.serial_hex));
+        let paired = null;
+        while (Date.now() - startedAt < ttl_ms) {
+          await new Promise((r) => setTimeout(r, 1000));
+          const after = listDevices();
+          paired = after.find((d) => !before.has(d.name + '@' + d.serial_hex)) || null;
+          if (paired) break;
+        }
+        if (!paired) fail('Pairing code expired before a device completed the flow.');
+
+        if (cmd.optsWithGlobals().json) {
+          out(cmd, { paired });
+        } else {
+          process.stdout.write(
+            chalk.green('✓') + ` Paired ${chalk.bold(paired.name)}\n` +
+            chalk.gray(`  serial:       ${paired.serial_hex}`) + '\n' +
+            chalk.gray(`  fingerprint:  ${paired.fingerprint}`) + '\n' +
+            chalk.gray(`  cert expires: ${paired.not_after}`) + '\n'
+          );
+        }
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  const devices = program
+    .command('devices')
+    .description('Manage paired native client devices (~/.scope-hub/devices.json).');
+
+  devices
+    .command('list')
+    .alias('ls')
+    .description('List paired devices.')
+    .action((opts, cmd) => {
+      const rows = listDevices();
+      out(cmd, rows, (rows) =>
+        rows.length
+          ? table(
+              rows.map((d) => ({
+                name: chalk.bold(d.name),
+                serial: d.serial_hex.slice(0, 12) + '…',
+                paired_at: d.paired_at,
+                last_seen: d.last_seen,
+                not_after: d.not_after,
+              })),
+              [
+                { key: 'name', header: 'NAME', width: 24 },
+                { key: 'serial', header: 'SERIAL' },
+                { key: 'paired_at', header: 'PAIRED' },
+                { key: 'last_seen', header: 'LAST SEEN' },
+                { key: 'not_after', header: 'EXPIRES' },
+              ]
+            )
+          : chalk.gray('(no devices paired — run `scope pair` on this machine and complete the flow on a client)')
+      );
+    });
+
+  devices
+    .command('revoke <name>')
+    .description('Revoke a paired device. Removes it from devices.json and adds its cert serial to revoked.json (CRL). The running hub is signaled (SIGUSR1) to reload the CRL live.')
+    .option('-y, --yes', 'skip confirmation', false)
+    .action(async (name, opts, cmd) => {
+      const d = findDeviceByName(name);
+      if (!d) fail(`No device named ${name}`);
+      if (!opts.yes) fail(`Refusing to revoke ${name} without --yes (this is destructive; rerun with -y).`);
+      revokeSerial({ serialHex: d.serial_hex, name: d.name });
+      removeDevice(name);
+      // Best-effort: kick the running hub so the new CRL takes effect now.
+      let signaled = false;
+      try {
+        const home = homedir();
+        const hubFile = join(home, '.scope-hub', 'hub.json');
+        if (existsSync(hubFile)) {
+          const { pid } = JSON.parse(readFileSync(hubFile, 'utf8'));
+          if (pid && pid !== process.pid) {
+            try { process.kill(pid, 'SIGUSR1'); signaled = true; } catch {}
+          }
+        }
+      } catch {}
+      out(cmd, { revoked: { name: d.name, serial_hex: d.serial_hex }, signaled }, (data) =>
+        chalk.green('✓') + ` Revoked ${chalk.bold(data.revoked.name)} (serial ${data.revoked.serial_hex.slice(0, 12)}…)` +
+        (data.signaled ? chalk.gray(' — signaled hub to reload CRL') : chalk.gray(' — no running hub to signal'))
+      );
+    });
+
+  devices
+    .command('revoked')
+    .description('List revoked device certificates (CRL).')
+    .action((opts, cmd) => {
+      const rows = listRevoked();
+      out(cmd, rows, (rows) =>
+        rows.length
+          ? table(
+              rows.map((r) => ({
+                name: r.name || chalk.gray('(unknown)'),
+                serial: r.serial_hex.slice(0, 16) + '…',
+                revoked_at: r.revoked_at,
+              })),
+              [
+                { key: 'name', header: 'NAME' },
+                { key: 'serial', header: 'SERIAL' },
+                { key: 'revoked_at', header: 'REVOKED' },
+              ]
+            )
+          : chalk.gray('(none)')
+      );
+    });
+
+  devices
+    .command('unrevoke <serial>')
+    .description('Remove a serial from the CRL (does NOT re-add to devices.json — the user has to re-pair).')
+    .action((serial, opts, cmd) => {
+      const ok = unrevokeSerial(serial);
+      if (!ok) fail(`Serial ${serial} was not in the CRL`);
+      out(cmd, { unrevoked: serial }, (d) => chalk.green('✓') + ` Unrevoked ${d.unrevoked}`);
+    });
+
+  devices
+    .command('rename <name> <newName>')
+    .description('Rename a paired device (display name only; cert is unchanged).')
+    .action((name, newName, opts, cmd) => {
+      try {
+        const d = renameDevice(name, newName);
+        if (!d) fail(`No device named ${name}`);
+        out(cmd, d, (d) => chalk.green('✓') + ` Renamed → ${chalk.bold(d.name)}`);
+      } catch (e) {
+        fail(e.message);
+      }
     });
 
   /* ---------- serve ---------- */

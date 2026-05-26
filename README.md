@@ -21,8 +21,37 @@ scope init
 scope project create my-app MA "My App"
 scope ticket create MA "Auth refactor" -t epic -p high
 scope ticket create MA "OAuth login"   -t story --parent MA-1
-scope serve                              # → http://localhost:4321
+scope serve                              # → https://localhost:4321 (also https://scope.local:4321)
+scope ca trust                           # one-time: trust the local CA so browsers stop warning
 ```
+
+## LAN security
+
+`scope serve` listens on **HTTPS** with a leaf cert signed by a local
+certificate authority (generated on first run, persisted to
+`~/.scope-hub/ca/`). Authentication is layered:
+
+- **Browser path** — a bearer token stored in a cookie. Bookmark
+  `https://scope.local:4321/?token=…` once (printed at startup) and the
+  cookie does the rest. Loopback connections from the same machine bypass
+  the token check entirely so `scope` CLI commands work without
+  configuration.
+- **Native path (SwiftUI app, etc.)** — clients pair with `scope pair` and
+  get a client certificate signed by the local CA. mTLS replaces the
+  bearer token for those connections; see `scope devices list`.
+
+To clear the browser cert warning, trust the local CA once:
+
+```bash
+scope ca trust            # System keychain, sudo (recommended)
+scope ca trust --user     # login keychain, no sudo (per-user only)
+scope ca fingerprint      # print SHA-256 for out-of-band verification
+scope ca untrust          # reverses `scope ca trust`
+```
+
+The CA's private key lives at `~/.scope-hub/ca/ca.key` (mode `0600`) and
+never leaves the machine. The cert at `~/.scope-hub/ca/ca.crt` is what gets
+trusted by the keychain.
 
 ## What you get
 
@@ -125,6 +154,9 @@ Ticket IDs look like `MA-3` (project key + number).
 | `scope board [-p <key>] [--epic <id>]` | Terminal kanban view |
 | `scope serve [-p <port>]` | Run the web UI (auto-attaches to a running hub) |
 | `scope workspace add / list / remove` | Manage workspaces on the running hub |
+| `scope ca fingerprint / trust / untrust / path` | Manage the local certificate authority |
+| `scope pair` | Pair a new native client (prints a one-time 6-digit code) |
+| `scope devices list / rename` | Inspect or rename paired native clients |
 | `scope skills install [--tool ...] [--project ...]` | Install agent skill |
 
 Every command accepts `--json` for machine-readable output.

@@ -1,10 +1,18 @@
 import express from 'express';
+import http from 'node:http';
+import https from 'node:https';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import open from 'open';
 import chalk from 'chalk';
 import Bonjour from 'bonjour-service';
+import { loadOrCreateCa, fingerprintHex } from './ca.js';
+import { ensureLeafCert, collectSans } from './tls.js';
+import { signCsr } from './ca.js';
+import { addDevice } from './devices.js';
+import { createPairingContext } from './pair.js';
+import { reloadCrl, installCrlReloadSignal } from './revocation.js';
 import { bus, wsContext } from './events.js';
 import {
   createProject,
@@ -61,6 +69,16 @@ export function startServer({
   quiet = false,
   silent = false,
   discoverable = true,
+  /**
+   * TLS configuration.
+   *   - `undefined` (default): generate / load the local CA + leaf and serve
+   *     HTTPS. Production behavior.
+   *   - `false`: serve plain HTTP. Used by the test suite and by callers that
+   *     want to layer their own TLS termination.
+   *   - `{ ca, leaf }` object: use the supplied CA + leaf without touching
+   *     disk. Useful for tests that exercise HTTPS specifically.
+   */
+  tls,
 }) {
   const log = silent
     ? () => {}
@@ -76,9 +94,81 @@ export function startServer({
   if (scopeDir) mgr.attach(scopeDir);
 
   const token = loadOrCreateToken();
+  // Prime the in-memory CRL from disk and install SIGUSR1 so revokes done by
+  // out-of-process CLI calls (`scope devices revoke`) get picked up live.
+  reloadCrl();
+  installCrlReloadSignal();
   const app = express();
-  app.use(authMiddleware({ token, allowedHosts: lanHosts() }));
+
+  // Pairing context lives for the lifetime of the server. The /api/pair/*
+  // routes are mounted BEFORE authMiddleware: pair/begin is loopback-only
+  // anyway (loopback bypasses auth), and pair/complete must be reachable by
+  // an unauthenticated device (that's the whole point of pairing — it's how
+  // a device becomes authenticated). pair/complete gates itself on the
+  // single-use short code + a rate limit.
+  const pairing = createPairingContext();
+
   app.use(express.json({ limit: '5mb' }));
+
+  // POST /api/pair/begin — issue a fresh pairing code. Loopback only (so
+  // only the local `scope pair` CLI can request one).
+  app.post('/api/pair/begin', (req, res) => {
+    const ip = req.socket?.remoteAddress || '';
+    const isLoop = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    if (!isLoop) return res.status(403).json({ error: 'loopback only' });
+    const { code, expiresAt } = pairing.pending.issue();
+    res.json({ code, expires_at: new Date(expiresAt).toISOString(), ttl_ms: expiresAt - Date.now() });
+  });
+
+  // POST /api/pair/complete — { code, csr_pem, device_name }. Rate-limited
+  // per IP. On success: signs the CSR, records the device, fires 'consumed'
+  // on the code's EE so the waiting CLI sees the success.
+  app.post('/api/pair/complete', (req, res) => {
+    const ip = req.socket?.remoteAddress || 'unknown';
+    const rl = pairing.limiter.check(ip);
+    if (!rl.allowed) {
+      res.setHeader('Retry-After', Math.ceil(rl.retryAfterMs / 1000));
+      return res.status(429).json({ error: 'too many attempts', retry_after_ms: rl.retryAfterMs });
+    }
+    const { code, csr_pem, device_name } = req.body || {};
+    if (typeof code !== 'string' || typeof csr_pem !== 'string' || typeof device_name !== 'string') {
+      return res.status(400).json({ error: 'code, csr_pem, device_name required' });
+    }
+    if (!/^[a-zA-Z0-9_\-. ]{1,64}$/.test(device_name)) {
+      return res.status(400).json({ error: 'invalid device_name' });
+    }
+    const ee = pairing.pending.consume(code);
+    if (!ee) return res.status(401).json({ error: 'invalid or expired code' });
+
+    // Sign the CSR with the CA. We override the CN with the device name so
+    // it's authoritative — clients can't claim a different identity in their
+    // CSR than the one the user typed at the `scope pair` prompt.
+    let signed;
+    try {
+      signed = signCsr({ ca: tlsCtx?.ca ?? loadOrCreateCa(), csrPem: csr_pem, commonName: device_name });
+    } catch (e) {
+      return res.status(400).json({ error: `CSR rejected: ${e.message}` });
+    }
+
+    const device = addDevice({
+      name: device_name,
+      certPem: signed.certPem,
+      serialHex: signed.serialHex,
+      notAfter: signed.notAfter,
+    });
+    pairing.limiter.reset(ip); // success clears the counter
+
+    const ca = tlsCtx?.ca ?? loadOrCreateCa();
+    const payload = {
+      cert_pem: signed.certPem,
+      ca_pem: ca.certPem,
+      device,
+    };
+    ee.emit('consumed', { ...payload, ip });
+    res.status(201).json(payload);
+  });
+
+  app.use(authMiddleware({ token, allowedHosts: lanHosts() }));
 
   /* ---------- workspace helpers ---------- */
 
@@ -109,12 +199,16 @@ export function startServer({
   /* ---------- meta ---------- */
 
   app.get('/api/meta', (_req, res) => {
+    const security = tlsCtx
+      ? { scheme: 'https', auth: ['bearer', 'mtls'], ca_fingerprint: fingerprintHex(tlsCtx.ca.certPem) }
+      : { scheme: 'http', auth: ['bearer'] };
     res.json({
       statuses: SCHEMA_STATUSES,
       priorities: SCHEMA_PRIORITIES,
       ticket_types: SCHEMA_TICKET_TYPES,
       relation_types: SCHEMA_RELATION_TYPES,
       hub: { port, workspaces: mgr.list() },
+      security,
     });
   });
 
@@ -298,16 +392,66 @@ export function startServer({
     res.sendFile(join(__dirname, 'web', 'index.html'));
   });
 
+  // Resolve TLS configuration. `tls === false` keeps the legacy HTTP path
+  // for tests; anything else (including undefined) means HTTPS.
+  let tlsCtx = null;
+  if (tls !== false) {
+    if (tls && tls.ca && tls.leaf) {
+      tlsCtx = tls;
+    } else {
+      const ca = loadOrCreateCa();
+      const leaf = ensureLeafCert({ ca, sans: collectSans() });
+      tlsCtx = { ca, leaf };
+    }
+  }
+
+  const httpServer = tlsCtx
+    ? https.createServer({
+        key: tlsCtx.leaf.keyPem,
+        cert: tlsCtx.leaf.certPem,
+        ca: tlsCtx.ca.certPem,
+        // Request — but do not require — client certs. Browsers without a
+        // cert can still connect (they'll auth with the bearer cookie);
+        // native clients that present a CA-signed cert get mTLS auth via
+        // authMiddleware. `rejectUnauthorized:false` lets unauth peers
+        // through; the middleware re-checks `socket.authorized` so a
+        // forged/untrusted cert can never be accepted as auth.
+        requestCert: true,
+        rejectUnauthorized: false,
+      }, app)
+    : http.createServer(app);
+  const scheme = tlsCtx ? 'https' : 'http';
+
   return new Promise((resolve, reject) => {
-    const server = app.listen(port, '0.0.0.0');
+    const server = httpServer.listen(port, '0.0.0.0');
     server.once('listening', () => {
       const actualPort = server.address().port;
-      const localUrl = `http://localhost:${actualPort}`;
+      const localUrl = `${scheme}://localhost:${actualPort}`;
       const lanIp = pickLanIp();
       // Bonjour holds the event loop open and opens UDP multicast sockets, so
       // tests pass discoverable: false to skip it. In prod, the default flow
       // publishes both the scope.local hostname and the _scope._tcp service.
       const bonjour = discoverable ? new Bonjour() : null;
+      // TXT record:
+      //   path=/       — where the UI / API lives
+      //   auth=...     — comma-separated supported auth schemes. We always
+      //                  support bearer (browser cookie). Under HTTPS we also
+      //                  support mtls (client cert).
+      //   scheme=...   — http | https, so SwiftUI clients know which URL
+      //                  scheme to use.
+      //   ca_fp=...    — SHA-256 of the local CA (lowercase hex, no colons).
+      //                  Native clients pin this when first discovering a
+      //                  Scope on the LAN, preventing a malicious peer from
+      //                  spoofing scope.local with their own CA.
+      const txt = { path: '/' };
+      if (tlsCtx) {
+        txt.scheme = 'https';
+        txt.auth = 'bearer,mtls';
+        txt.ca_fp = fingerprintHex(tlsCtx.ca.certPem);
+      } else {
+        txt.scheme = 'http';
+        txt.auth = 'bearer';
+      }
       const advert = bonjour
         ? bonjour.publish({
             name: 'scope',
@@ -315,15 +459,28 @@ export function startServer({
             type: 'scope',
             protocol: 'tcp',
             port: actualPort,
-            txt: { path: '/', auth: 'bearer' },
+            txt,
           })
         : null;
-      const prettyUrl = `http://scope.local:${port}`;
+      const prettyUrl = `${scheme}://scope.local:${port}`;
       const bookmarkUrl = `${prettyUrl}/?token=${token}`;
       log(chalk.green('✓') + ` scope running at ${chalk.bold(prettyUrl)}`);
-      log(chalk.gray(`  also: ${localUrl}${lanIp ? `  •  http://${lanIp}:${port}` : ''}`));
+      log(chalk.gray(`  also: ${localUrl}${lanIp ? `  •  ${scheme}://${lanIp}:${port}` : ''}`));
       log(chalk.yellow('  ↳ bookmark this URL once (sets an auth cookie):'));
       log('    ' + chalk.bold(bookmarkUrl));
+      if (tlsCtx) {
+        // HTTPS uses a self-signed local CA the browser doesn't trust yet.
+        // First-run-style messaging: always show the fingerprint (so the
+        // user can verify out-of-band when pairing); only nag about
+        // `scope ca trust` if the CA was freshly created on this serve.
+        log(chalk.gray('  CA fingerprint (SHA-256):'));
+        log('    ' + chalk.gray(tlsCtx.ca.fingerprint));
+        if (tlsCtx.ca.created) {
+          log(chalk.yellow('  ↳ first run — browsers will show a cert warning until you trust the CA:'));
+          log('    ' + chalk.bold('scope ca trust') + chalk.gray('     (System keychain, sudo — recommended)'));
+          log('    ' + chalk.gray('scope ca trust --user') + chalk.gray('     (login keychain, no sudo)'));
+        }
+      }
       const list = mgr.list();
       log(chalk.gray(`  workspaces: ${list.length}`));
       for (const w of list) {
@@ -334,6 +491,8 @@ export function startServer({
       server._workspaces = mgr;
       server._bonjour = bonjour;
       server._bonjourAdvert = advert;
+      server._tls = tlsCtx;
+      server._pairing = pairing;
       const origClose = server.close.bind(server);
       server.close = (cb) => {
         try { advert?.stop?.(); } catch {}
