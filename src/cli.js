@@ -111,9 +111,9 @@ function editorPrompt(initial) {
 
 /**
  * Keep the event loop alive until the process receives a termination signal.
- * Used when a CLI command (`scope ui`, `scope serve`) attaches to an existing
- * hub instead of starting one — exiting would confuse launchers (Claude Code
- * previews, supervisors) that expect a long-running server process.
+ * Used when `scope serve` attaches to an existing hub instead of starting
+ * one — exiting would confuse launchers (Claude Code previews, supervisors)
+ * that expect a long-running server process.
  */
 function idleUntilSignaled() {
   const ticker = setInterval(() => {}, 1 << 30);
@@ -689,49 +689,6 @@ export function buildProgram() {
       out(cmd, tickets, boardView);
     });
 
-  program
-    .command('ui')
-    .description(
-      'Open the local web UI. Auto-attaches to a running hub if one exists; otherwise starts one.'
-    )
-    .option('-p, --port <port>', 'preferred port (walks forward if taken)', String(DEFAULT_HUB_PORT))
-    .option('--no-open', "don't open the browser automatically")
-    .action(async (opts) => {
-      const { scopeDir } = openOrDie();
-      const preferredPort = Number.parseInt(opts.port, 10);
-      const ensureOpts = {
-        scopeDir,
-        preferredPort,
-        serveUi: true,
-        openBrowser: opts.open,
-      };
-      const res = await ensureHub(ensureOpts);
-      startHubWatchdog(res, ensureOpts, {
-        onEvent: (e) => {
-          if (e.type === 'repair.done') {
-            process.stderr.write(
-              chalk.gray(
-                `[watchdog] hub repaired → ${e.url}${e.promoted ? ' (promoted self)' : ''}\n`
-              )
-            );
-          }
-        },
-      });
-      if (res.weAreHub) {
-        process.stdout.write(
-          chalk.green('✓') + ` scope ui running at ${chalk.bold(res.url)}\n` +
-          chalk.gray('  press Ctrl-C to stop') + '\n'
-        );
-      } else {
-        process.stdout.write(
-          chalk.green('✓') +
-            ` Attached to existing hub at ${chalk.bold(res.url)}\n` +
-          chalk.gray('  this process idles + watchdogs the hub; Ctrl-C to detach') + '\n'
-        );
-        idleUntilSignaled();
-      }
-    });
-
   /* ---------- workspace (hub registration) ---------- */
 
   const workspace = program
@@ -773,7 +730,7 @@ export function buildProgram() {
       if (!hub) {
         fail(
           `No scope hub running (scanned ports ${preferredPort}+). ` +
-            `Start one with \`scope serve\` or \`scope mcp\` (in any repo) first.`
+            `Start one with \`scope serve\` (in any repo) first.`
         );
       }
       try {
@@ -956,160 +913,28 @@ export function buildProgram() {
       );
     });
 
-  /* ---------- mcp ---------- */
-
-  program
-    .command('mcp')
-    .description(
-      'Run scope as a Model Context Protocol server over stdio. By default also brings up the web UI on a local port so you (and other agents) can see what is happening.'
-    )
-    .option(
-      '--scope-dir <path>',
-      'override the .scope directory (else uses $SCOPE_DIR or walks up from CWD)'
-    )
-    .option('--auto-init', 'create the .scope directory if it does not exist', false)
-    .option('--no-ui', "don't start the local web UI")
-    .option(
-      '-p, --port <port>',
-      'preferred port for the web UI (walks forward if taken)',
-      String(DEFAULT_HUB_PORT)
-    )
-    .option('--open', 'open the UI in a browser after startup', false)
-    .action(async (opts) => {
-      const preferredPort = Number.parseInt(opts.port, 10);
-      const { basename } = await import('node:path');
-
-      // Resolve the local .scope/ for this invocation.
-      let scopeDir = opts.scopeDir
-        ? resolve(opts.scopeDir)
-        : findScopeDir();
-      if (!scopeDir) {
-        if (opts.autoInit) {
-          scopeDir = defaultScopeDir();
-          mkdirSync(scopeDir, { recursive: true });
-        } else {
-          process.stderr.write(
-            chalk.red(
-              `No ${SCOPE_DIR_NAME}/ found. Run \`scope init\`, pass --scope-dir, ` +
-                `set $SCOPE_DIR, or rerun with --auto-init.\n`
-            )
-          );
-          process.exit(1);
-        }
-      }
-      const db = openDb(scopeDir);
-      const ourLabel = basename(resolve(scopeDir, '..')) || 'workspace';
-
-      // Find or start the shared hub. ensureHub handles both the "we're first"
-      // and "someone else got there first" cases transparently, including
-      // walking past port collisions with non-scope processes.
-      let hubInfo = null;
-      if (opts.ui !== false) {
-        try {
-          const ensureOpts = {
-            scopeDir,
-            label: ourLabel,
-            preferredPort,
-            serveUi: true,
-            openBrowser: opts.open,
-          };
-          hubInfo = await ensureHub(ensureOpts);
-          startHubWatchdog(hubInfo, ensureOpts, {
-            onEvent: (e) => {
-              if (e.type === 'repair.done') {
-                process.stderr.write(
-                  chalk.gray(
-                    `[watchdog] hub repaired → ${e.url}${e.promoted ? ' (promoted self)' : ''}\n`
-                  )
-                );
-              }
-            },
-          });
-          process.stderr.write(
-            chalk.gray(
-              hubInfo.weAreHub
-                ? `scope hub started at ${hubInfo.url} — serving "${ourLabel}".\n`
-                : `scope hub at ${hubInfo.url} — registered "${ourLabel}".\n`
-            )
-          );
-        } catch (e) {
-          process.stderr.write(
-            chalk.yellow(`Could not bring up hub: ${e.message}. MCP still works locally.\n`)
-          );
-        }
-      }
-
-      // Start the stdio MCP server. This takes over stdin/stdout.
-      const { buildMcpServer } = await import('./mcp.js');
-      const { StdioServerTransport } = await import(
-        '@modelcontextprotocol/sdk/server/stdio.js'
-      );
-      try {
-        const { server: mcpServer } = buildMcpServer({ db, scopeDir });
-        const transport = new StdioServerTransport();
-        await mcpServer.connect(transport);
-        // When the stdio peer disconnects, tear the hub down too (only if WE
-        // started it — don't kill someone else's hub).
-        const shutdown = () => {
-          if (hubInfo?.weAreHub) {
-            try { hubInfo.server?.close(); } catch {}
-          }
-        };
-        process.stdin.on('end', shutdown);
-        process.stdin.on('close', shutdown);
-      } catch (e) {
-        process.stderr.write(chalk.red(e.message || String(e)) + '\n');
-        if (hubInfo?.weAreHub) {
-          try { hubInfo.server?.close(); } catch {}
-        }
-        process.exit(1);
-      }
-    });
-
-  /* ---------- serve (UI + HTTP MCP in one process) ---------- */
+  /* ---------- serve ---------- */
 
   program
     .command('serve')
     .description(
-      'Run the web UI and HTTP MCP endpoint. Auto-attaches to an existing hub if one is running.'
+      'Run the local web UI. Auto-attaches to a running hub if one exists; otherwise starts one and idles with a watchdog so the hub survives sibling process death.'
     )
     .option('-p, --port <port>', 'preferred port (walks forward if taken)', String(DEFAULT_HUB_PORT))
     .option('--no-open', "don't open the browser automatically")
-    .option('--no-ui', 'disable the web UI (MCP-only HTTP server)')
-    .option('--no-mcp', 'disable the MCP endpoint (UI only — same as `scope ui`)')
     .action(async (opts) => {
       const { scopeDir } = openOrDie();
       const preferredPort = Number.parseInt(opts.port, 10);
 
-      // Construct an mcpFactory closure that will be ignored if we end up
-      // attaching to an existing hub.
-      let mcpFactory = null;
-      let mgrRef = null;
-      if (opts.mcp !== false) {
-        const { buildMcpServer } = await import('./mcp.js');
-        mcpFactory = () => {
-          const first = mgrRef?.list()[0];
-          if (!first) throw new Error('no workspace attached');
-          const w = mgrRef.get(first.id);
-          return buildMcpServer({ scopeDir: w.scope_dir, db: w.db }).server;
-        };
-      }
-
       const ensureOpts = {
         scopeDir,
         preferredPort,
-        serveUi: opts.ui !== false,
-        mcpFactory,
-        openBrowser: opts.open && opts.ui !== false,
+        openBrowser: opts.open,
       };
       const res = await ensureHub(ensureOpts);
-      mgrRef = res.workspaces ?? null;
       startHubWatchdog(res, ensureOpts, {
         onEvent: (e) => {
           if (e.type === 'repair.done') {
-            // After repair, the mgrRef pointer needs to follow whatever the
-            // new hub is using so the mcpFactory closure stays valid.
-            mgrRef = res.workspaces ?? null;
             process.stderr.write(
               chalk.gray(
                 `[watchdog] hub repaired → ${e.url}${e.promoted ? ' (promoted self)' : ''}\n`
@@ -1121,17 +946,14 @@ export function buildProgram() {
 
       if (res.weAreHub) {
         process.stdout.write(
-          chalk.green('✓') + ` scope hub running at ${chalk.bold(res.url)}\n` +
-          (opts.mcp !== false
-            ? chalk.gray(`  mcp: ${res.url}/mcp\n`)
-            : '') +
+          chalk.green('✓') + ` scope running at ${chalk.bold(res.url)}\n` +
           chalk.gray('  press Ctrl-C to stop') + '\n'
         );
       } else {
         process.stdout.write(
           chalk.green('✓') +
-            ` Hub already running at ${chalk.bold(res.url)} — registered this workspace.\n` +
-          chalk.gray('  this process idles so launchers see a long-running server; Ctrl-C to detach') + '\n'
+            ` Attached to existing hub at ${chalk.bold(res.url)} — registered this workspace.\n` +
+          chalk.gray('  this process idles + watchdogs the hub; Ctrl-C to detach') + '\n'
         );
         idleUntilSignaled();
       }

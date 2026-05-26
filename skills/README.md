@@ -55,50 +55,21 @@ mkdir -p .cursor/rules && \
 ## What the skill teaches
 
 In short: when to reach for Scope (multi-step work, planning, status updates,
-bug tracking), how to access it (MCP first, then CLI), the data model
-(project / epic / story / bug / relations / statuses / priorities), and a
-handful of common commands. See [`scope.md`](./scope.md) for the canonical
-text — the per-tool files are mostly the same content with different
-frontmatter.
+bug tracking), how to invoke it (the CLI, with `--json` for parseable output),
+the data model (project / epic / story / bug / relations / statuses /
+priorities), and a handful of common commands. See [`scope.md`](./scope.md)
+for the canonical text — the per-tool files are mostly the same content with
+different frontmatter.
 
-## Wiring the MCP server
+## No MCP server required
 
-Skills tell an agent *how* to use Scope. To give it the tools, add an MCP
-server entry to its config (`~/.claude.json`, `~/.codex/config.toml`, Cursor
-MCP settings, etc.). **Zero install** — `npx` fetches scope on first use:
+Scope is **CLI-first**. Agents shell out to `scope` directly (every command
+supports `--json`). There is nothing to wire up in `~/.claude.json` or
+`~/.codex/config.toml` — if `scope` is on `$PATH` the skill works.
 
-```json
-{
-  "mcpServers": {
-    "scope": {
-      "command": "npx",
-      "args": ["-y", "scope-kanban", "mcp"]
-    }
-  }
-}
-```
-
-The web UI comes up automatically alongside every MCP process — the first
-to start binds the default port (`4321`, walking forward if taken by a
-non-scope process); every later invocation auto-discovers and registers
-with it. Pass `--no-ui` to opt out. No port flags required.
-
-Prefer the brew install? Replace `command` with `scope` and `args` with
-`["mcp"]`.
-
-For a single shared HTTP endpoint across many agents:
-
-```json
-{
-  "mcpServers": {
-    "scope": {
-      "type": "http",
-      "url": "http://localhost:4321/mcp"
-    }
-  }
-}
-```
-
-(Run `scope serve` once on the host machine first. `4321` is the default;
-if a non-scope process holds it the hub walks to the next free port up to
-`4330` — `scope ws ls` prints the URL it actually settled on.)
+To watch the board live while an agent works, run `scope serve` once and open
+http://localhost:4321. Every agent that touches `scope` in any repo registers
+its `.scope/` with that running hub automatically; the workspace switcher in
+the topbar lets you pick which board to look at. If the hub-owning process
+dies, a watchdog in any sibling `scope serve` instance promotes itself within
+~30s — no manual intervention.

@@ -34,11 +34,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 /**
  * Start the local hub server.
  *
- * The server is now workspace-aware: it manages a registry of attached
+ * The server is workspace-aware: it manages a registry of attached
  * workspaces (each its own .scope/scope.db), and every REST endpoint resolves
  * a workspace from `?workspace=<id>` (or `X-Scope-Workspace` header). If no
- * workspace is specified, the first attached one is used — preserves the
- * single-workspace UX from before.
+ * workspace is specified, the first attached one is used.
  *
  * @param {object} opts
  * @param {WorkspaceManager} [opts.workspaces] - existing workspace manager. If
@@ -49,18 +48,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  *                                        as the initial workspace.
  * @param {number}   opts.port
  * @param {boolean}  [opts.open]        - open browser after start
- * @param {() => any} [opts.mcpFactory] - mount MCP HTTP transport at /mcp
- * @param {boolean}  [opts.serveUi=true]
- * @param {boolean}  [opts.quiet=false] - log banner to stderr (use when sharing
- *                                        a process with stdio MCP)
+ * @param {boolean}  [opts.quiet=false] - log banner to stderr
  */
 export function startServer({
   workspaces,
   scopeDir,
   port,
   open: openBrowser,
-  mcpFactory,
-  serveUi = true,
   quiet = false,
 }) {
   const log = quiet
@@ -76,10 +70,6 @@ export function startServer({
 
   const app = express();
   app.use(express.json({ limit: '5mb' }));
-
-  /* ---------- MCP (mounted before static catch-all) ---------- */
-
-  if (mcpFactory) mountMcp(app, mcpFactory);
 
   /* ---------- workspace helpers ---------- */
 
@@ -294,75 +284,26 @@ export function startServer({
 
   /* ---------- static UI ---------- */
 
-  if (serveUi) {
-    app.use(express.static(join(__dirname, 'web')));
-    app.get('*', (_req, res) => {
-      res.sendFile(join(__dirname, 'web', 'index.html'));
-    });
-  }
+  app.use(express.static(join(__dirname, 'web')));
+  app.get('*', (_req, res) => {
+    res.sendFile(join(__dirname, 'web', 'index.html'));
+  });
 
   return new Promise((resolve, reject) => {
     const server = app.listen(port);
     server.once('listening', () => {
       const url = `http://localhost:${port}`;
-      if (serveUi) {
-        log(chalk.green('✓') + ` scope ui running at ${chalk.bold(url)}`);
-      }
-      if (mcpFactory) {
-        log(
-          chalk.green('✓') +
-            ` scope mcp endpoint at ${chalk.bold(url + '/mcp')} (streamable HTTP, stateless)`
-        );
-      }
+      log(chalk.green('✓') + ` scope running at ${chalk.bold(url)}`);
       const list = mgr.list();
       log(chalk.gray(`  workspaces: ${list.length}`));
       for (const w of list) {
         log(chalk.gray(`    • ${w.label}  ${chalk.dim(w.scope_dir)}`));
       }
       if (!quiet) log(chalk.gray('  press Ctrl-C to stop'));
-      if (openBrowser && serveUi) open(url).catch(() => {});
+      if (openBrowser) open(url).catch(() => {});
       server._workspaces = mgr;
       resolve(server);
     });
     server.once('error', (err) => reject(err));
   });
-}
-
-/**
- * Mount MCP streamable-HTTP endpoints on the Express app.
- *
- * Stateless: every request builds a fresh McpServer + transport pair, processes
- * the request, then tears them down. Concurrency is handled at the SQLite layer
- * (WAL mode, in repo.js). Many agents can post to /mcp simultaneously.
- */
-function mountMcp(app, mcpFactory) {
-  const handleOnce = async (req, res) => {
-    let mcp;
-    let transport;
-    try {
-      const { StreamableHTTPServerTransport } = await import(
-        '@modelcontextprotocol/sdk/server/streamableHttp.js'
-      );
-      mcp = mcpFactory();
-      transport = new StreamableHTTPServerTransport({});
-      res.on('close', () => {
-        try { transport?.close(); } catch {}
-        try { mcp?.close?.(); } catch {}
-      });
-      await mcp.connect(transport);
-      await transport.handleRequest(req, res, req.body);
-    } catch (err) {
-      console.error(chalk.red('MCP error:'), err?.message || err);
-      if (!res.headersSent) {
-        res.status(500).json({
-          jsonrpc: '2.0',
-          error: { code: -32603, message: err?.message || 'Internal MCP error' },
-          id: null,
-        });
-      }
-    }
-  };
-  app.post('/mcp', handleOnce);
-  app.get('/mcp', handleOnce);
-  app.delete('/mcp', handleOnce);
 }

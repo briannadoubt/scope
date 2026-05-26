@@ -1,12 +1,12 @@
 ---
-description: Use the Scope kanban (local CLI + MCP) to plan, track, and report on multi-step work. Apply when the user asks for project planning, status updates, ticket/epic/bug tracking, or coordination across multiple agents.
+description: Use the Scope kanban (local CLI + web UI) to plan, track, and report on multi-step work. Apply when the user asks for project planning, status updates, ticket/epic/bug tracking, or coordination across multiple agents.
 alwaysApply: false
 ---
 
 # Using Scope
 
 Scope is a local-first kanban for projects, epics, stories, and bugs. It ships
-as a CLI, a GitHub-Projects-style web UI, and a Model Context Protocol server.
+as a CLI and a GitHub-Projects-style web UI.
 
 ## When to use
 
@@ -19,7 +19,7 @@ Skip Scope for one-off questions or trivial single-edit requests.
 
 ## How to access
 
-If MCP is connected, `mcp__scope__*` tools cover everything. Otherwise:
+Shell out to the `scope` CLI. Every command supports `--json`:
 
 ```bash
 scope --json ticket list -p MA
@@ -69,11 +69,10 @@ scope link add MA-2 blocked_by MA-7
 
 ## Realtime + multi-agent
 
-`scope serve`, `scope ui`, and `scope mcp` all auto-discover a running hub
-and attach to it; the first started becomes the hub. **Never pass `--port`**
-— concurrent agents converge on the shared hub at `http://localhost:4321`
-(walks forward to `4330` if a non-scope process holds `4321`). Writes push
-to all viewers via SSE in ~100ms. With multiple agents, **read state before
+If the user runs `scope serve` somewhere, the web UI comes up at
+`http://localhost:4321` and every `scope` CLI call pushes to all viewers via
+SSE in ~100ms. **Never pass `--port`** — concurrent `scope serve` invocations
+auto-discover the running hub. With multiple agents, **read state before
 writing state** — last write wins on conflicting updates.
 
 ## Source

@@ -4,7 +4,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 /**
  * Process-wide change bus. Subscribers (the SSE endpoint, mainly) listen here.
  * The fs.watch on each attached workspace feeds cross-process writes into the
- * same bus, so a write from any process (CLI, stdio MCP subprocess, hub
+ * same bus, so a write from any process (CLI, sibling `scope serve`, hub
  * itself) shows up in the UI.
  */
 export const bus = new EventEmitter();

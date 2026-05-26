@@ -1,8 +1,8 @@
 # Scope kanban guidance for Codex
 
-This file teaches the agent to use Scope, a local-first kanban with a CLI,
-a web UI, and a Model Context Protocol server. Drop it at `~/.codex/AGENTS.md`
-to apply globally, or at the root of a project to scope it to that repo.
+This file teaches the agent to use Scope, a local-first kanban with a CLI and
+a web UI. Drop it at `~/.codex/AGENTS.md` to apply globally, or at the root of
+a project to scope it to that repo.
 
 ---
 
@@ -22,8 +22,8 @@ Skip Scope for one-off questions or trivial single-edit requests.
 
 ## How to access
 
-If a `scope` MCP server is configured in `~/.codex/config.toml`, use those
-tools. Otherwise shell out to the CLI:
+Shell out to the `scope` CLI. Every command supports `--json` for parseable
+output:
 
 ```bash
 scope --json ticket list -p MA
@@ -76,13 +76,13 @@ scope link add MA-2 blocked_by MA-7
 
 ## Realtime + multi-agent
 
-`scope serve`, `scope ui`, and `scope mcp` all auto-discover a running hub
-and attach to it; the first started becomes the hub. **Never pass `--port`**
-— concurrent agents converge on the shared hub at `http://localhost:4321`
-(walks forward to `4330` if a non-scope process holds `4321`). Writes from
-any source push to all viewers via SSE within ~100ms. If multiple agents
-are working in parallel, **read state before writing it** — there is no
-merge logic for conflicting updates, last write wins.
+If the user runs `scope serve` somewhere, the web UI comes up at
+`http://localhost:4321` and every `scope` CLI call (yours, the user's, another
+agent's) pushes to all viewers via SSE within ~100ms. **Never pass `--port`**
+— concurrent `scope serve` invocations auto-discover the running hub and
+register their workspace with it. If multiple agents are working in parallel,
+**read state before writing it** — there is no merge logic for conflicting
+updates, last write wins.
 
 ## Source
 

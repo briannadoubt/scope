@@ -1,7 +1,7 @@
 {
   "name": "scope-kanban",
   "version": "0.3.1",
-  "description": "Local-first kanban for projects, epics, stories, and bugs — built for agents. CLI + web UI + MCP server.",
+  "description": "Local-first kanban for projects, epics, stories, and bugs — built for agents. CLI + web UI.",
   "type": "module",
   "bin": {
     "scope": "./bin/scope.js"
@@ -9,7 +9,6 @@
   "main": "./src/cli.js",
   "scripts": {
     "start": "node ./bin/scope.js",
-    "ui": "node ./bin/scope.js ui",
     "serve": "node ./bin/scope.js serve",
     "release": "bash ./scripts/release.sh"
   },
@@ -17,13 +16,11 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^12.10.0",
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
     "express": "^4.21.0",
-    "open": "^10.1.0",
-    "zod": "^4.4.3"
+    "open": "^10.1.0"
   },
   "files": [
     "bin",
@@ -34,7 +31,6 @@
   "keywords": [
     "kanban",
     "cli",
-    "mcp",
     "agent",
     "task-management",
     "project-management",

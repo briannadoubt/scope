@@ -16,9 +16,9 @@ import { homedir } from 'node:os';
  * workspace to it and return its URL. Otherwise we bind the first available
  * port and become the hub ourselves.
  *
- * This is what makes `scope ui`, `scope serve`, and `scope mcp` safe to run
- * concurrently from multiple Claude sessions / previews / repos — they all
- * converge on a single shared hub.
+ * This is what makes `scope serve` safe to run concurrently from multiple
+ * Claude sessions / previews / repos — they all converge on a single shared
+ * hub.
  */
 
 const HUB_DIR = join(homedir(), '.scope-hub');
@@ -113,15 +113,12 @@ async function registerWorkspace(url, scopeDir, label) {
  *   http.Server (caller is responsible for keeping the process alive / closing
  *   it on shutdown). `workspaces` is the WorkspaceManager.
  * - `weAreHub: false` → an existing hub is serving; we registered our
- *   workspace with it. Caller can exit, or stay running for other reasons
- *   (e.g. stdio MCP).
+ *   workspace with it. Caller typically idles + watchdogs.
  */
 export async function ensureHub({
   scopeDir,
   label,
   preferredPort = DEFAULT_HUB_PORT,
-  serveUi = true,
-  mcpFactory = null,
   openBrowser = false,
 } = {}) {
   // 1. Reuse an existing hub if one is already up.
@@ -153,8 +150,6 @@ export async function ensureHub({
         workspaces: mgr,
         port: p,
         open: false, // we open ourselves after writing discovery
-        mcpFactory,
-        serveUi,
         quiet: true,
       });
       writeDiscovery({
@@ -198,8 +193,8 @@ export async function ensureHub({
 
 /**
  * Watchdog: poll the hub at `state.url` and re-run ensureHub() if it stops
- * answering. Designed for every long-lived `scope` process — the stdio MCP in
- * `scope mcp`, the idling-on-attach process in `scope ui` / `scope serve`.
+ * answering. Designed for every long-lived `scope serve` process — whether it
+ * owns the hub or is idling after attaching to one.
  *
  * If the hub-owning process exits, one of the surviving sibling processes
  * wins the next `ensureHub()` bind race and the rest re-attach. The discovery

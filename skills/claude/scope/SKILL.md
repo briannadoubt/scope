@@ -1,13 +1,13 @@
 ---
 name: scope
-description: Plan, track, and report on multi-step work using the Scope kanban (local CLI + MCP server). Use when the user asks you to scope/plan a project, list open work, mark a ticket done, link a branch/PR, or coordinate with other agents on shared state. Don't use for one-off questions or trivial single-edit requests.
+description: Plan, track, and report on multi-step work using the Scope kanban (local CLI + web UI). Use when the user asks you to scope/plan a project, list open work, mark a ticket done, link a branch/PR, or coordinate with other agents on shared state. Don't use for one-off questions or trivial single-edit requests.
 ---
 
 # Using Scope
 
 Scope is a local-first kanban for projects, epics, stories, and bugs. It ships
-as a CLI, a GitHub-Projects-style web UI, and a Model Context Protocol server.
-Use it to plan, track, and report on multi-step work without leaving the terminal.
+as a CLI and a GitHub-Projects-style web UI. Use it to plan, track, and report
+on multi-step work without leaving the terminal.
 
 ## When to use
 
@@ -28,16 +28,13 @@ overhead isn't worth it.
 
 ## How to access
 
-If the `scope` MCP server is connected, tools appear as `mcp__scope__*`
-(`list_tickets`, `create_ticket`, `set_status`, `set_branch`, `set_pr`,
-`add_relation`, `add_comment`, `get_board`, `get_epic_progress`, ...). Prefer
-those — they're typed and don't shell out.
-
-If MCP isn't available, fall back to the CLI:
+Shell out to the `scope` CLI. Every command supports `--json` for parseable
+output:
 
 ```bash
 scope --json ticket list -p MA           # always pass --json for parsing
 scope --json ticket show MA-3
+scope --json get_meta                    # legal enums (statuses/priorities/types)
 ```
 
 If the CLI isn't installed:
@@ -110,22 +107,24 @@ scope link add MA-2 blocked_by MA-7
 
 ## Realtime + multi-agent
 
-`scope serve`, `scope ui`, and `scope mcp` all auto-discover a running hub
-and attach to it; the first one started becomes the hub. **Never pass
-`--port`** unless you actually need to override the default — concurrent
-agents and previews are designed to converge on the shared hub at
-`http://localhost:4321` (or the next free port up to `4330` if something
-non-scope holds `4321`). Writes from any source (you over MCP, the user
-from the CLI, another agent over MCP) push to all viewers via SSE within
-~100ms.
+If the user runs `scope serve` somewhere, the web UI comes up at
+`http://localhost:4321` and every `scope` CLI call (yours, the user's, another
+agent's) pushes to all viewers via SSE within ~100ms. **Never pass `--port`**
+unless you're explicitly told to — concurrent `scope serve` invocations
+auto-discover the running hub and register their workspace with it.
 
 If multiple agents are working in parallel, **always read state before writing
-state** — there is no merge logic for conflicting `update_ticket` calls, last
+state** — there is no merge logic for conflicting `ticket edit` calls, last
 write wins.
+
+## Useful follow-ups
+
+- `scope --json epic list` to see epic progress at a glance.
+- `scope --json ticket list -p MA --status todo` to find the next thing to do.
+- `scope --json get_board project=MA` returns columns + buckets for rendering.
+- `scope history MA-2` is the change log for a single ticket.
 
 ## Repo
 
 - Source: https://github.com/briannadoubt/scope
 - Install: `brew install briannadoubt/tap/scope`
-- The MCP server registers `mcp__scope__*` tools — `get_meta` returns the legal
-  enums for statuses, priorities, types, and relation types.

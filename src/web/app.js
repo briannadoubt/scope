@@ -75,7 +75,7 @@ async function init() {
   }
   if (!state.currentWorkspace) {
     updateBreadcrumb();
-    renderEmpty('No workspaces attached. Start a `scope mcp` somewhere or attach via the API.');
+    renderEmpty('No workspaces attached. Run `scope serve` in a repo with a .scope/ directory.');
     return;
   }
   await reloadProjects();
