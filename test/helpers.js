@@ -44,6 +44,7 @@ export async function startTestServer() {
     port: 0,
     silent: true,
     discoverable: false,
+    tls: false,
   });
   const port = server.address().port;
   const baseUrl = `http://127.0.0.1:${port}`;

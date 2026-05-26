@@ -13,6 +13,10 @@ test('GET /api/meta returns enums and hub info', async () => {
     assert.ok(Array.isArray(data.ticket_types) && data.ticket_types.includes('epic'));
     assert.ok(Array.isArray(data.relation_types) && data.relation_types.includes('blocks'));
     assert.ok(data.hub && Array.isArray(data.hub.workspaces));
+    // SCP-57: security descriptor advertised on the API too (TXT and meta
+    // carry the same info for clients that discover via different paths).
+    assert.equal(data.security.scheme, 'http'); // tls:false in test helper
+    assert.deepEqual(data.security.auth, ['bearer']);
   } finally {
     await t.close();
   }
