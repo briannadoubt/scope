@@ -383,7 +383,7 @@ function openOverflowMenu() {
     b.addEventListener('click', async () => {
       const act = b.dataset.act;
       closePopover();
-      if (act === 'refresh') { flashIndicator('tick'); await refresh(); }
+      if (act === 'refresh') { flashIndicator('tick'); await repairHubConnection(); }
       else if (act === 'overview') {
         state.view = state.view === 'overview' ? 'board' : 'overview';
         await refresh();
@@ -420,6 +420,55 @@ function flashIndicator(klass = 'tick') {
   setTimeout(() => setIndicator(eventSource?.readyState === 1 ? null : 'disconnected'), 250);
 }
 
+/**
+ * "Runtime repair" from the UI side. The refresh button calls this — and it
+ * also runs automatically when we notice the SSE stream has dropped.
+ *
+ * The server-side watchdog in each long-lived scope process promotes a new
+ * hub if the previous one died. From the browser's perspective, the hub URL
+ * (default `http://localhost:4321`) stays the same — we just have to wait
+ * for SSE to reconnect once a new process binds the port. This function
+ * forces that retry instead of waiting for the next EventSource backoff.
+ */
+let autoRepairTimer = null;
+function scheduleAutoRepair() {
+  if (autoRepairTimer) return;
+  autoRepairTimer = setTimeout(async () => {
+    autoRepairTimer = null;
+    if (eventSource?.readyState === 1) return; // recovered on its own
+    await repairHubConnection();
+  }, 3000);
+}
+
+async function repairHubConnection() {
+  setIndicator(null);
+  let alive = false;
+  try {
+    const r = await fetch('/api/meta', { cache: 'no-store' });
+    alive = r.ok;
+  } catch { alive = false; }
+  if (!alive) {
+    setIndicator('disconnected');
+    // The hub is gone; the server-side watchdog should promote a new one
+    // within a few seconds. Rebuild the SSE stream so we reconnect the
+    // instant a fresh hub appears.
+    if (eventSource) {
+      try { eventSource.close(); } catch {}
+      eventSource = null;
+    }
+    startEventStream();
+    return;
+  }
+  // Hub is healthy — make sure SSE is connected (it may have silently
+  // dropped) and refresh the visible state.
+  if (!eventSource || eventSource.readyState !== 1) {
+    if (eventSource) { try { eventSource.close(); } catch {} }
+    eventSource = null;
+    startEventStream();
+  }
+  await refresh();
+}
+
 function startEventStream() {
   if (eventSource) eventSource.close();
   const params = new URLSearchParams();
@@ -427,7 +476,15 @@ function startEventStream() {
   const url = '/events' + (params.toString() ? `?${params}` : '');
   eventSource = new EventSource(url);
   eventSource.addEventListener('open', () => setIndicator(null));
-  eventSource.addEventListener('error', () => setIndicator('disconnected'));
+  eventSource.addEventListener('error', () => {
+    setIndicator('disconnected');
+    // EventSource will keep retrying internally, but if the hub died and
+    // a new process needs to be promoted, the server-side watchdog runs on
+    // its own timer (~10s). Do an active repair check shortly after the
+    // first error so the UI converges faster than EventSource's default
+    // exponential backoff would.
+    scheduleAutoRepair();
+  });
   eventSource.addEventListener('hello', () => setIndicator(null));
   eventSource.addEventListener('change', async (e) => {
     const detail = safeParse(e.data);

@@ -196,6 +196,93 @@ export async function ensureHub({
   );
 }
 
+/**
+ * Watchdog: poll the hub at `state.url` and re-run ensureHub() if it stops
+ * answering. Designed for every long-lived `scope` process — the stdio MCP in
+ * `scope mcp`, the idling-on-attach process in `scope ui` / `scope serve`.
+ *
+ * If the hub-owning process exits, one of the surviving sibling processes
+ * wins the next `ensureHub()` bind race and the rest re-attach. The discovery
+ * file + persisted workspace registry handle the rehydration.
+ *
+ * @param {object} state - mutable handle returned by `ensureHub()`. We update
+ *   `state.url`, `state.port`, `state.weAreHub`, `state.server`,
+ *   `state.workspaces` in place when the hub flips, so callers reading from
+ *   the handle see the current truth.
+ * @param {object} opts - same options shape as ensureHub().
+ * @param {object} watchOpts
+ * @param {number} [watchOpts.intervalMs=10000] - probe frequency.
+ * @param {number} [watchOpts.failuresBeforeRepair=3] - consecutive misses
+ *   before we try to re-elect.
+ * @param {(event: object) => void} [watchOpts.onEvent] - log/observability
+ *   hook. Receives { type, ... } events.
+ * @returns {() => void} stop function. Tears the watchdog down (but leaves any
+ *   hub server we may own running — caller closes that separately).
+ */
+export function startHubWatchdog(state, opts, watchOpts = {}) {
+  const {
+    intervalMs = 10_000,
+    failuresBeforeRepair = 3,
+    onEvent = () => {},
+  } = watchOpts;
+  let failures = 0;
+  let repairing = false;
+  let stopped = false;
+
+  const tick = async () => {
+    if (stopped || repairing) return;
+    // If we own the hub, the http.Server itself is the source of truth — no
+    // need to probe over the network. A dead in-process hub would have caused
+    // an exception we'd have noticed elsewhere.
+    if (state.weAreHub && state.server?.listening) {
+      failures = 0;
+      return;
+    }
+    const meta = await probeHub(state.port);
+    if (meta) {
+      failures = 0;
+      return;
+    }
+    failures += 1;
+    onEvent({ type: 'probe.miss', failures, url: state.url });
+    if (failures < failuresBeforeRepair) return;
+
+    repairing = true;
+    onEvent({ type: 'repair.start', url: state.url });
+    try {
+      const next = await ensureHub(opts);
+      // Swap state in place so any reader (e.g. the caller's `hubInfo` handle)
+      // sees the new truth.
+      state.url = next.url;
+      state.port = next.port;
+      state.weAreHub = next.weAreHub;
+      state.server = next.server ?? null;
+      state.workspaces = next.workspaces ?? null;
+      state.meta = next.meta ?? null;
+      failures = 0;
+      onEvent({
+        type: 'repair.done',
+        url: next.url,
+        promoted: next.weAreHub,
+      });
+    } catch (e) {
+      onEvent({ type: 'repair.error', message: e?.message || String(e) });
+    } finally {
+      repairing = false;
+    }
+  };
+
+  const timer = setInterval(tick, intervalMs);
+  // Don't keep the event loop alive just for this timer — if everything else
+  // exits we should too.
+  timer.unref?.();
+
+  return function stopHubWatchdog() {
+    stopped = true;
+    clearInterval(timer);
+  };
+}
+
 let shutdownInstalled = false;
 function installShutdownHandlers(port) {
   if (shutdownInstalled) return;

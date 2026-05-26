@@ -44,7 +44,7 @@ import {
   SCHEMA_RELATION_TYPES,
 } from './repo.js';
 import { startServer } from './server.js';
-import { ensureHub, findRunningHub, DEFAULT_HUB_PORT } from './hub.js';
+import { ensureHub, findRunningHub, startHubWatchdog, DEFAULT_HUB_PORT } from './hub.js';
 import {
   boardView,
   projectDetail,
@@ -699,11 +699,23 @@ export function buildProgram() {
     .action(async (opts) => {
       const { scopeDir } = openOrDie();
       const preferredPort = Number.parseInt(opts.port, 10);
-      const res = await ensureHub({
+      const ensureOpts = {
         scopeDir,
         preferredPort,
         serveUi: true,
         openBrowser: opts.open,
+      };
+      const res = await ensureHub(ensureOpts);
+      startHubWatchdog(res, ensureOpts, {
+        onEvent: (e) => {
+          if (e.type === 'repair.done') {
+            process.stderr.write(
+              chalk.gray(
+                `[watchdog] hub repaired → ${e.url}${e.promoted ? ' (promoted self)' : ''}\n`
+              )
+            );
+          }
+        },
       });
       if (res.weAreHub) {
         process.stdout.write(
@@ -714,7 +726,7 @@ export function buildProgram() {
         process.stdout.write(
           chalk.green('✓') +
             ` Attached to existing hub at ${chalk.bold(res.url)}\n` +
-          chalk.gray('  this process idles so launchers see a long-running server; Ctrl-C to detach') + '\n'
+          chalk.gray('  this process idles + watchdogs the hub; Ctrl-C to detach') + '\n'
         );
         idleUntilSignaled();
       }
@@ -994,12 +1006,24 @@ export function buildProgram() {
       let hubInfo = null;
       if (opts.ui !== false) {
         try {
-          hubInfo = await ensureHub({
+          const ensureOpts = {
             scopeDir,
             label: ourLabel,
             preferredPort,
             serveUi: true,
             openBrowser: opts.open,
+          };
+          hubInfo = await ensureHub(ensureOpts);
+          startHubWatchdog(hubInfo, ensureOpts, {
+            onEvent: (e) => {
+              if (e.type === 'repair.done') {
+                process.stderr.write(
+                  chalk.gray(
+                    `[watchdog] hub repaired → ${e.url}${e.promoted ? ' (promoted self)' : ''}\n`
+                  )
+                );
+              }
+            },
           });
           process.stderr.write(
             chalk.gray(
@@ -1071,14 +1095,29 @@ export function buildProgram() {
         };
       }
 
-      const res = await ensureHub({
+      const ensureOpts = {
         scopeDir,
         preferredPort,
         serveUi: opts.ui !== false,
         mcpFactory,
         openBrowser: opts.open && opts.ui !== false,
-      });
+      };
+      const res = await ensureHub(ensureOpts);
       mgrRef = res.workspaces ?? null;
+      startHubWatchdog(res, ensureOpts, {
+        onEvent: (e) => {
+          if (e.type === 'repair.done') {
+            // After repair, the mgrRef pointer needs to follow whatever the
+            // new hub is using so the mcpFactory closure stays valid.
+            mgrRef = res.workspaces ?? null;
+            process.stderr.write(
+              chalk.gray(
+                `[watchdog] hub repaired → ${e.url}${e.promoted ? ' (promoted self)' : ''}\n`
+              )
+            );
+          }
+        },
+      });
 
       if (res.weAreHub) {
         process.stdout.write(
