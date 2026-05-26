@@ -1048,6 +1048,11 @@ function buildLanes(board, groupBy) {
     const {key, label, extras, skip} = groupKey(t, groupBy, epicById);
     if (skip) continue;
     if (isHiddenEpicId(key)) continue;
+    // Orphan catch-all lanes (Random Bugs / no epic) hide their done items —
+    // for ticket-less drive-bys, 'done' usually means 'closed for good' and
+    // keeping them around is noise. Real epic lanes are still controlled by
+    // the Show-Done-Epics toggle.
+    if ((key === '__bugs' || key === '__none') && t.status === 'done') continue;
     const g = ensure(key, label, extras);
     if (g.buckets[t.status]) {
       g.buckets[t.status].push(t);
@@ -1894,13 +1899,8 @@ function relativeTime(iso) {
 // SCP-67: floating column of SSE-driven activity toasts. Distinct from the
 // alert toast() helper above — this is an ambient feed, not a notification.
 
-const LIVE_FEED_MIN_WIDTH = 1280;
 const LIVE_FEED_MAX = 6;
 const LIVE_FEED_TTL_MS = 6000;
-
-function isLiveFeedEnabled() {
-  return window.innerWidth >= LIVE_FEED_MIN_WIDTH;
-}
 
 function ensureLiveFeedRoot() {
   let root = document.getElementById('live-feed');
@@ -1914,11 +1914,27 @@ function ensureLiveFeedRoot() {
   return root;
 }
 
+// Highest ticket_history.id we've already shown a toast for. Used to
+// dedupe when we replay history rows on fs-watch ('external') events —
+// see SCP-73 for the proper server-side fix.
+let lastLiveFeedHistoryId = 0;
+
 function pushLiveFeed(detail) {
   if (!detail || !detail.type) return;
-  if (!isLiveFeedEnabled()) return;
   // Drop workspace lifecycle events — they aren't ticket activity.
   if (detail.type.startsWith('workspace.')) return;
+  // CLI-driven changes arrive as a generic fs-watch 'external' event without
+  // any detail. Hydrate by pulling the latest history rows and synthesizing
+  // proper ticket.updated events for each. This is a workaround for SCP-73 —
+  // the hub should emit rich events directly.
+  if (detail.type === 'external') {
+    hydrateExternalChange(detail);
+    return;
+  }
+  // For in-process emits we know the history id, so track it.
+  if (typeof detail.historyId === 'number') {
+    lastLiveFeedHistoryId = Math.max(lastLiveFeedHistoryId, detail.historyId);
+  }
   // Only render activity that belongs to the current workspace (the server
   // already filters by workspace on subscribe, but be defensive).
   if (
@@ -1976,11 +1992,59 @@ function liveFeedIcon(type) {
   return '•';
 }
 
+async function hydrateExternalChange(_detail) {
+  if (!state.currentProject) return;
+  try {
+    const rows = await api(`/api/history?project=${encodeURIComponent(state.currentProject)}&limit=10`);
+    if (!Array.isArray(rows) || !rows.length) return;
+    // First-ever external event: just record where we are; don't replay the
+    // full backlog as toasts.
+    if (lastLiveFeedHistoryId === 0) {
+      lastLiveFeedHistoryId = rows[0].id;
+      return;
+    }
+    // Rows are newest-first; render oldest unseen first so the newest lands at the bottom.
+    const fresh = rows.filter((r) => r.id > lastLiveFeedHistoryId).reverse();
+    for (const r of fresh) {
+      lastLiveFeedHistoryId = Math.max(lastLiveFeedHistoryId, r.id);
+      pushLiveFeed({
+        type: 'ticket.updated',
+        id: r.ticket_id,
+        ticket: r.ticket_id,
+        title: r.ticket_title,
+        field: r.field,
+        old_value: r.old_value,
+        new_value: r.new_value,
+        changed_by: r.changed_by,
+        workspace: state.currentWorkspace,
+        historyId: r.id,
+      });
+    }
+  } catch {
+    // Network blip — next external event will retry.
+  }
+}
+
 function liveFeedDescription(detail) {
   const t = detail.type || 'change';
   switch (t) {
     case 'ticket.created': return 'created';
     case 'ticket.updated': {
+      // Synthesized rows from hydrateExternalChange carry field/new_value;
+      // surface those so the toast actually describes the change.
+      if (detail.field) {
+        const v = detail.new_value;
+        if (detail.field === 'status') return `→ ${v}`;
+        if (detail.field === 'priority') return `priority → ${v}`;
+        if (detail.field === 'assignee') return v ? `assigned ${v}` : 'unassigned';
+        if (detail.field === 'branch') return v ? `branch ${v}` : 'branch cleared';
+        if (detail.field === 'pr_url') return v ? 'PR linked' : 'PR cleared';
+        if (detail.field === 'parent_id') return v ? `parent → ${v}` : 'detached from epic';
+        if (detail.field === 'title') return 'renamed';
+        if (detail.field === 'description') return 'description edited';
+        if (detail.field === 'labels') return 'labels changed';
+        return `${detail.field} changed`;
+      }
       if (detail.fields && Array.isArray(detail.fields) && detail.fields.length) {
         return `updated ${detail.fields.join(', ')}`;
       }

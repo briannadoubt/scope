@@ -930,9 +930,9 @@ button { font-family: inherit; }
   position: fixed;
   right: 16px;
   bottom: 80px;          /* sit above the alert toast stack */
-  width: 280px;
+  width: min(280px, calc(100vw - 32px));
   max-height: 60vh;
-  display: none;          /* shown only on large screens */
+  display: flex;
   flex-direction: column;
   gap: 6px;
   overflow-y: auto;
@@ -942,9 +942,6 @@ button { font-family: inherit; }
   /* fade out at the top edge so older toasts dissolve into the page */
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 36px);
           mask-image: linear-gradient(to bottom, transparent 0, #000 36px);
-}
-@media (min-width: 1280px) {
-  #live-feed { display: flex; }
 }
 .live-toast {
   pointer-events: auto;
