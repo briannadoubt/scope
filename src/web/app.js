@@ -1053,11 +1053,13 @@ function buildLanes(board, groupBy) {
     // keeping them around is noise. Real epic lanes are still controlled by
     // the Show-Done-Epics toggle.
     if ((key === '__bugs' || key === '__none') && t.status === 'done') continue;
+    // Statuses outside the board's columns (cancelled, etc.) shouldn't
+    // create a lane on their own — there's no bucket for them to land in,
+    // so a lane built just to host them stays empty (SCP-70).
+    if (!BOARD_COLUMNS.includes(t.status)) continue;
     const g = ensure(key, label, extras);
-    if (g.buckets[t.status]) {
-      g.buckets[t.status].push(t);
-      g.count++;
-    }
+    g.buckets[t.status].push(t);
+    g.count++;
   }
 
   // Always include a lane for every epic, even if it has no children, so
