@@ -8,32 +8,24 @@
   </head>
   <body>
     <header class="topbar">
-      <div class="topbar-left">
-        <div class="brand">
-          <span class="brand-mark">◆</span>
-          <span class="brand-name">scope</span>
-        </div>
-        <select id="workspace-picker" class="picker" title="Workspace (attached .scope/ directory)"></select>
-        <button id="add-workspace" class="btn ghost" title="Attach another workspace">+</button>
-        <select id="project-picker" class="picker"></select>
-        <select id="epic-filter" class="picker">
-          <option value="">All tickets</option>
-        </select>
-        <select id="groupby" class="picker" title="Group rows by">
-          <option value="none">No swimlanes</option>
-          <option value="epic">Group by epic</option>
-          <option value="assignee">Group by assignee</option>
-          <option value="priority">Group by priority</option>
-          <option value="type">Group by type</option>
-        </select>
-      </div>
-      <div class="topbar-right">
-        <span id="live-indicator" class="live-dot" title="Live updates active"></span>
-        <button id="refresh-now" class="btn ghost" title="Refresh now">↻</button>
-        <button id="show-overview" class="btn ghost" title="Project overview">Overview</button>
-        <button id="new-project" class="btn ghost">+ Project</button>
-        <button id="new-ticket" class="btn primary">+ New ticket</button>
-      </div>
+      <button id="breadcrumb-trigger" class="trigger breadcrumb" type="button">
+        <span class="brand-mark" aria-hidden="true">◆</span>
+        <span id="bc-workspace" class="bc-label">—</span>
+        <span class="bc-sep" aria-hidden="true">›</span>
+        <span id="bc-project" class="bc-label muted">—</span>
+        <span class="caret" aria-hidden="true">▾</span>
+      </button>
+      <button id="view-trigger" class="trigger" type="button" title="View options">
+        <span class="t-icon" aria-hidden="true">≡</span>
+        <span id="view-label" class="t-label">View</span>
+        <span class="caret" aria-hidden="true">▾</span>
+      </button>
+      <span class="topbar-spacer"></span>
+      <span id="live-indicator" class="live-dot" title="Live updates active"></span>
+      <button id="overflow-trigger" class="trigger icon" type="button" title="More">⋯</button>
+      <button id="new-ticket" class="btn primary" type="button">
+        <span aria-hidden="true">＋</span><span class="nt-label">&nbsp;New ticket</span>
+      </button>
     </header>
 
     <main id="board" class="board"></main>

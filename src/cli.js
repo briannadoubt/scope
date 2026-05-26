@@ -44,6 +44,7 @@ import {
   SCHEMA_RELATION_TYPES,
 } from './repo.js';
 import { startServer } from './server.js';
+import { ensureHub, findRunningHub, DEFAULT_HUB_PORT } from './hub.js';
 import {
   boardView,
   projectDetail,
@@ -106,6 +107,20 @@ function editorPrompt(initial) {
   const r = spawnSync(editor, [tmp], { stdio: 'inherit' });
   if (r.status !== 0) fail(`Editor exited with status ${r.status}`);
   return readFileSync(tmp, 'utf8');
+}
+
+/**
+ * Keep the event loop alive until the process receives a termination signal.
+ * Used when a CLI command (`scope ui`, `scope serve`) attaches to an existing
+ * hub instead of starting one — exiting would confuse launchers (Claude Code
+ * previews, supervisors) that expect a long-running server process.
+ */
+function idleUntilSignaled() {
+  const ticker = setInterval(() => {}, 1 << 30);
+  const stop = () => { clearInterval(ticker); process.exit(0); };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  process.on('SIGHUP', stop);
 }
 
 function parseLabels(s) {
@@ -676,13 +691,33 @@ export function buildProgram() {
 
   program
     .command('ui')
-    .description('Launch the local web UI (GitHub Projects-style board).')
-    .option('-p, --port <port>', 'port to listen on', '4321')
+    .description(
+      'Open the local web UI. Auto-attaches to a running hub if one exists; otherwise starts one.'
+    )
+    .option('-p, --port <port>', 'preferred port (walks forward if taken)', String(DEFAULT_HUB_PORT))
     .option('--no-open', "don't open the browser automatically")
     .action(async (opts) => {
       const { scopeDir } = openOrDie();
-      const port = Number.parseInt(opts.port, 10);
-      await startServer({ scopeDir, port, open: opts.open });
+      const preferredPort = Number.parseInt(opts.port, 10);
+      const res = await ensureHub({
+        scopeDir,
+        preferredPort,
+        serveUi: true,
+        openBrowser: opts.open,
+      });
+      if (res.weAreHub) {
+        process.stdout.write(
+          chalk.green('✓') + ` scope ui running at ${chalk.bold(res.url)}\n` +
+          chalk.gray('  press Ctrl-C to stop') + '\n'
+        );
+      } else {
+        process.stdout.write(
+          chalk.green('✓') +
+            ` Attached to existing hub at ${chalk.bold(res.url)}\n` +
+          chalk.gray('  this process idles so launchers see a long-running server; Ctrl-C to detach') + '\n'
+        );
+        idleUntilSignaled();
+      }
     });
 
   /* ---------- workspace (hub registration) ---------- */
@@ -700,9 +735,9 @@ export function buildProgram() {
       'Attach a .scope/ to the running hub. PATH defaults to the .scope/ found by walking up from cwd.'
     )
     .option('-l, --label <name>', 'human-readable label (defaults to repo dir name)')
-    .option('-p, --port <port>', 'hub port', '4321')
+    .option('-p, --port <port>', 'preferred hub port (auto-discovered if omitted)', String(DEFAULT_HUB_PORT))
     .action(async (pathArg, opts, cmd) => {
-      const port = Number.parseInt(opts.port, 10);
+      const preferredPort = Number.parseInt(opts.port, 10);
       let target;
       if (pathArg) {
         target = resolve(pathArg);
@@ -722,8 +757,15 @@ export function buildProgram() {
       }
       if (!existsSync(target)) fail(`Path does not exist: ${target}`);
 
+      const hub = await findRunningHub(preferredPort);
+      if (!hub) {
+        fail(
+          `No scope hub running (scanned ports ${preferredPort}+). ` +
+            `Start one with \`scope serve\` or \`scope mcp\` (in any repo) first.`
+        );
+      }
       try {
-        const res = await fetch(`http://localhost:${port}/api/workspaces`, {
+        const res = await fetch(`${hub.url}/api/workspaces`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ scope_dir: target, label: opts.label }),
@@ -732,15 +774,9 @@ export function buildProgram() {
         if (!res.ok) fail(body.error || `HTTP ${res.status}`);
         out(cmd, body, (w) =>
           chalk.green('✓') +
-            ` Attached ${chalk.bold(w.label)} (${w.id.slice(0, 7)})  ${chalk.gray(w.scope_dir)}`
+            ` Attached ${chalk.bold(w.label)} (${w.id.slice(0, 7)})  ${chalk.gray(w.scope_dir)}  ${chalk.gray(`→ ${hub.url}`)}`
         );
       } catch (e) {
-        if (e?.cause?.code === 'ECONNREFUSED' || /ECONNREFUSED/.test(e.message)) {
-          fail(
-            `No hub running at http://localhost:${port}. Start one with ` +
-              `\`scope serve\` or \`scope mcp\` (in any repo) first.`
-          );
-        }
         fail(e.message);
       }
     });
@@ -749,11 +785,13 @@ export function buildProgram() {
     .command('list')
     .alias('ls')
     .description('List workspaces attached to the running hub.')
-    .option('-p, --port <port>', 'hub port', '4321')
+    .option('-p, --port <port>', 'preferred hub port (auto-discovered if omitted)', String(DEFAULT_HUB_PORT))
     .action(async (opts, cmd) => {
-      const port = Number.parseInt(opts.port, 10);
+      const preferredPort = Number.parseInt(opts.port, 10);
+      const hub = await findRunningHub(preferredPort);
+      if (!hub) fail(`No scope hub running (scanned ports ${preferredPort}+).`);
       try {
-        const res = await fetch(`http://localhost:${port}/api/workspaces`);
+        const res = await fetch(`${hub.url}/api/workspaces`);
         if (!res.ok) fail(`HTTP ${res.status}`);
         const list = await res.json();
         out(cmd, list, (rows) =>
@@ -773,9 +811,6 @@ export function buildProgram() {
             : chalk.gray('(no workspaces attached)')
         );
       } catch (e) {
-        if (e?.cause?.code === 'ECONNREFUSED' || /ECONNREFUSED/.test(e.message)) {
-          fail(`No hub running at http://localhost:${port}.`);
-        }
         fail(e.message);
       }
     });
@@ -784,20 +819,19 @@ export function buildProgram() {
     .command('remove <id>')
     .alias('rm')
     .description('Detach a workspace from the running hub (does not delete the .scope/ files).')
-    .option('-p, --port <port>', 'hub port', '4321')
+    .option('-p, --port <port>', 'preferred hub port (auto-discovered if omitted)', String(DEFAULT_HUB_PORT))
     .action(async (id, opts, cmd) => {
-      const port = Number.parseInt(opts.port, 10);
+      const preferredPort = Number.parseInt(opts.port, 10);
+      const hub = await findRunningHub(preferredPort);
+      if (!hub) fail(`No scope hub running (scanned ports ${preferredPort}+).`);
       try {
-        const res = await fetch(`http://localhost:${port}/api/workspaces/${encodeURIComponent(id)}`, {
+        const res = await fetch(`${hub.url}/api/workspaces/${encodeURIComponent(id)}`, {
           method: 'DELETE',
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) fail(body.error || `HTTP ${res.status}`);
         out(cmd, body, () => chalk.green('✓') + ` Detached ${chalk.bold(id)}`);
       } catch (e) {
-        if (e?.cause?.code === 'ECONNREFUSED' || /ECONNREFUSED/.test(e.message)) {
-          fail(`No hub running at http://localhost:${port}.`);
-        }
         fail(e.message);
       }
     });
@@ -925,12 +959,12 @@ export function buildProgram() {
     .option('--no-ui', "don't start the local web UI")
     .option(
       '-p, --port <port>',
-      'port for the web UI; silently skipped if already in use',
-      '4321'
+      'preferred port for the web UI (walks forward if taken)',
+      String(DEFAULT_HUB_PORT)
     )
     .option('--open', 'open the UI in a browser after startup', false)
     .action(async (opts) => {
-      const port = Number.parseInt(opts.port, 10);
+      const preferredPort = Number.parseInt(opts.port, 10);
       const { basename } = await import('node:path');
 
       // Resolve the local .scope/ for this invocation.
@@ -954,62 +988,30 @@ export function buildProgram() {
       const db = openDb(scopeDir);
       const ourLabel = basename(resolve(scopeDir, '..')) || 'workspace';
 
-      // Try to bring up the hub on `port`. If we bind it, we ARE the hub —
-      // register ourselves as a workspace and start serving the UI. If the
-      // port is taken, someone else is the hub; POST our scope_dir to it so
-      // we still show up in the central UI.
-      let httpServer = null;
-      let weAreHub = false;
+      // Find or start the shared hub. ensureHub handles both the "we're first"
+      // and "someone else got there first" cases transparently, including
+      // walking past port collisions with non-scope processes.
+      let hubInfo = null;
       if (opts.ui !== false) {
         try {
-          const { WorkspaceManager } = await import('./workspaces.js');
-          const mgr = new WorkspaceManager();
-          mgr.load();
-          mgr.attach(scopeDir, { label: ourLabel });
-          httpServer = await startServer({
-            workspaces: mgr,
-            port,
-            open: opts.open,
-            mcpFactory: null,
+          hubInfo = await ensureHub({
+            scopeDir,
+            label: ourLabel,
+            preferredPort,
             serveUi: true,
-            quiet: true,
+            openBrowser: opts.open,
           });
-          weAreHub = true;
+          process.stderr.write(
+            chalk.gray(
+              hubInfo.weAreHub
+                ? `scope hub started at ${hubInfo.url} — serving "${ourLabel}".\n`
+                : `scope hub at ${hubInfo.url} — registered "${ourLabel}".\n`
+            )
+          );
         } catch (e) {
-          if (e?.code === 'EADDRINUSE') {
-            // Hub elsewhere — register our workspace via HTTP so we appear in
-            // the shared UI.
-            try {
-              const r = await fetch(`http://localhost:${port}/api/workspaces`, {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ scope_dir: scopeDir, label: ourLabel }),
-              });
-              if (r.ok) {
-                process.stderr.write(
-                  chalk.gray(
-                    `scope hub at http://localhost:${port} — registered "${ourLabel}" workspace.\n`
-                  )
-                );
-              } else {
-                process.stderr.write(
-                  chalk.yellow(
-                    `Could not register workspace with hub (${r.status} ${r.statusText}). MCP still works locally.\n`
-                  )
-                );
-              }
-            } catch (regErr) {
-              process.stderr.write(
-                chalk.yellow(
-                  `Could not reach hub at :${port}: ${regErr.message}. MCP still works locally.\n`
-                )
-              );
-            }
-          } else {
-            process.stderr.write(
-              chalk.yellow(`Could not start UI: ${e.message}\n`)
-            );
-          }
+          process.stderr.write(
+            chalk.yellow(`Could not bring up hub: ${e.message}. MCP still works locally.\n`)
+          );
         }
       }
 
@@ -1022,18 +1024,20 @@ export function buildProgram() {
         const { server: mcpServer } = buildMcpServer({ db, scopeDir });
         const transport = new StdioServerTransport();
         await mcpServer.connect(transport);
-        // When the stdio peer disconnects, tear the UI down too (only if WE
+        // When the stdio peer disconnects, tear the hub down too (only if WE
         // started it — don't kill someone else's hub).
         const shutdown = () => {
-          if (weAreHub) {
-            try { httpServer?.close(); } catch {}
+          if (hubInfo?.weAreHub) {
+            try { hubInfo.server?.close(); } catch {}
           }
         };
         process.stdin.on('end', shutdown);
         process.stdin.on('close', shutdown);
       } catch (e) {
         process.stderr.write(chalk.red(e.message || String(e)) + '\n');
-        if (weAreHub && httpServer) httpServer.close();
+        if (hubInfo?.weAreHub) {
+          try { hubInfo.server?.close(); } catch {}
+        }
         process.exit(1);
       }
     });
@@ -1043,42 +1047,55 @@ export function buildProgram() {
   program
     .command('serve')
     .description(
-      'Run the web UI and an HTTP MCP endpoint on one port. Multiple agents (and a browser) can connect simultaneously.'
+      'Run the web UI and HTTP MCP endpoint. Auto-attaches to an existing hub if one is running.'
     )
-    .option('-p, --port <port>', 'port to listen on', '4321')
+    .option('-p, --port <port>', 'preferred port (walks forward if taken)', String(DEFAULT_HUB_PORT))
     .option('--no-open', "don't open the browser automatically")
     .option('--no-ui', 'disable the web UI (MCP-only HTTP server)')
     .option('--no-mcp', 'disable the MCP endpoint (UI only — same as `scope ui`)')
     .action(async (opts) => {
       const { scopeDir } = openOrDie();
-      const port = Number.parseInt(opts.port, 10);
+      const preferredPort = Number.parseInt(opts.port, 10);
 
-      // Build a workspace manager up front so the MCP HTTP factory and the
-      // server share the same registry. Load persisted workspaces, then attach
-      // the local one.
-      const { WorkspaceManager } = await import('./workspaces.js');
-      const mgr = new WorkspaceManager();
-      mgr.load();
-      mgr.attach(scopeDir);
-
-      let mcpFactory;
+      // Construct an mcpFactory closure that will be ignored if we end up
+      // attaching to an existing hub.
+      let mcpFactory = null;
+      let mgrRef = null;
       if (opts.mcp !== false) {
         const { buildMcpServer } = await import('./mcp.js');
-        // HTTP MCP currently targets the first attached workspace (the one
-        // you ran `scope serve` in). Workspace-routed MCP is a follow-up.
         mcpFactory = () => {
-          const first = mgr.list()[0];
-          const w = mgr.get(first.id);
+          const first = mgrRef?.list()[0];
+          if (!first) throw new Error('no workspace attached');
+          const w = mgrRef.get(first.id);
           return buildMcpServer({ scopeDir: w.scope_dir, db: w.db }).server;
         };
       }
-      await startServer({
-        workspaces: mgr,
-        port,
-        open: opts.open && opts.ui !== false,
-        mcpFactory,
+
+      const res = await ensureHub({
+        scopeDir,
+        preferredPort,
         serveUi: opts.ui !== false,
+        mcpFactory,
+        openBrowser: opts.open && opts.ui !== false,
       });
+      mgrRef = res.workspaces ?? null;
+
+      if (res.weAreHub) {
+        process.stdout.write(
+          chalk.green('✓') + ` scope hub running at ${chalk.bold(res.url)}\n` +
+          (opts.mcp !== false
+            ? chalk.gray(`  mcp: ${res.url}/mcp\n`)
+            : '') +
+          chalk.gray('  press Ctrl-C to stop') + '\n'
+        );
+      } else {
+        process.stdout.write(
+          chalk.green('✓') +
+            ` Hub already running at ${chalk.bold(res.url)} — registered this workspace.\n` +
+          chalk.gray('  this process idles so launchers see a long-running server; Ctrl-C to detach') + '\n'
+        );
+        idleUntilSignaled();
+      }
     });
 
   return program;

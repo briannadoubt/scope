@@ -38,10 +38,13 @@ scope serve                              # → http://localhost:4321
 - **`scope serve`** — UI + HTTP MCP on one port. Multiple agents over HTTP
   and a human in the browser all share one SQLite DB; writes from any source
   push to every viewer over Server-Sent Events within ~100ms.
-- **Federated hub** — every `scope mcp` subprocess (in any repo) registers
-  its local `.scope/` with the hub at `localhost:4321`. The UI gets a
-  workspace switcher; each repo keeps its own `.db` file (so it travels with
-  `git clone`). First MCP to start becomes the hub; the rest attach.
+- **Federated hub** — every `scope mcp`, `scope serve`, or `scope ui`
+  invocation auto-discovers a running hub (default port `4321`, walks forward
+  to `4330` if taken by non-scope processes) and registers its local `.scope/`
+  with it. First one to start becomes the hub; the rest attach and idle.
+  No port flags needed — concurrent Claude Code sessions / previews / repos
+  all converge on the same hub. Each repo keeps its own `.db` file (so it
+  travels with `git clone`).
 
 ## The web UI
 
@@ -69,9 +72,9 @@ shelling out. Two transports:
 
 `npx` fetches scope on first use and caches it. **The web UI comes up
 automatically** on http://localhost:4321 alongside the stdio MCP, so you can
-watch tickets move in real time as the agent works. If the port is already in
-use (e.g. you have multiple agents registered), the rest silently share the
-first one's UI.
+watch tickets move in real time as the agent works. Concurrent invocations
+across multiple repos / sessions auto-discover the running hub and register
+their workspace with it — no port collisions, no extra flags.
 
 ```jsonc
 // ~/.claude.json, ~/.codex/config.toml (TOML equiv), Cursor MCP, etc.
@@ -173,7 +176,7 @@ Ticket IDs look like `MA-3` (project key + number).
 | `scope board [-p <key>] [--epic <id>]` | Terminal kanban view |
 | `scope ui [-p <port>]` | Web UI only |
 | `scope serve [-p <port>] [--no-ui] [--no-mcp]` | UI + HTTP MCP |
-| `scope mcp [--no-ui] [-p <port>] [--open]` | Stdio MCP server. Also auto-starts the web UI on port 4321 (silent skip if taken). |
+| `scope mcp [--no-ui] [-p <port>] [--open]` | Stdio MCP server. Auto-discovers (or starts) the shared hub UI. |
 | `scope skills install [--tool ...] [--project ...]` | Install agent skill |
 
 Every command accepts `--json` for machine-readable output.

@@ -105,9 +105,14 @@ scope link add MA-2 blocked_by MA-7
 
 ## Realtime + multi-agent
 
-When the user runs `scope serve`, the web UI and the HTTP MCP endpoint live in
-one process. Writes from any source (you over MCP, the user from the CLI,
-another agent over MCP) push to all viewers via SSE within ~100ms.
+`scope serve`, `scope ui`, and `scope mcp` all auto-discover a running hub
+and attach to it; the first one started becomes the hub. **Never pass
+`--port`** unless you actually need to override the default — concurrent
+agents and previews are designed to converge on the shared hub at
+`http://localhost:4321` (or the next free port up to `4330` if something
+non-scope holds `4321`). Writes from any source (you over MCP, the user
+from the CLI, another agent over MCP) push to all viewers via SSE within
+~100ms.
 
 If multiple agents are working in parallel, **always read state before writing
 state** — there is no merge logic for conflicting `update_ticket` calls, last

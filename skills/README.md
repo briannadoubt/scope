@@ -78,10 +78,10 @@ MCP settings, etc.). **Zero install** — `npx` fetches scope on first use:
 }
 ```
 
-The web UI comes up automatically on `http://localhost:4321` whenever an
-MCP process starts, so you can watch the board move in real time. If the
-port is taken (multiple agents registered), they all share the first one's
-UI. Pass `--no-ui` to opt out.
+The web UI comes up automatically alongside every MCP process — the first
+to start binds the default port (`4321`, walking forward if taken by a
+non-scope process); every later invocation auto-discovers and registers
+with it. Pass `--no-ui` to opt out. No port flags required.
 
 Prefer the brew install? Replace `command` with `scope` and `args` with
 `["mcp"]`.
@@ -99,4 +99,6 @@ For a single shared HTTP endpoint across many agents:
 }
 ```
 
-(Run `scope serve` once on the host machine first.)
+(Run `scope serve` once on the host machine first. `4321` is the default;
+if a non-scope process holds it the hub walks to the next free port up to
+`4330` — `scope ws ls` prints the URL it actually settled on.)

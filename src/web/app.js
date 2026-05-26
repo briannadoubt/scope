@@ -11,6 +11,8 @@ const state = {
   board: null,
   drawerTicketId: null,
   groupBy: localStorage.getItem('scope.groupBy') || 'none',
+  showDoneEpics: localStorage.getItem('scope.showDoneEpics') === 'true',
+  allEpics: [],
   collapsedLanes: new Set(
     JSON.parse(localStorage.getItem('scope.collapsedLanes') || '[]')
   ),
@@ -71,58 +73,54 @@ async function init() {
   ) {
     state.currentWorkspace = state.workspaces[0]?.id || null;
   }
-  document.getElementById('workspace-picker').value = state.currentWorkspace || '';
   if (!state.currentWorkspace) {
+    updateBreadcrumb();
     renderEmpty('No workspaces attached. Start a `scope mcp` somewhere or attach via the API.');
     return;
   }
   await reloadProjects();
   if (state.projects.length === 0) {
+    updateBreadcrumb();
     openProjectModal();
   } else {
     state.currentProject = state.projects[0].id;
-    document.getElementById('project-picker').value = state.currentProject;
+    updateBreadcrumb();
     await refresh();
   }
 }
 
 async function reloadWorkspaces() {
   state.workspaces = await api('/api/workspaces');
-  const picker = document.getElementById('workspace-picker');
-  picker.innerHTML = '';
-  if (state.workspaces.length === 0) {
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = '(no workspaces)';
-    picker.appendChild(opt);
-    return;
-  }
-  for (const w of state.workspaces) {
-    const opt = document.createElement('option');
-    opt.value = w.id;
-    opt.textContent = w.label;
-    opt.title = w.scope_dir;
-    picker.appendChild(opt);
-  }
+  updateBreadcrumb();
 }
 
 async function reloadProjects() {
   state.projects = await api('/api/projects');
-  const picker = document.getElementById('project-picker');
-  picker.innerHTML = '';
-  if (state.projects.length === 0) {
-    const opt = document.createElement('option');
-    opt.value = '';
-    opt.textContent = '(no projects)';
-    picker.appendChild(opt);
-    return;
+  updateBreadcrumb();
+}
+
+function updateBreadcrumb() {
+  const w = state.workspaces.find((x) => x.id === state.currentWorkspace);
+  const p = state.projects.find((x) => x.id === state.currentProject);
+  const wsEl = document.getElementById('bc-workspace');
+  const pjEl = document.getElementById('bc-project');
+  if (!wsEl || !pjEl) return;
+  wsEl.textContent = w ? w.label : (state.workspaces.length ? 'Select workspace' : 'No workspaces');
+  pjEl.textContent = p ? `${p.key} · ${p.name}` : (state.projects.length ? 'Select project' : 'No project');
+  pjEl.classList.toggle('muted', !p);
+  updateViewTrigger();
+}
+
+function updateViewTrigger() {
+  const label = document.getElementById('view-label');
+  if (!label) return;
+  const bits = [];
+  if (state.groupBy && state.groupBy !== 'none') {
+    bits.push(state.groupBy.charAt(0).toUpperCase() + state.groupBy.slice(1));
   }
-  for (const p of state.projects) {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = `${p.key} · ${p.name}`;
-    picker.appendChild(opt);
-  }
+  if (state.epicFilter) bits.push(state.epicFilter);
+  label.textContent = bits.length ? bits.join(' · ') : 'View';
+  document.getElementById('view-trigger').classList.toggle('active', bits.length > 0);
 }
 
 async function refresh() {
@@ -137,17 +135,12 @@ async function loadEpicsForFilter() {
   const tickets = await api(
     `/api/tickets?project=${encodeURIComponent(state.currentProject)}&type=epic`
   );
-  const sel = document.getElementById('epic-filter');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">All tickets</option>';
-  for (const e of tickets) {
-    const o = document.createElement('option');
-    o.value = e.id;
-    o.textContent = `${e.id} · ${e.title}`;
-    sel.appendChild(o);
+  state.allEpics = tickets;
+  // If the filter points at an epic that no longer exists, clear it.
+  if (state.epicFilter && !tickets.some((t) => t.id === state.epicFilter)) {
+    state.epicFilter = '';
   }
-  if (current && tickets.some((t) => t.id === current)) sel.value = current;
-  else state.epicFilter = '';
+  updateViewTrigger();
 }
 
 async function loadBoard() {
@@ -160,53 +153,244 @@ async function loadBoard() {
 /* ------------- topbar ------------- */
 
 function bindTopbar() {
-  document.getElementById('add-workspace').addEventListener('click', openAddWorkspaceModal);
-  document.getElementById('workspace-picker').addEventListener('change', async (e) => {
-    state.currentWorkspace = e.target.value || null;
-    if (state.currentWorkspace) {
-      localStorage.setItem('scope.workspace', state.currentWorkspace);
-    } else {
-      localStorage.removeItem('scope.workspace');
-    }
-    state.epicFilter = '';
-    state.currentProject = null;
-    state.view = 'board';
-    await reloadProjects();
-    if (state.projects.length) {
-      state.currentProject = state.projects[0].id;
-      document.getElementById('project-picker').value = state.currentProject;
-    }
-    await refresh();
+  document.getElementById('new-ticket').addEventListener('click', () => openTicketModal());
+  document.getElementById('breadcrumb-trigger').addEventListener('click', openBreadcrumbPopover);
+  document.getElementById('view-trigger').addEventListener('click', openViewPopover);
+  document.getElementById('overflow-trigger').addEventListener('click', openOverflowMenu);
+  startEventStream();
+}
+
+/* ------------- popovers ------------- */
+
+// One popover at a time. Returns the popover element so callers can populate
+// it. Anchors below `anchorEl`, aligned to its `align` edge ('left' | 'right').
+let popoverEl = null;
+function openPopover(anchorEl, {align = 'left', width} = {}) {
+  closePopover();
+  const pop = document.createElement('div');
+  pop.className = 'popover';
+  if (width) pop.style.width = typeof width === 'number' ? `${width}px` : width;
+  document.body.appendChild(pop);
+  const rect = anchorEl.getBoundingClientRect();
+  pop.style.top = `${rect.bottom + 6 + window.scrollY}px`;
+  // Defer left-edge math until after content sets width.
+  requestAnimationFrame(() => {
+    const popRect = pop.getBoundingClientRect();
+    let left = align === 'right'
+      ? rect.right - popRect.width
+      : rect.left;
+    left = Math.max(8, Math.min(left, window.innerWidth - popRect.width - 8));
+    pop.style.left = `${left + window.scrollX}px`;
   });
-  document.getElementById('project-picker').addEventListener('change', async (e) => {
-    state.currentProject = e.target.value;
-    state.epicFilter = '';
-    state.view = 'board';
-    await refresh();
+  popoverEl = pop;
+  anchorEl.classList.add('open');
+  const onDocClick = (e) => {
+    if (pop.contains(e.target) || anchorEl.contains(e.target)) return;
+    closePopover();
+  };
+  const onKey = (e) => { if (e.key === 'Escape') closePopover(); };
+  setTimeout(() => {
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+  }, 0);
+  pop._cleanup = () => {
+    document.removeEventListener('mousedown', onDocClick);
+    document.removeEventListener('keydown', onKey);
+    anchorEl.classList.remove('open');
+  };
+  return pop;
+}
+function closePopover() {
+  if (popoverEl) {
+    popoverEl._cleanup?.();
+    popoverEl.remove();
+    popoverEl = null;
+  }
+}
+
+function openBreadcrumbPopover() {
+  const anchor = document.getElementById('breadcrumb-trigger');
+  if (popoverEl) return closePopover();
+  const pop = openPopover(anchor, {align: 'left', width: 520});
+  pop.classList.add('popover-breadcrumb');
+  pop.innerHTML = `
+    <div class="pane pane-workspaces">
+      <div class="pane-head">Workspaces</div>
+      <div class="pane-list" id="bc-ws-list"></div>
+      <button type="button" class="pane-foot" id="bc-attach">＋ Attach workspace…</button>
+    </div>
+    <div class="pane pane-projects">
+      <div class="pane-head">Projects</div>
+      <div class="pane-list" id="bc-pj-list"></div>
+    </div>
+  `;
+  const wsList = pop.querySelector('#bc-ws-list');
+  const pjList = pop.querySelector('#bc-pj-list');
+  let hoverWorkspace = state.currentWorkspace;
+
+  const renderWsList = () => {
+    wsList.innerHTML = '';
+    for (const w of state.workspaces) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'pane-item';
+      if (w.id === state.currentWorkspace) item.classList.add('active');
+      if (w.id === hoverWorkspace) item.classList.add('hover');
+      item.innerHTML = `
+        <span class="pane-item-label">${escapeHtml(w.label)}</span>
+        <span class="pane-item-sub">${escapeHtml(w.scope_dir)}</span>
+      `;
+      item.addEventListener('mouseenter', () => {
+        hoverWorkspace = w.id;
+        renderWsList();
+        renderPjList();
+      });
+      item.addEventListener('click', async () => {
+        if (w.id !== state.currentWorkspace) {
+          state.currentWorkspace = w.id;
+          localStorage.setItem('scope.workspace', w.id);
+          state.epicFilter = '';
+          state.currentProject = null;
+          state.view = 'board';
+          await reloadProjects();
+          if (state.projects.length) state.currentProject = state.projects[0].id;
+          updateBreadcrumb();
+          await refresh();
+        }
+        closePopover();
+      });
+      wsList.appendChild(item);
+    }
+    if (state.workspaces.length === 0) {
+      wsList.innerHTML = '<div class="pane-empty">No workspaces attached.</div>';
+    }
+  };
+
+  const renderPjList = async () => {
+    let projects = state.projects;
+    if (hoverWorkspace && hoverWorkspace !== state.currentWorkspace) {
+      try {
+        projects = await api(`/api/projects?workspace=${encodeURIComponent(hoverWorkspace)}`);
+      } catch { projects = []; }
+    }
+    pjList.innerHTML = '';
+    if (projects.length === 0) {
+      pjList.innerHTML = '<div class="pane-empty">No projects in this workspace.</div>';
+      return;
+    }
+    for (const p of projects) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'pane-item';
+      if (p.id === state.currentProject && hoverWorkspace === state.currentWorkspace) {
+        item.classList.add('active');
+      }
+      item.innerHTML = `
+        <span class="pane-item-label"><span class="pkey">${escapeHtml(p.key)}</span> ${escapeHtml(p.name)}</span>
+        ${p.description ? `<span class="pane-item-sub">${escapeHtml(p.description)}</span>` : ''}
+      `;
+      item.addEventListener('click', async () => {
+        if (hoverWorkspace !== state.currentWorkspace) {
+          state.currentWorkspace = hoverWorkspace;
+          localStorage.setItem('scope.workspace', hoverWorkspace);
+          await reloadProjects();
+        }
+        state.currentProject = p.id;
+        state.epicFilter = '';
+        state.view = 'board';
+        updateBreadcrumb();
+        closePopover();
+        await refresh();
+      });
+      pjList.appendChild(item);
+    }
+  };
+
+  pop.querySelector('#bc-attach').addEventListener('click', () => {
+    closePopover();
+    openAddWorkspaceModal();
   });
-  document.getElementById('epic-filter').addEventListener('change', async (e) => {
+
+  renderWsList();
+  renderPjList();
+}
+
+function openViewPopover() {
+  const anchor = document.getElementById('view-trigger');
+  if (popoverEl) return closePopover();
+  const pop = openPopover(anchor, {align: 'left', width: 280});
+  pop.classList.add('popover-view');
+  const epicOpts = ['<option value="">All tickets</option>']
+    .concat(state.allEpics.map((e) =>
+      `<option value="${escapeHtml(e.id)}"${e.id === state.epicFilter ? ' selected' : ''}>${escapeHtml(e.id)} · ${escapeHtml(e.title)}</option>`
+    ))
+    .join('');
+  pop.innerHTML = `
+    <div class="popover-section">
+      <label class="popover-label">Filter</label>
+      <select id="vp-epic" class="popover-select">${epicOpts}</select>
+    </div>
+    <div class="popover-section">
+      <label class="popover-label">Group by</label>
+      <div class="popover-segmented" id="vp-group">
+        ${['none','epic','assignee','priority','type'].map((v) =>
+          `<button type="button" data-v="${v}"${state.groupBy === v ? ' class="active"' : ''}>${v === 'none' ? 'None' : v[0].toUpperCase()+v.slice(1)}</button>`
+        ).join('')}
+      </div>
+    </div>
+    <div class="popover-section" id="vp-showdone-wrap"${state.groupBy === 'epic' ? '' : ' hidden'}>
+      <label class="check">
+        <input id="vp-showdone" type="checkbox"${state.showDoneEpics ? ' checked' : ''} />
+        <span>Show done epics</span>
+      </label>
+    </div>
+  `;
+  pop.querySelector('#vp-epic').addEventListener('change', async (e) => {
     state.epicFilter = e.target.value;
     state.view = 'board';
+    updateViewTrigger();
     await refresh();
   });
-  document.getElementById('new-project').addEventListener('click', openProjectModal);
-  document.getElementById('new-ticket').addEventListener('click', () => openTicketModal());
-  document.getElementById('show-overview').addEventListener('click', async () => {
-    state.view = state.view === 'overview' ? 'board' : 'overview';
-    await refresh();
+  pop.querySelectorAll('#vp-group button').forEach((b) => {
+    b.addEventListener('click', () => {
+      state.groupBy = b.dataset.v;
+      localStorage.setItem('scope.groupBy', state.groupBy);
+      pop.querySelectorAll('#vp-group button').forEach((x) => x.classList.toggle('active', x === b));
+      pop.querySelector('#vp-showdone-wrap').hidden = state.groupBy !== 'epic';
+      updateViewTrigger();
+      renderBoard();
+    });
   });
-  document.getElementById('refresh-now').addEventListener('click', async () => {
-    flashIndicator('tick');
-    await refresh();
-  });
-  const groupSel = document.getElementById('groupby');
-  groupSel.value = state.groupBy;
-  groupSel.addEventListener('change', async (e) => {
-    state.groupBy = e.target.value;
-    localStorage.setItem('scope.groupBy', state.groupBy);
+  pop.querySelector('#vp-showdone').addEventListener('change', (e) => {
+    state.showDoneEpics = e.target.checked;
+    localStorage.setItem('scope.showDoneEpics', String(state.showDoneEpics));
     renderBoard();
   });
-  startEventStream();
+}
+
+function openOverflowMenu() {
+  const anchor = document.getElementById('overflow-trigger');
+  if (popoverEl) return closePopover();
+  const pop = openPopover(anchor, {align: 'right', width: 200});
+  pop.classList.add('popover-menu');
+  pop.innerHTML = `
+    <button type="button" class="menu-item" data-act="refresh"><span class="mi-icon">↻</span> Refresh</button>
+    <button type="button" class="menu-item" data-act="overview"><span class="mi-icon">☰</span> ${state.view === 'overview' ? 'Back to board' : 'Project overview'}</button>
+    <div class="menu-sep"></div>
+    <button type="button" class="menu-item" data-act="new-project"><span class="mi-icon">＋</span> New project</button>
+  `;
+  pop.querySelectorAll('.menu-item').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const act = b.dataset.act;
+      closePopover();
+      if (act === 'refresh') { flashIndicator('tick'); await refresh(); }
+      else if (act === 'overview') {
+        state.view = state.view === 'overview' ? 'board' : 'overview';
+        await refresh();
+      }
+      else if (act === 'new-project') openProjectModal();
+    });
+  });
 }
 
 /* ------------- realtime: server-sent events ------------- */
@@ -251,21 +435,17 @@ function startEventStream() {
       detail?.type === 'workspace.attached' ||
       detail?.type === 'workspace.detached'
     ) {
-      // Refresh the workspace picker without dropping the user's selection.
+      // Refresh the breadcrumb without dropping the user's selection.
       await reloadWorkspaces();
-      const sel = document.getElementById('workspace-picker');
       if (state.currentWorkspace && state.workspaces.find((w) => w.id === state.currentWorkspace)) {
-        sel.value = state.currentWorkspace;
+        updateBreadcrumb();
       } else if (state.workspaces.length) {
         // Our workspace went away — fall back to the first one.
         state.currentWorkspace = state.workspaces[0].id;
         localStorage.setItem('scope.workspace', state.currentWorkspace);
-        sel.value = state.currentWorkspace;
         await reloadProjects();
-        if (state.projects.length) {
-          state.currentProject = state.projects[0].id;
-          document.getElementById('project-picker').value = state.currentProject;
-        }
+        if (state.projects.length) state.currentProject = state.projects[0].id;
+        updateBreadcrumb();
         await refresh();
       }
       return;
@@ -347,14 +527,23 @@ function renderBoard() {
     const section = document.createElement('section');
     section.className = 'lane';
     section.dataset.group = lane.key;
+    if (lane.status) section.dataset.status = lane.status;
     if (state.collapsedLanes.has(lane.key)) section.classList.add('collapsed');
 
     const head = document.createElement('header');
     head.className = 'lane-head';
+    const isEpic = lane.kind === 'epic';
     head.innerHTML = `
       <span class="lane-chevron">▾</span>
+      ${isEpic ? '<span class="lane-epic-badge">EPIC</span>' : ''}
       <span class="lane-title">${escapeHtml(lane.label)}</span>
-      ${lane.meta ? `<span class="lane-meta">${escapeHtml(lane.meta)}</span>` : ''}
+      ${isEpic && lane.status
+        ? `<span class="lane-status ${lane.status}">
+             <span class="dot ${lane.status}"></span>${escapeHtml(lane.status.replace('_', ' '))}
+           </span>`
+        : lane.meta
+          ? `<span class="lane-meta">${escapeHtml(lane.meta)}</span>`
+          : ''}
       ${lane.progress
         ? `<div class="lane-progress" title="${lane.progress.done}/${lane.progress.total} done">
              <div class="fill" style="width:${lane.progress.percent}%"></div>
@@ -432,6 +621,24 @@ function buildLanes(board, groupBy) {
   const allTickets = Object.values(board.buckets).flat();
   const epicById = {};
   for (const t of allTickets) if (t.type === 'epic') epicById[t.id] = t;
+  // When the board is filtered to a single epic, the API response doesn't
+  // include the epic-typed card itself — but we still need its title/status
+  // to label the lane. Fall back to the cached epic list.
+  if (groupBy === 'epic') {
+    const wanted = state.epicFilter
+      ? state.allEpics.filter((e) => e.id === state.epicFilter)
+      : state.allEpics;
+    for (const e of wanted) if (!epicById[e.id]) epicById[e.id] = e;
+  }
+
+  // Honor the "Show done" toggle: when grouped by epic and toggle is off,
+  // hide lanes whose epic is done (their children get hidden too — usually
+  // they're done as well, and "Show done" lets you see them when you want).
+  // Exception: when the user explicitly filtered to one epic, don't hide it
+  // — otherwise jumping to a done epic from the overview shows nothing.
+  const hideDone =
+    groupBy === 'epic' && !state.showDoneEpics && !state.epicFilter;
+  const isHiddenEpicId = (id) => hideDone && epicById[id]?.status === 'done';
 
   const groups = new Map();
   const ensure = (key, label, extras = {}) => {
@@ -448,6 +655,7 @@ function buildLanes(board, groupBy) {
   for (const t of allTickets) {
     const {key, label, extras, skip} = groupKey(t, groupBy, epicById);
     if (skip) continue;
+    if (isHiddenEpicId(key)) continue;
     const g = ensure(key, label, extras);
     if (g.buckets[t.status]) {
       g.buckets[t.status].push(t);
@@ -456,10 +664,14 @@ function buildLanes(board, groupBy) {
   }
 
   // Always include a lane for every epic, even if it has no children, so
-  // empty epics still appear as planning rows.
+  // empty epics still appear as planning rows. Skip done ones when filtered.
   if (groupBy === 'epic') {
     for (const e of Object.values(epicById)) {
+      if (hideDone && e.status === 'done') continue;
       ensure(e.id, `${e.id} · ${e.title}`, {
+        kind: 'epic',
+        epicId: e.id,
+        status: e.status,
         meta: e.status,
         progress: epicProgressFromTickets(e.id, allTickets),
       });
@@ -482,6 +694,9 @@ function groupKey(t, groupBy, epicById) {
         key: e.id,
         label: `${e.id} · ${e.title}`,
         extras: {
+          kind: 'epic',
+          epicId: e.id,
+          status: e.status,
           meta: e.status,
           progress: epicProgressFromTickets(e.id, Object.values(epicById).concat()),
         },
@@ -552,8 +767,8 @@ function renderCard(t) {
     epic.title = 'Filter to this epic';
     epic.addEventListener('click', async (e) => {
       e.stopPropagation();
-      document.getElementById('epic-filter').value = t.parent_id;
       state.epicFilter = t.parent_id;
+      updateViewTrigger();
       await refresh();
     });
     meta.appendChild(epic);
@@ -927,12 +1142,9 @@ function openAddWorkspaceModal() {
       await reloadWorkspaces();
       state.currentWorkspace = w.id;
       localStorage.setItem('scope.workspace', w.id);
-      document.getElementById('workspace-picker').value = w.id;
       await reloadProjects();
       state.currentProject = state.projects[0]?.id || null;
-      if (state.currentProject) {
-        document.getElementById('project-picker').value = state.currentProject;
-      }
+      updateBreadcrumb();
       await refresh();
     } catch (e) {
       modal.querySelector('#w-err').textContent = e.message;
@@ -970,7 +1182,7 @@ function openProjectModal() {
       closeModal();
       await reloadProjects();
       state.currentProject = p.id;
-      document.getElementById('project-picker').value = p.id;
+      updateBreadcrumb();
       await refresh();
     } catch (e) {
       modal.querySelector('#p-err').textContent = e.message;
@@ -1060,7 +1272,7 @@ async function renderOverview() {
       ${p.description ? `<div class="description">${escapeHtml(p.description)}</div>` : ''}
       ${
         p.overview && p.overview.trim()
-          ? `<div class="overview-body">${escapeHtml(p.overview)}</div>`
+          ? `<div class="overview-body markdown">${renderMarkdown(p.overview)}</div>`
           : '<div class="overview-body" style="color: var(--text-dim)">No overview yet. Use <code>scope project edit ' +
             p.key +
             ' --edit</code> to add one.</div>'
@@ -1096,7 +1308,7 @@ async function renderOverview() {
     el.addEventListener('click', async () => {
       state.view = 'board';
       state.epicFilter = el.dataset.id;
-      document.getElementById('epic-filter').value = el.dataset.id;
+      updateViewTrigger();
       // restore board layout
       root.style.display = '';
       await refresh();
@@ -1105,6 +1317,123 @@ async function renderOverview() {
 }
 
 /* ------------- utils ------------- */
+
+// Minimal, safe markdown renderer. Escapes HTML first so any raw tags in the
+// source become inert text before transforms run — keeping the local-first
+// app dependency-free without opening an XSS hole.
+function renderMarkdown(src) {
+  const codeBlocks = [];
+  let s = String(src ?? '').replace(/\r\n?/g, '\n');
+
+  // Pull fenced code blocks out first so their contents aren't transformed.
+  s = s.replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const i = codeBlocks.push({lang: lang.trim(), code}) - 1;
+    return `\n§CB${i}§\n`;
+  });
+
+  s = escapeHtml(s);
+  // The replacer's literal § survives escapeHtml; this isolates the
+  // placeholder on its own line so it becomes its own block, not part of a
+  // surrounding paragraph (which would yield <p><pre>…</pre></p>).
+
+  // Inline code (after escape so backticked HTML stays literal).
+  s = s.replace(/`([^`\n]+)`/g, (_, c) => `<code>${c}</code>`);
+
+  // Links [text](url) — only http(s)/mailto/relative.
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, text, href) => {
+    const safe = /^(https?:|mailto:|\/|#|\.\/|\.\.\/)/i.test(href);
+    if (!safe) return `${text} (${href})`;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+  });
+
+  // Bold / italic.
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+
+  // Block parse line-by-line.
+  const lines = s.split('\n');
+  const out = [];
+  let i = 0;
+  const flushPara = (buf) => {
+    if (!buf.length) return;
+    // CommonMark: single newlines fold to a space; only a trailing "  " on a
+    // line forces a hard <br>.
+    const joined = buf
+      .map((l, idx) => (idx < buf.length - 1 && /  $/.test(l) ? l.replace(/ +$/, '') + '<br>' : l))
+      .join(' ')
+      .replace(/<br> /g, '<br>');
+    out.push(`<p>${joined}</p>`);
+  };
+  const isBlockStart = (l) => {
+    const t = l.trim();
+    return (
+      !t ||
+      /^§CB\d+§$/.test(t) ||
+      /^(#{1,6})\s+/.test(t) ||
+      /^[-*+]\s+/.test(t) ||
+      /^\d+\.\s+/.test(t) ||
+      /^&gt;\s?/.test(t) ||
+      /^(---|\*\*\*|___)\s*$/.test(t)
+    );
+  };
+  // For a list, a continuation line is non-empty, doesn't start a new block,
+  // and is indented (matches loose-list convention). We join it onto the
+  // previous item with a space so wrapped prose stays a single <li>.
+  const collectList = (re) => {
+    const items = [];
+    while (i < lines.length && re.test(lines[i].trim())) {
+      items.push(lines[i].trim().replace(re, ''));
+      i++;
+      while (i < lines.length && /^\s+\S/.test(lines[i]) && !isBlockStart(lines[i])) {
+        items[items.length - 1] += ' ' + lines[i].trim();
+        i++;
+      }
+    }
+    return items;
+  };
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed) { i++; continue; }
+    if (/^§CB\d+§$/.test(trimmed)) { out.push(trimmed); i++; continue; }
+    const h = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { out.push(`<h${h[1].length}>${h[2]}</h${h[1].length}>`); i++; continue; }
+    if (/^(---|\*\*\*|___)\s*$/.test(trimmed)) { out.push('<hr>'); i++; continue; }
+    if (/^&gt;\s?/.test(trimmed)) {
+      const buf = [];
+      while (i < lines.length && /^&gt;\s?/.test(lines[i].trim())) {
+        buf.push(lines[i].trim().replace(/^&gt;\s?/, ''));
+        i++;
+      }
+      out.push(`<blockquote>${buf.join('<br>')}</blockquote>`);
+      continue;
+    }
+    if (/^[-*+]\s+/.test(trimmed)) {
+      const items = collectList(/^[-*+]\s+/);
+      out.push(`<ul>${items.map((x) => `<li>${x}</li>`).join('')}</ul>`);
+      continue;
+    }
+    if (/^\d+\.\s+/.test(trimmed)) {
+      const items = collectList(/^\d+\.\s+/);
+      out.push(`<ol>${items.map((x) => `<li>${x}</li>`).join('')}</ol>`);
+      continue;
+    }
+    // Paragraph: collect contiguous non-blank, non-block lines.
+    const buf = [];
+    while (i < lines.length && lines[i].trim() && !isBlockStart(lines[i])) {
+      buf.push(lines[i]);
+      i++;
+    }
+    flushPara(buf);
+  }
+
+  let html = out.join('\n');
+  html = html.replace(/§CB(\d+)§/g, (_, idx) => {
+    const {lang, code} = codeBlocks[Number(idx)];
+    return `<pre><code${lang ? ` class="lang-${escapeHtml(lang)}"` : ''}>${escapeHtml(code)}</code></pre>`;
+  });
+  return html;
+}
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -1117,6 +1446,20 @@ function escapeHtml(s) {
 }
 
 window.__scope = { state, api };
+
+// Track the topbar's actual rendered height so the sticky lane headers can sit
+// just below it even when the topbar wraps onto multiple rows.
+(() => {
+  const topbar = document.querySelector('.topbar');
+  if (!topbar) return;
+  const setH = () => {
+    document.documentElement.style.setProperty(
+      '--topbar-h', topbar.offsetHeight + 'px'
+    );
+  };
+  setH();
+  new ResizeObserver(setH).observe(topbar);
+})();
 
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refresh().catch(() => {});

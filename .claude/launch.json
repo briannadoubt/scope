@@ -4,13 +4,13 @@
     {
       "name": "scope-ui",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["bin/scope.js", "ui", "--no-open", "--port", "4321"],
+      "runtimeArgs": ["bin/scope.js", "ui", "--no-open"],
       "port": 4321
     },
     {
       "name": "scope-serve",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["bin/scope.js", "serve", "--no-open", "--port", "4321"],
+      "runtimeArgs": ["bin/scope.js", "serve", "--no-open"],
       "port": 4321
     }
   ]
