@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'node:http';
 import https from 'node:https';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { networkInterfaces } from 'node:os';
@@ -42,6 +43,7 @@ import { WorkspaceManager } from './workspaces.js';
 import { loadOrCreateToken, authMiddleware, lanHosts } from './auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const PKG = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
 
 /**
  * Start the local hub server.
@@ -62,7 +64,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * @param {boolean}  [opts.open]        - open browser after start
  * @param {boolean}  [opts.quiet=false] - log banner to stderr
  */
-export function startServer({
+export async function startServer({
   workspaces,
   scopeDir,
   port,
@@ -204,6 +206,7 @@ export function startServer({
       ? { scheme: 'https', auth: ['bearer', 'mtls'], ca_fingerprint: fingerprintHex(tlsCtx.ca.certPem) }
       : { scheme: 'http', auth: ['bearer'] };
     res.json({
+      version: PKG.version,
       statuses: SCHEMA_STATUSES,
       priorities: SCHEMA_PRIORITIES,
       ticket_types: SCHEMA_TICKET_TYPES,
@@ -399,11 +402,12 @@ export function startServer({
 
   app.use(express.static(join(__dirname, 'web')));
   app.get('*', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store');
     res.sendFile(join(__dirname, 'web', 'index.html'));
   });
 
   // Resolve TLS configuration. `tls === false` keeps the legacy HTTP path
-  // for tests; anything else (including undefined) means HTTPS.
+  // for tests; anything else (including undefined) means HTTPS on LAN.
   let tlsCtx = null;
   if (tls !== false) {
     if (tls && tls.ca && tls.leaf) {
@@ -415,104 +419,121 @@ export function startServer({
     }
   }
 
-  const httpServer = tlsCtx
-    ? https.createServer({
-        key: tlsCtx.leaf.keyPem,
-        cert: tlsCtx.leaf.certPem,
-        ca: tlsCtx.ca.certPem,
-        // Request — but do not require — client certs. Browsers without a
-        // cert can still connect (they'll auth with the bearer cookie);
-        // native clients that present a CA-signed cert get mTLS auth via
-        // authMiddleware. `rejectUnauthorized:false` lets unauth peers
-        // through; the middleware re-checks `socket.authorized` so a
-        // forged/untrusted cert can never be accepted as auth.
-        requestCert: true,
-        rejectUnauthorized: false,
-      }, app)
-    : http.createServer(app);
-  const scheme = tlsCtx ? 'https' : 'http';
-
-  return new Promise((resolve, reject) => {
-    const server = httpServer.listen(port, '0.0.0.0');
-    server.once('listening', () => {
-      const actualPort = server.address().port;
-      const localUrl = `${scheme}://localhost:${actualPort}`;
-      const lanIp = pickLanIp();
-      // Bonjour holds the event loop open and opens UDP multicast sockets, so
-      // tests pass discoverable: false to skip it. In prod, the default flow
-      // publishes both the scope.local hostname and the _scope._tcp service.
-      const bonjour = discoverable ? new Bonjour() : null;
-      // TXT record:
-      //   path=/       — where the UI / API lives
-      //   auth=...     — comma-separated supported auth schemes. We always
-      //                  support bearer (browser cookie). Under HTTPS we also
-      //                  support mtls (client cert).
-      //   scheme=...   — http | https, so SwiftUI clients know which URL
-      //                  scheme to use.
-      //   ca_fp=...    — SHA-256 of the local CA (lowercase hex, no colons).
-      //                  Native clients pin this when first discovering a
-      //                  Scope on the LAN, preventing a malicious peer from
-      //                  spoofing scope.local with their own CA.
-      const txt = { path: '/' };
-      if (tlsCtx) {
-        txt.scheme = 'https';
-        txt.auth = 'bearer,mtls';
-        txt.ca_fp = fingerprintHex(tlsCtx.ca.certPem);
-      } else {
-        txt.scheme = 'http';
-        txt.auth = 'bearer';
-      }
-      const advert = bonjour
-        ? bonjour.publish({
-            name: 'scope',
-            host: 'scope.local',
-            type: 'scope',
-            protocol: 'tcp',
-            port: actualPort,
-            txt,
-          })
-        : null;
-      const prettyUrl = `${scheme}://scope.local:${port}`;
-      const bookmarkUrl = `${prettyUrl}/?token=${token}`;
-      log(chalk.green('✓') + ` scope running at ${chalk.bold(prettyUrl)}`);
-      log(chalk.gray(`  also: ${localUrl}${lanIp ? `  •  ${scheme}://${lanIp}:${port}` : ''}`));
-      log(chalk.yellow('  ↳ bookmark this URL once (sets an auth cookie):'));
-      log('    ' + chalk.bold(bookmarkUrl));
-      if (tlsCtx) {
-        // HTTPS uses a self-signed local CA the browser doesn't trust yet.
-        // First-run-style messaging: always show the fingerprint (so the
-        // user can verify out-of-band when pairing); only nag about
-        // `scope ca trust` if the CA was freshly created on this serve.
-        log(chalk.gray('  CA fingerprint (SHA-256):'));
-        log('    ' + chalk.gray(tlsCtx.ca.fingerprint));
-        if (tlsCtx.ca.created) {
-          log(chalk.yellow('  ↳ first run — browsers will show a cert warning until you trust the CA:'));
-          log('    ' + chalk.bold('scope ca trust') + chalk.gray('     (System keychain, sudo — recommended)'));
-          log('    ' + chalk.gray('scope ca trust --user') + chalk.gray('     (login keychain, no sudo)'));
-        }
-      }
-      const list = mgr.list();
-      log(chalk.gray(`  workspaces: ${list.length}`));
-      for (const w of list) {
-        log(chalk.gray(`    • ${w.label}  ${chalk.dim(w.scope_dir)}`));
-      }
-      if (!quiet) log(chalk.gray('  press Ctrl-C to stop'));
-      if (openBrowser) open(bookmarkUrl).catch(() => open(localUrl + `/?token=${token}`).catch(() => {}));
-      server._workspaces = mgr;
-      server._bonjour = bonjour;
-      server._bonjourAdvert = advert;
-      server._tls = tlsCtx;
-      server._pairing = pairing;
-      const origClose = server.close.bind(server);
-      server.close = (cb) => {
-        try { advert?.stop?.(); } catch {}
-        try { bonjour?.unpublishAll(() => bonjour.destroy()); } catch {}
-        return origClose(cb);
-      };
-      resolve(server);
-    });
-    server.once('error', (err) => reject(err));
+  // Always serve plain HTTP on loopback — no cert warnings for local browsers.
+  // Auth middleware still enforces the bearer token for non-loopback requests,
+  // but loopback bypasses auth entirely so `http://localhost` just works.
+  const loopbackServer = http.createServer(app);
+  await new Promise((res, rej) => {
+    loopbackServer.once('error', rej);
+    loopbackServer.listen(port, '127.0.0.1', res);
   });
+  const actualPort = loopbackServer.address().port;
+
+  // If TLS is configured and a LAN IP is available, also bind an HTTPS server
+  // to that interface at the same port. Both servers share the same Express app.
+  // Binding to the specific LAN IP (not 0.0.0.0) lets us coexist with the HTTP
+  // loopback server on the same port.
+  const lanIp = pickLanIp();
+  let lanServer = null;
+  if (tlsCtx && lanIp) {
+    lanServer = https.createServer({
+      key: tlsCtx.leaf.keyPem,
+      cert: tlsCtx.leaf.certPem,
+      ca: tlsCtx.ca.certPem,
+      // Request — but do not require — client certs. Browsers without a
+      // cert can still connect (they'll auth with the bearer cookie);
+      // native clients that present a CA-signed cert get mTLS auth via
+      // authMiddleware. `rejectUnauthorized:false` lets unauth peers
+      // through; the middleware re-checks `socket.authorized` so a
+      // forged/untrusted cert can never be accepted as auth.
+      requestCert: true,
+      rejectUnauthorized: false,
+    }, app);
+    await new Promise((res) => {
+      lanServer.once('error', (e) => {
+        if (!silent) process.stderr.write(`[scope] HTTPS on ${lanIp}:${actualPort} unavailable: ${e.message}\n`);
+        lanServer = null;
+        res();
+      });
+      lanServer.listen(actualPort, lanIp, res);
+    });
+  }
+
+  const server = loopbackServer;
+  const localUrl = `http://localhost:${actualPort}`;
+
+  // Bonjour holds the event loop open and opens UDP multicast sockets, so
+  // tests pass discoverable: false to skip it. In prod, the default flow
+  // publishes both the scope.local hostname and the _scope._tcp service.
+  const bonjour = discoverable ? new Bonjour() : null;
+  // TXT record:
+  //   path=/       — where the UI / API lives
+  //   auth=...     — comma-separated supported auth schemes. We always
+  //                  support bearer (browser cookie). Under HTTPS we also
+  //                  support mtls (client cert).
+  //   scheme=...   — http | https, so SwiftUI clients know which URL
+  //                  scheme to use.
+  //   ca_fp=...    — SHA-256 of the local CA (lowercase hex, no colons).
+  //                  Native clients pin this when first discovering a
+  //                  Scope on the LAN, preventing a malicious peer from
+  //                  spoofing scope.local with their own CA.
+  // host + port duplicate the SRV record, but NWBrowser doesn't expose the
+  // resolved SRV target to clients without a full NWConnection.start(), so
+  // native clients read them from TXT directly. We publish the raw LAN IP
+  // (rather than `scope.local`) so iOS clients don't depend on mDNS host
+  // resolution from the device — our CA pinning bypasses TLS hostname checks
+  // anyway.
+  const advertisedHost = lanIp || 'scope.local';
+  const txt = { path: '/', host: advertisedHost, port: String(actualPort) };
+  if (tlsCtx && lanServer) {
+    txt.scheme = 'https';
+    txt.auth = 'bearer,mtls';
+    txt.ca_fp = fingerprintHex(tlsCtx.ca.certPem);
+  } else {
+    txt.scheme = 'http';
+    txt.auth = 'bearer';
+  }
+  const advert = bonjour
+    ? bonjour.publish({
+        name: 'scope',
+        host: 'scope.local',
+        type: 'scope',
+        protocol: 'tcp',
+        port: actualPort,
+        txt,
+      })
+    : null;
+
+  log(chalk.green('✓') + ` scope running`);
+  log(chalk.gray('  local:   ') + chalk.bold(localUrl));
+  if (lanServer) {
+    log(chalk.gray('  network: ') + chalk.bold(`https://scope.local:${actualPort}`) + chalk.gray(`  •  https://${lanIp}:${actualPort}`));
+    log(chalk.yellow('  ↳ open network URL once to set an auth cookie:'));
+    log('    ' + chalk.bold(`https://scope.local:${actualPort}/?token=${token}`));
+    log(chalk.gray('  CA fingerprint (SHA-256): ') + chalk.gray(tlsCtx.ca.fingerprint));
+  }
+  const list = mgr.list();
+  log(chalk.gray(`  workspaces: ${list.length}`));
+  for (const w of list) {
+    log(chalk.gray(`    • ${w.label}  ${chalk.dim(w.scope_dir)}`));
+  }
+  if (!quiet) log(chalk.gray('  press Ctrl-C to stop'));
+  if (openBrowser) open(localUrl).catch(() => {});
+
+  server._workspaces = mgr;
+  server._bonjour = bonjour;
+  server._bonjourAdvert = advert;
+  server._tls = tlsCtx;
+  server._lanServer = lanServer;
+  server._pairing = pairing;
+  const origClose = server.close.bind(server);
+  server.close = (cb) => {
+    try { advert?.stop?.(); } catch {}
+    try { bonjour?.unpublishAll(() => bonjour.destroy()); } catch {}
+    try { lanServer?.close(); } catch {}
+    return origClose(cb);
+  };
+  return server;
 }
 
 function pickLanIp() {

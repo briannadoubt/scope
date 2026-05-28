@@ -2,6 +2,7 @@
 
 const state = {
   meta: null,
+  serverVersion: null,
   workspaces: [],
   currentWorkspace: localStorage.getItem('scope.workspace') || null,
   projects: [],
@@ -66,6 +67,7 @@ async function api(path, opts = {}) {
 
 async function init() {
   state.meta = await api('/api/meta');
+  state.serverVersion = state.meta.version ?? null;
   await reloadWorkspaces();
   bindTopbar();
   // Pick workspace: previously-selected if still attached, else first.
@@ -565,9 +567,11 @@ function scheduleAutoRepair() {
 async function repairHubConnection() {
   setIndicator(null);
   let alive = false;
+  let freshMeta = null;
   try {
     const r = await fetch('/api/meta', { cache: 'no-store' });
     alive = r.ok;
+    if (alive) freshMeta = await r.json().catch(() => null);
   } catch { alive = false; }
   if (!alive) {
     setIndicator('disconnected');
@@ -581,6 +585,13 @@ async function repairHubConnection() {
     startEventStream();
     return;
   }
+  // Detect server version change (e.g. after `npm link` or restart).
+  const freshVersion = freshMeta?.version ?? null;
+  if (freshVersion && state.serverVersion && freshVersion !== state.serverVersion) {
+    showReloadBanner();
+    return;
+  }
+
   // Hub is healthy — make sure SSE is connected (it may have silently
   // dropped) and refresh the visible state.
   if (!eventSource || eventSource.readyState !== 1) {
@@ -589,6 +600,23 @@ async function repairHubConnection() {
     startEventStream();
   }
   await refresh();
+}
+
+function showReloadBanner() {
+  if (document.getElementById('version-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'version-banner';
+  banner.className = 'version-banner';
+  banner.setAttribute('role', 'status');
+  const msg = document.createElement('span');
+  msg.textContent = 'Scope was updated. Reload to get the latest version.';
+  const btn = document.createElement('button');
+  btn.className = 'btn primary';
+  btn.textContent = 'Reload';
+  btn.addEventListener('click', () => location.reload());
+  banner.appendChild(msg);
+  banner.appendChild(btn);
+  document.body.appendChild(banner);
 }
 
 function startEventStream() {

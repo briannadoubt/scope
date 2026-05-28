@@ -1,0 +1,40 @@
+name: Scope
+options:
+  bundleIdPrefix: com.briannadoubt
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "16.2"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.5.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: "8Q2C44U4HC"
+
+targets:
+  Scope:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.briannadoubt.scope
+        INFOPLIST_FILE: Sources/Info.plist
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Scope
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSBonjourServices:
+          - _scope._tcp
+        NSLocalNetworkUsageDescription: "Scope needs local network access to discover and connect to your Scope hub."

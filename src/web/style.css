@@ -1164,3 +1164,29 @@ button { font-family: inherit; }
   margin-bottom: 6px;
 }
 .mermaid-error::before { color: var(--red); }
+
+/* ---------- version update banner ---------- */
+.version-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--accent, #5b6af0);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+}
+.version-banner .btn {
+  padding: 4px 14px;
+  font-size: 12px;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.4);
+  color: #fff;
+}
+.version-banner .btn:hover { background: rgba(255,255,255,0.3); }

@@ -116,22 +116,23 @@ test('startServer serves HTTPS using the local CA leaf by default', async () => 
     port: 0,
     silent: true,
     discoverable: false,
-    // default tls -> HTTPS using the local CA
+    // default tls → HTTP loopback + HTTPS LAN
   });
   try {
-    const port = server.address().port;
+    // HTTPS is bound to the LAN IP; skip if no LAN interface in this environment.
+    const lanAddr = server._lanServer?.address();
+    if (!lanAddr) return;
+
     const caPem = readFileSync(`${HUB_DIR}/ca/ca.crt`, 'utf8');
-    // Talk to it over HTTPS using the CA as a trust anchor. servername must be
-    // a SAN; loopback is.
+    // Talk to the LAN HTTPS listener using the CA as a trust anchor.
     const body = await new Promise((resolve, reject) => {
       const req = https.get(
         {
-          host: '127.0.0.1',
-          port,
+          host: lanAddr.address,
+          port: lanAddr.port,
           path: '/api/meta',
           ca: caPem,
-          // 127.0.0.1 is in the leaf's SAN list, so cert validation should pass
-          servername: 'localhost',
+          servername: 'scope.local',
         },
         (res) => {
           let data = '';
@@ -142,8 +143,31 @@ test('startServer serves HTTPS using the local CA leaf by default', async () => 
       );
       req.on('error', reject);
     });
-    assert.equal(body.status, 200);
-    const json = JSON.parse(body.data);
+    assert.equal(body.status, 401); // LAN request without a token → 401 (auth enforced)
+    // Retry with bearer token to confirm the server is healthy.
+    const { loadOrCreateToken } = await import('../src/auth.js');
+    const token = loadOrCreateToken();
+    const authed = await new Promise((resolve, reject) => {
+      const req = https.get(
+        {
+          host: lanAddr.address,
+          port: lanAddr.port,
+          path: '/api/meta',
+          ca: caPem,
+          servername: 'scope.local',
+          headers: { authorization: `Bearer ${token}`, host: `scope.local:${lanAddr.port}` },
+        },
+        (res) => {
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', (c) => { data += c; });
+          res.on('end', () => resolve({ status: res.statusCode, data }));
+        }
+      );
+      req.on('error', reject);
+    });
+    assert.equal(authed.status, 200);
+    const json = JSON.parse(authed.data);
     assert.ok(Array.isArray(json.statuses));
     // SCP-57: HTTPS hub advertises mtls + ca_fp.
     assert.equal(json.security.scheme, 'https');

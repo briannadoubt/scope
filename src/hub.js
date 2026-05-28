@@ -236,8 +236,8 @@ export async function ensureHub({
         open: false, // we open ourselves after writing discovery
         quiet: true,
       });
-      // Our own listener is HTTPS by default (startServer's default).
-      const scheme = server._tls ? 'https' : 'http';
+      // Loopback is always plain HTTP; LAN may be HTTPS (server._tls).
+      const scheme = 'http';
       writeDiscovery({
         port: p,
         pid: process.pid,

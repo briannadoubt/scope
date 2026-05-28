@@ -3,3 +3,10 @@ node_modules/
 *.log
 .DS_Store
 .claude/settings.local.json
+
+# Xcode
+App/Scope.xcodeproj/xcuserdata/
+App/Scope.xcodeproj/project.xcworkspace/xcuserdata/
+App/build/
+App/DerivedData/
+*.xcuserstate

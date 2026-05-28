@@ -52,10 +52,14 @@ export function ensureHubDir() {
 }
 
 function randomSerialHex() {
-  // 16 random bytes → 128-bit positive serial. Forge expects hex string;
-  // leading "00" prevents any chance of a negative-looking serial.
+  // 16 random bytes → 128-bit serial. Clear the high bit of the first byte so
+  // the ASN.1 INTEGER is always positive without a leading 00 pad byte.
+  // Node 24 / OpenSSL 3.5 rejects unconditional 00 prefixes as illegal padding
+  // when the following byte's high bit is already 0.
   const bytes = forge.random.getBytesSync(16);
-  return '00' + forge.util.bytesToHex(bytes);
+  const hex = forge.util.bytesToHex(bytes);
+  const first = (parseInt(hex.slice(0, 2), 16) & 0x7f).toString(16).padStart(2, '0');
+  return first + hex.slice(2);
 }
 
 function caSubject() {

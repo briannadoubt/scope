@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import { tmpdir } from 'node:os';
 
 const PKG = JSON.parse(
@@ -46,6 +47,7 @@ import {
 import { startServer } from './server.js';
 import { ensureHub, findRunningHub, startHubWatchdog, hubFetch, DEFAULT_HUB_PORT } from './hub.js';
 import { loadOrCreateCa, CA_CERT_PATH, CA_KEY_PATH, CA_DIR, fingerprintHex } from './ca.js';
+import { loadOrCreateToken } from './auth.js';
 import { listDevices, renameDevice, findDeviceByName, removeDevice } from './devices.js';
 import { revokeSerial, unrevokeSerial, listRevoked } from './revocation.js';
 import {
@@ -124,6 +126,40 @@ function idleUntilSignaled() {
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
   process.on('SIGHUP', stop);
+}
+
+function stdinPrompt(question) {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, (ans) => { rl.close(); resolve(ans); });
+  });
+}
+
+async function maybeOfferCaTrust() {
+  if (process.platform !== 'darwin') return;
+  if (!process.stdin.isTTY) return;
+  const loginKeychain = join(homedir(), 'Library/Keychains/login.keychain-db');
+  const check = spawnSync('security', ['find-certificate', '-c', 'Scope Local CA', loginKeychain], { stdio: 'pipe' });
+  if (check.status === 0) return; // already trusted
+  process.stdout.write(
+    '\n' + chalk.yellow('!') + ' Browsers will show a security warning — the Scope CA isn\'t trusted yet.\n' +
+    chalk.gray('  This is a one-time step. Your login keychain password may be required.\n\n')
+  );
+  const ans = await stdinPrompt('  Trust the Scope CA in your login keychain? [Y/n] ');
+  if (ans.trim().toLowerCase() === 'n') {
+    process.stdout.write(chalk.gray('  Skipped. Run `scope ca trust --user` to add it later.\n\n'));
+    return;
+  }
+  const r = spawnSync(
+    'security',
+    ['add-trusted-cert', '-r', 'trustRoot', '-k', loginKeychain, CA_CERT_PATH],
+    { stdio: 'inherit' }
+  );
+  if (r.status === 0) {
+    process.stdout.write(chalk.green('✓') + ' CA trusted — restart any open browser tabs to pick up the change.\n\n');
+  } else {
+    process.stdout.write(chalk.red('✗') + ' Could not add trust automatically. Run `scope ca trust --user` to try manually.\n\n');
+  }
 }
 
 function parseLabels(s) {
@@ -958,9 +994,13 @@ export function buildProgram() {
         ? join(homedir(), 'Library/Keychains/login.keychain-db')
         : '/Library/Keychains/System.keychain';
       // `security add-trusted-cert` is the supported macOS way to add a
-      // trust anchor. -d marks it as a root, -r trustRoot says "trust for
-      // SSL etc.", -k <keychain> picks which store to write to.
-      const args = ['add-trusted-cert', '-d', '-r', 'trustRoot', '-k', keychain, CA_CERT_PATH];
+      // trust anchor. -r trustRoot says "trust for SSL etc.", -k picks the
+      // keychain to store the cert in. Without -d, trust is applied at the
+      // user domain (no sudo); with -d it targets the admin domain (requires
+      // sudo + System keychain).
+      const args = opts.user
+        ? ['add-trusted-cert', '-r', 'trustRoot', '-k', keychain, CA_CERT_PATH]
+        : ['add-trusted-cert', '-d', '-r', 'trustRoot', '-k', keychain, CA_CERT_PATH];
       const argv = opts.user ? ['security', ...args] : ['sudo', 'security', ...args];
       if (opts.dryRun) {
         out(cmd, { command: argv.join(' '), ca_cert: CA_CERT_PATH, fingerprint: c.fingerprint, keychain }, (d) => d.command);
@@ -1005,6 +1045,16 @@ export function buildProgram() {
     .description('Print the on-disk path to the CA directory.')
     .action((opts, cmd) => {
       out(cmd, { ca_dir: CA_DIR, ca_cert: CA_CERT_PATH, ca_key: CA_KEY_PATH }, (d) => d.ca_dir);
+    });
+
+  /* ---------- auth token ---------- */
+
+  program
+    .command('auth')
+    .description('Show the bearer token used to authenticate API requests.')
+    .action(() => {
+      const tok = loadOrCreateToken();
+      process.stdout.write(tok + '\n');
     });
 
   /* ---------- pair / devices ---------- */
@@ -1202,7 +1252,7 @@ export function buildProgram() {
       const ensureOpts = {
         scopeDir,
         preferredPort,
-        openBrowser: opts.open,
+        openBrowser: false, // we open the browser ourselves after the CA trust prompt
       };
       const res = await ensureHub(ensureOpts);
       startHubWatchdog(res, ensureOpts, {
@@ -1218,6 +1268,10 @@ export function buildProgram() {
       });
 
       if (res.weAreHub) {
+        await maybeOfferCaTrust();
+        if (opts.open) {
+          try { (await import('open')).default(`http://localhost:${res.port}`); } catch {}
+        }
         process.stdout.write(
           chalk.green('✓') + ` scope running at ${chalk.bold(res.url)}\n` +
           chalk.gray('  press Ctrl-C to stop') + '\n'
