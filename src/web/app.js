@@ -2111,17 +2111,56 @@ function escapeHtml(s) {
 window.__scope = { state, api };
 
 // Track the topbar's actual rendered height so the sticky lane headers can sit
-// just below it even when the topbar wraps onto multiple rows.
+// just below it even when the topbar wraps onto multiple rows. Also runs a
+// collision-based compactor that hides labels only when the spacer would
+// otherwise go to zero (vs. the old width-based @media queries, which hid
+// labels eagerly and left a wide empty gap between the left and right
+// clusters — see git history for the "stop collapsing before colliding" fix).
 (() => {
   const topbar = document.querySelector('.topbar');
   if (!topbar) return;
+
+  const spacer = topbar.querySelector('.topbar-spacer');
+  // Minimum spacer width before we trigger the next compaction level. A few
+  // pixels of slack keeps the right cluster from kissing the left cluster
+  // and looking accidentally crowded.
+  const MIN_SLACK = 12;
+
+  // Three escalating levels: lose the lowest-value labels first.
+  //   1: auto-scroll text + "New ticket" text (small, frequent gestures —
+  //      the toggle and "+" icon read fine on their own).
+  //   2: view-trigger label + caret (the ≡ icon already says "menu").
+  //   3: breadcrumb workspace name (replaced by just the brand mark).
+  const LEVELS = ['compact-1', 'compact-2', 'compact-3'];
+
+  const measureSlack = () =>
+    spacer ? spacer.getBoundingClientRect().width : Number.POSITIVE_INFINITY;
+
+  const fit = () => {
+    for (const cls of LEVELS) topbar.classList.remove(cls);
+    // Force a layout read after the resets so the next measurement reflects
+    // the uncompacted width.
+    void topbar.offsetWidth;
+
+    for (const cls of LEVELS) {
+      if (measureSlack() >= MIN_SLACK) break;
+      topbar.classList.add(cls);
+      void topbar.offsetWidth;
+    }
+  };
+
   const setH = () => {
     document.documentElement.style.setProperty(
       '--topbar-h', topbar.offsetHeight + 'px'
     );
+    fit();
   };
   setH();
+  // Observe both the topbar (catches inner content changes, e.g. workspace
+  // name updates) and the viewport (handles window resizes — topbar's own
+  // size only changes via flex, not via vw).
   new ResizeObserver(setH).observe(topbar);
+  new ResizeObserver(setH).observe(document.documentElement);
 })();
 
 document.addEventListener('visibilitychange', () => {
