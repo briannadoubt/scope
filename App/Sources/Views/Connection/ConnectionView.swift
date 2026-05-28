@@ -94,12 +94,7 @@ struct ConnectionView: View {
         List {
             Section {
                 ForEach(discovery.discovered) { hub in
-                    HubRowView(hub: hub) {
-                        // Show pairing sheet — first-time setup gets a 6-digit code
-                        // from `scope pair` on the Mac; subsequent connects reuse the
-                        // stored mTLS identity.
-                        pendingHub = hub
-                    }
+                    HubRowView(hub: hub) { tap(hub) }
                 }
             } header: {
                 HStack {
@@ -133,6 +128,27 @@ struct ConnectionView: View {
     }
 
     // MARK: Connection logic
+
+    /// Handler for tapping a discovered hub row. Branches on whether the
+    /// Keychain already has an mTLS identity for the hub:
+    ///
+    /// - **Already paired:** Build a paired URLSession and `connect()`
+    ///   immediately. RootView swaps in MainTabView once `store.client`
+    ///   is set. No pairing sheet flashes on screen.
+    /// - **Not paired:** Present `PairingView` so the user can enter the
+    ///   one-time 6-digit code from `scope pair` on the Mac.
+    ///
+    /// The check uses `KeychainStore.shared.isPaired(for:)`, the same
+    /// helper PairingManager uses to seed its own `isPaired` flag — so
+    /// the two paths can never disagree about whether a hub is paired.
+    private func tap(_ hub: HubInfo) {
+        if KeychainStore.shared.isPaired(for: hub.id) {
+            let session = PairedSession.make(for: hub)
+            Task { await store.connect(to: hub.baseURL, session: session) }
+        } else {
+            pendingHub = hub
+        }
+    }
 
     @MainActor
     private func connect(to url: URL, token: String?, caFingerprint: String? = nil) async {

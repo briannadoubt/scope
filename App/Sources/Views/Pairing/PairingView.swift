@@ -42,8 +42,17 @@ struct PairingView: View {
                     }
                 }
                 .disabled(manager.isPairing)
-                .onChange(of: manager.isPaired) { _, newValue in
-                    if newValue { handlePairingSuccess() }
+                .task {
+                    // Already paired with this hub from a previous run — the
+                    // Keychain has the identity, so skip the code-entry step
+                    // and connect immediately. We can't rely on
+                    // `.onChange(of: manager.isPaired)` for this because
+                    // `isPaired` is already true on appear (set in
+                    // PairingManager.init from the Keychain check), so the
+                    // value never *transitions* and onChange would silently
+                    // do nothing — that was the bug behind "pairing worked
+                    // on the CLI but the app stayed on the pair sheet."
+                    if manager.isPaired { handlePairingSuccess() }
                 }
 
                 if manager.isPairing {
@@ -145,6 +154,11 @@ struct PairingView: View {
         let trimmedCode = code.filter(\.isNumber)
         let trimmedName = deviceName.trimmingCharacters(in: .whitespaces)
         try await manager.pair(code: trimmedCode, deviceName: trimmedName)
+        // pair() throws on failure; reaching this line means it succeeded.
+        // Call the transition directly instead of waiting for the @Observable
+        // change to propagate through .onChange — see the .task modifier in
+        // body for the full rationale.
+        handlePairingSuccess()
     }
 
     private func handlePairingSuccess() {
@@ -159,6 +173,24 @@ struct PairingView: View {
     // MARK: - Paired URLSession
 
     private func makePairedSession() -> URLSession {
+        // Reuse the file-scope factory so ConnectionView's "already-paired
+        // hub → skip the pair sheet" shortcut shares the same delegate setup.
+        PairedSession.make(for: hub)
+    }
+}
+
+// MARK: - Paired URLSession factory
+//
+// Lives at file scope inside a caseless enum so both this view (post-
+// pairing) and ConnectionView (already paired on tap) can build a session
+// without instantiating PairingView. Named `PairedSession` instead of
+// `Scope` to avoid shadowing the module name.
+
+enum PairedSession {
+    /// Build a URLSession that authenticates to `hub` using the mTLS identity
+    /// stored in the Keychain by a previous pairing run. The session pins the
+    /// server's CA to the cert stored alongside that identity.
+    static func make(for hub: HubInfo) -> URLSession {
         let delegate = PairedURLSessionDelegate(hubId: hub.id)
         let config = URLSessionConfiguration.default
         config.tlsMinimumSupportedProtocolVersion = .TLSv12
