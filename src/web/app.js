@@ -1845,26 +1845,29 @@ function ensureLiveFeedRoot() {
   return root;
 }
 
-// Highest ticket_history.id we've already shown a toast for. Used to
-// dedupe when we replay history rows on fs-watch ('external') events —
-// see SCP-73 for the proper server-side fix.
+// Highest ticket_history.id and ticket_comments.id we've already shown a
+// toast for. Used to de-dupe rich events that the hub may emit twice (once
+// directly from the in-process write, once via the fs-watch replay path).
 let lastLiveFeedHistoryId = 0;
+let lastLiveFeedCommentId = 0;
 
 function pushLiveFeed(detail) {
   if (!detail || !detail.type) return;
   // Drop workspace lifecycle events — they aren't ticket activity.
   if (detail.type.startsWith('workspace.')) return;
-  // CLI-driven changes arrive as a generic fs-watch 'external' event without
-  // any detail. Hydrate by pulling the latest history rows and synthesizing
-  // proper ticket.updated events for each. This is a workaround for SCP-73 —
-  // the hub should emit rich events directly.
-  if (detail.type === 'external') {
-    hydrateExternalChange(detail);
-    return;
-  }
-  // For in-process emits we know the history id, so track it.
+  // 'external' is the catch-all fs-watch envelope for changes the hub can't
+  // classify (data_version moved but no new history/comment row). Don't toast
+  // — we'd be guessing at what happened.
+  if (detail.type === 'external') return;
+  // Track historyId/commentId so we can de-dupe rich events that arrive both
+  // via direct in-process emit and (rarely) via the fs-watch replay path.
   if (typeof detail.historyId === 'number') {
+    if (detail.historyId <= lastLiveFeedHistoryId) return;
     lastLiveFeedHistoryId = Math.max(lastLiveFeedHistoryId, detail.historyId);
+  }
+  if (typeof detail.commentId === 'number') {
+    if (detail.commentId <= lastLiveFeedCommentId) return;
+    lastLiveFeedCommentId = Math.max(lastLiveFeedCommentId, detail.commentId);
   }
   // Only render activity that belongs to the current workspace (the server
   // already filters by workspace on subscribe, but be defensive).
@@ -1923,47 +1926,13 @@ function liveFeedIcon(type) {
   return '•';
 }
 
-async function hydrateExternalChange(_detail) {
-  if (!state.currentWorkspace) return;
-  try {
-    const resp = await api(`/api/history?limit=10`);
-    const rows = Array.isArray(resp) ? resp : (resp?.entries ?? []);
-    if (!rows.length) return;
-    // First-ever external event: just record where we are; don't replay the
-    // full backlog as toasts.
-    if (lastLiveFeedHistoryId === 0) {
-      lastLiveFeedHistoryId = rows[0].id;
-      return;
-    }
-    // Rows are newest-first; render oldest unseen first so the newest lands at the bottom.
-    const fresh = rows.filter((r) => r.id > lastLiveFeedHistoryId).reverse();
-    for (const r of fresh) {
-      lastLiveFeedHistoryId = Math.max(lastLiveFeedHistoryId, r.id);
-      pushLiveFeed({
-        type: 'ticket.updated',
-        id: r.ticket_id,
-        ticket: r.ticket_id,
-        title: r.ticket_title,
-        field: r.field,
-        old_value: r.old_value,
-        new_value: r.new_value,
-        changed_by: r.changed_by,
-        workspace: state.currentWorkspace,
-        historyId: r.id,
-      });
-    }
-  } catch {
-    // Network blip — next external event will retry.
-  }
-}
-
 function liveFeedDescription(detail) {
   const t = detail.type || 'change';
   switch (t) {
     case 'ticket.created': return 'created';
     case 'ticket.updated': {
-      // Synthesized rows from hydrateExternalChange carry field/new_value;
-      // surface those so the toast actually describes the change.
+      // Rich events (from in-process and from fs-watch replay) carry the
+      // field/new_value tuple so we can describe the change concretely.
       if (detail.field) {
         const v = detail.new_value;
         if (detail.field === 'status') return `→ ${v}`;

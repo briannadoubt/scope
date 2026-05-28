@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createTempScope } from './helpers.js';
+import { bus } from '../src/events.js';
 import {
   updateWorkspace, getWorkspace, listWorkspaces,
   createTicket, getTicket, listTickets, updateTicket, deleteTicket,
@@ -9,6 +10,15 @@ import {
   addComment, listComments, listHistory, listWorkspaceHistory,
   listEpicChildren, epicProgress,
 } from '../src/repo.js';
+
+/** Capture every `change` event emitted while `fn` runs. */
+function captureEvents(fn) {
+  const events = [];
+  const listener = (detail) => events.push(detail);
+  bus.on('change', listener);
+  try { fn(); } finally { bus.off('change', listener); }
+  return events;
+}
 
 /* ---------------- workspace ---------------- */
 
@@ -354,6 +364,53 @@ test('listWorkspaceHistory returns rows newest-first, joined with ticket meta, a
       r.changed_at < cursorRow.changed_at ||
       (r.changed_at === cursorRow.changed_at && r.id < cursorRow.id)
     ));
+  } finally {
+    cleanup();
+  }
+});
+
+test('updateTicket emits one rich ticket.updated event per field change (SCP-73)', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const t = createTicket(db, { type: 'story', title: 'fix login', status: 'todo' });
+
+    const events = captureEvents(() => {
+      updateTicket(db, t.id, { status: 'in_progress', priority: 'high' }, 'me');
+    });
+    const updates = events.filter((e) => e.type === 'ticket.updated');
+
+    // One event per field change, each with the full toast-ready payload.
+    assert.equal(updates.length, 2);
+    const byField = Object.fromEntries(updates.map((u) => [u.field, u]));
+    assert.deepEqual(
+      { id: byField.status.id, field: byField.status.field, old: byField.status.old_value, new: byField.status.new_value, by: byField.status.changed_by, title: byField.status.title },
+      { id: t.id, field: 'status', old: 'todo', new: 'in_progress', by: 'me', title: 'fix login' }
+    );
+    assert.equal(byField.priority.new_value, 'high');
+    // Each carries a positive historyId so the web client can de-dupe.
+    assert.ok(updates.every((u) => typeof u.historyId === 'number' && u.historyId > 0));
+  } finally {
+    cleanup();
+  }
+});
+
+test('addComment emits comment.added with commentId + title (SCP-73)', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const t = createTicket(db, { type: 'bug', title: 'crash on launch' });
+
+    const events = captureEvents(() => {
+      addComment(db, t.id, 'cannot repro on iPad', 'qa');
+    });
+    const c = events.find((e) => e.type === 'comment.added');
+
+    assert.ok(c, 'expected a comment.added event');
+    assert.equal(c.id, t.id);
+    assert.equal(c.title, 'crash on launch');
+    assert.equal(c.author, 'qa');
+    assert.equal(c.body, 'cannot repro on iPad');
+    assert.equal(typeof c.commentId, 'number');
+    assert.ok(c.commentId > 0);
   } finally {
     cleanup();
   }

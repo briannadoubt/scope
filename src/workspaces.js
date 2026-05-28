@@ -21,6 +21,17 @@ function readDataVersion(db) {
   catch { return 0; }
 }
 
+/** MAX(id) of an autoincrement table, or 0 if the table is empty / missing. */
+function readMaxId(db, table) {
+  try {
+    // Identifier inlined (parameterized prepares can't take table names);
+    // `table` is hard-coded to known tables at call sites, never user input.
+    return db.prepare(`SELECT COALESCE(MAX(id), 0) AS m FROM ${table}`).get()?.m ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 function debounce(fn, ms) {
   let timer = null;
   return (...args) => {
@@ -112,11 +123,87 @@ export class WorkspaceManager {
 
     const db = openDb(abs);
     let lastDataVersion = readDataVersion(db);
+    // Cursor state for synthesizing rich events from cross-process writes.
+    // We track the highest seen ticket_history.id and ticket_comments.id so
+    // a sibling CLI subprocess's writes get replayed as one rich event per
+    // row instead of the old generic `external` toast.
+    let lastHistoryId = readMaxId(db, 'ticket_history');
+    let lastCommentId = readMaxId(db, 'ticket_comments');
+
+    // Drain new ticket_history rows → one ticket.updated per row, with the
+    // exact field/old/new tuple joined to the ticket's current title so the
+    // toast can show "TICKET-12 'Fix login' status: todo → done".
+    const drainHistory = () =>
+      db.prepare(
+        `SELECT h.id, h.ticket_id, h.field, h.old_value, h.new_value,
+                h.changed_by, t.title AS ticket_title
+           FROM ticket_history h
+           LEFT JOIN tickets t ON t.id = h.ticket_id
+          WHERE h.id > ?
+          ORDER BY h.id ASC`
+      ).all(lastHistoryId);
+
+    // Drain new ticket_comments rows → one comment.added per row. Comments
+    // don't go through ticket_history so they were silently dropped on the
+    // old `external` path.
+    const drainComments = () =>
+      db.prepare(
+        `SELECT c.id, c.ticket_id, c.author, c.body, t.title AS ticket_title
+           FROM ticket_comments c
+           LEFT JOIN tickets t ON t.id = c.ticket_id
+          WHERE c.id > ?
+          ORDER BY c.id ASC`
+      ).all(lastCommentId);
 
     const onChange = debounce(() => {
-      const v = readDataVersion(db);
-      if (v !== lastDataVersion) {
-        lastDataVersion = v;
+      // The db can be closed between debounce schedule and fire (tests do
+      // exactly this). Bail quietly instead of throwing on a dead handle.
+      let v;
+      try { v = readDataVersion(db); } catch { return; }
+      if (v === lastDataVersion) return;
+      lastDataVersion = v;
+
+      let historyRows, commentRows;
+      try {
+        historyRows = drainHistory();
+        commentRows = drainComments();
+      } catch {
+        return;
+      }
+
+      for (const row of historyRows) {
+        lastHistoryId = Math.max(lastHistoryId, row.id);
+        emitChange({
+          type: 'ticket.updated',
+          id: row.ticket_id,
+          title: row.ticket_title,
+          field: row.field,
+          old_value: row.old_value,
+          new_value: row.new_value,
+          changed_by: row.changed_by,
+          historyId: row.id,
+          workspace: id,
+          source: 'fs-watch',
+        });
+      }
+      for (const row of commentRows) {
+        lastCommentId = Math.max(lastCommentId, row.id);
+        emitChange({
+          type: 'comment.added',
+          id: row.ticket_id,
+          title: row.ticket_title,
+          author: row.author,
+          body: row.body,
+          commentId: row.id,
+          workspace: id,
+          source: 'fs-watch',
+        });
+      }
+
+      // Catch-all: data_version moved but neither table grew (e.g. relation
+      // changed, workspace meta tweaked). Fall back to the generic envelope
+      // so clients can refresh; the activity feed will skip it.
+      if (!historyRows.length && !commentRows.length) {
         emitChange({ type: 'external', source: 'fs-watch', workspace: id });
       }
     }, 80);
@@ -131,10 +218,17 @@ export class WorkspaceManager {
       /* fs.watch not available — cross-process updates degrade to "next tool call refreshes" */
     }
 
-    // Keep lastDataVersion in sync with our own in-process writes so the
-    // watcher doesn't re-emit for them.
+    // Keep cursor state in sync with our own in-process writes so the
+    // watcher doesn't replay them as duplicates when fs-watch fires after.
     const tracker = (detail) => {
-      if (detail?.workspace === id) lastDataVersion = readDataVersion(db);
+      if (detail?.workspace !== id) return;
+      try { lastDataVersion = readDataVersion(db); } catch { /* db closed */ }
+      if (typeof detail.historyId === 'number') {
+        lastHistoryId = Math.max(lastHistoryId, detail.historyId);
+      }
+      if (typeof detail.commentId === 'number') {
+        lastCommentId = Math.max(lastCommentId, detail.commentId);
+      }
     };
     // Lazy import to avoid circular dependency at module load.
     import('./events.js').then(({ bus }) => bus.on('change', tracker));

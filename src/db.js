@@ -475,8 +475,8 @@ export const nextTicketId = (db) => {
 };
 
 export function recordHistory(db, ticketId, field, oldValue, newValue, who = null) {
-  if (String(oldValue ?? '') === String(newValue ?? '')) return;
-  db.prepare(
+  if (String(oldValue ?? '') === String(newValue ?? '')) return null;
+  const result = db.prepare(
     `INSERT INTO ticket_history (ticket_id, field, old_value, new_value, changed_by, changed_at)
      VALUES (?, ?, ?, ?, ?, ?)`
   ).run(
@@ -487,4 +487,5 @@ export function recordHistory(db, ticketId, field, oldValue, newValue, who = nul
     who,
     nowIso()
   );
+  return Number(result.lastInsertRowid);
 }

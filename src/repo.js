@@ -113,7 +113,14 @@ export function createTicket(
     now
   );
   const created = getTicket(db, id);
-  emitChange({ type: 'ticket.created', id });
+  emitChange({
+    type: 'ticket.created',
+    id,
+    title: created.title,
+    ticket_type: created.type,
+    status: created.status,
+    priority: created.priority,
+  });
   return created;
 }
 
@@ -199,13 +206,20 @@ export function updateTicket(db, id, fields, who = null) {
 
   const updates = [];
   const values = [];
+  // Collect (field, oldRaw, newRaw) tuples so we can emit one rich
+  // ticket.updated event per field after the row is rewritten — same shape
+  // the fs-watch fallback produces from ticket_history rows.
+  const fieldChanges = [];
   for (const k of allowed) {
     if (k in fields) {
       const v = k === 'labels' ? JSON.stringify(fields[k] ?? []) : fields[k];
       updates.push(`${k} = ?`);
       values.push(v);
       const oldRaw = k === 'labels' ? JSON.stringify(ticket[k] ?? []) : ticket[k];
-      recordHistory(db, ticket.id, k, oldRaw, v, who);
+      const historyId = recordHistory(db, ticket.id, k, oldRaw, v, who);
+      if (historyId != null) {
+        fieldChanges.push({ field: k, old: oldRaw, new: v, historyId });
+      }
     }
   }
   if (!updates.length) return ticket;
@@ -214,7 +228,25 @@ export function updateTicket(db, id, fields, who = null) {
   values.push(ticket.id);
   db.prepare(`UPDATE tickets SET ${updates.join(', ')} WHERE id = ?`).run(...values);
   const after = getTicket(db, ticket.id);
-  emitChange({ type: 'ticket.updated', id: ticket.id });
+  // One toast-shaped event per field. If nothing actually changed value-wise
+  // (recordHistory is a no-op for same-as-current), emit a single bare
+  // ticket.updated so listeners still know to refresh.
+  if (fieldChanges.length) {
+    for (const change of fieldChanges) {
+      emitChange({
+        type: 'ticket.updated',
+        id: ticket.id,
+        title: after.title,
+        field: change.field,
+        old_value: change.old == null ? null : String(change.old),
+        new_value: change.new == null ? null : String(change.new),
+        changed_by: who,
+        historyId: change.historyId,
+      });
+    }
+  } else {
+    emitChange({ type: 'ticket.updated', id: ticket.id, title: after.title });
+  }
   return after;
 }
 
@@ -222,7 +254,7 @@ export function deleteTicket(db, id) {
   const t = getTicket(db, id);
   if (!t) return false;
   db.prepare('DELETE FROM tickets WHERE id = ?').run(t.id);
-  emitChange({ type: 'ticket.deleted', id: t.id });
+  emitChange({ type: 'ticket.deleted', id: t.id, title: t.title });
   return true;
 }
 
@@ -296,8 +328,16 @@ export function addComment(db, ticketId, body, author = null) {
        VALUES (?, ?, ?, ?)`
     )
     .run(t.id, author, body, nowIso());
-  emitChange({ type: 'comment.added', id: t.id });
-  return { id: res.lastInsertRowid, ticket_id: t.id, author, body };
+  const commentId = Number(res.lastInsertRowid);
+  emitChange({
+    type: 'comment.added',
+    id: t.id,
+    title: t.title,
+    author,
+    body,
+    commentId,
+  });
+  return { id: commentId, ticket_id: t.id, author, body };
 }
 
 export function listComments(db, ticketId) {
