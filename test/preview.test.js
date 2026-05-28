@@ -21,6 +21,19 @@ function startUpstream(handler) {
   });
 }
 
+/* Tear down an http.Server cleanly, including any still-open keep-alive
+ * connections. `server.close()` alone only stops accepting new connections
+ * — existing sockets (especially the SSE upstream the streaming test leaves
+ * hanging) keep the event loop alive forever and CI hangs. `closeAllConn
+ * ections()` (Node ≥18.2) drops them so the test process can exit. */
+function closeServer(server) {
+  return new Promise((resolve) => {
+    if (!server) return resolve();
+    try { server.closeAllConnections?.(); } catch {}
+    server.close(() => resolve());
+  });
+}
+
 function get(port, path = '/', { headers } = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -68,8 +81,8 @@ test('GET round-trips through the proxy', async () => {
     assert.equal(r.status, 200);
     assert.deepEqual(JSON.parse(r.body), { path: '/api/meta', method: 'GET' });
   } finally {
-    proxy.close();
-    up.server.close();
+    await closeServer(proxy);
+    await closeServer(up.server);
   }
 });
 
@@ -86,8 +99,8 @@ test('POST body forwards through the proxy', async () => {
     assert.equal(parsed.got, '{"title":"hi"}');
     assert.equal(parsed.contentType, 'application/json');
   } finally {
-    proxy.close();
-    up.server.close();
+    await closeServer(proxy);
+    await closeServer(up.server);
   }
 });
 
@@ -140,8 +153,8 @@ test('SSE responses stream without being buffered to EOF', async () => {
     assert.match(frames[1], /"n":1/);
     assert.match(frames[2], /"n":2/);
   } finally {
-    proxy.close();
-    up.server.close();
+    await closeServer(proxy);
+    await closeServer(up.server);
   }
 });
 
@@ -154,7 +167,7 @@ test('upstream connection refused surfaces as 502', async () => {
     assert.equal(r.status, 502);
     assert.match(r.body, /upstream error/);
   } finally {
-    proxy.close();
+    await closeServer(proxy);
   }
 });
 
@@ -172,9 +185,9 @@ test('getUpstreamPort is re-read per request (handles hub fail-over)', async () 
     const r2 = await get(proxy.address().port, '/');
     assert.equal(r2.body, 'two');
   } finally {
-    proxy.close();
-    up1.server.close();
-    up2.server.close();
+    await closeServer(proxy);
+    await closeServer(up1.server);
+    await closeServer(up2.server);
   }
 });
 
@@ -191,6 +204,6 @@ test('startPreviewProxy rejects when the chosen port is already in use', async (
       (e) => e.code === 'EADDRINUSE'
     );
   } finally {
-    squat.close();
+    await closeServer(squat);
   }
 });
