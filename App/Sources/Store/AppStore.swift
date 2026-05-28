@@ -1,6 +1,7 @@
 import Foundation
 
 @Observable
+@MainActor
 final class AppStore {
     var client: HubClient?
     var workspaces: [Workspace] = []
@@ -20,6 +21,18 @@ final class AppStore {
     var isLoading: Bool = false
     var error: String? = nil
 
+    // MARK: - Connectivity (SCP-93)
+    //
+    // The monitor is started lazily on first connect — there's no point
+    // running NWPathMonitor on the ConnectionView before the user has even
+    // picked a hub, and tests instantiate AppStore() without networking.
+    let netMonitor = NetworkPathMonitor()
+
+    /// Live network reachability. Surfaced for the offline banner and
+    /// gates writes in the methods below so they fail fast instead of
+    /// timing out on URLSession.
+    var isOnline: Bool { netMonitor.isOnline }
+
     // MARK: - Connection
 
     func connect(to url: URL, token: String? = nil, caFingerprint: String? = nil, session: URLSession? = nil) async {
@@ -31,6 +44,15 @@ final class AppStore {
             session: session
         )
         client = hub
+        // Start watching the network path now that we actually have a hub
+        // to talk to. The transition handler refreshes state when we come
+        // back online so any writes that happened on the hub during the
+        // outage don't sit stale on screen until the next manual refresh.
+        netMonitor.onTransition = { [weak self] online in
+            guard let self, online else { return }
+            Task { await self.loadTickets() }
+        }
+        netMonitor.start()
         await loadWorkspaces()
     }
 
@@ -71,6 +93,10 @@ final class AppStore {
 
     func updateTicket(_ id: String, update: TicketUpdate) async throws {
         guard let client else { return }
+        // Fail-fast on offline so the user sees the real reason instead of
+        // a long URLSession timeout. The SSE reconnect path will refresh us
+        // when we're back online.
+        guard isOnline else { throw HubClientError.offline }
         let bodyData = try update.jsonData()
         let updated: Ticket = try await client.patchRaw("/api/tickets/\(id)", bodyData: bodyData)
         if let idx = tickets.firstIndex(where: { $0.id == id }) {
@@ -82,6 +108,7 @@ final class AppStore {
         guard let client else {
             throw HubClientError.noData
         }
+        guard isOnline else { throw HubClientError.offline }
         let ticket: Ticket = try await client.post("/api/tickets", body: create)
         tickets.append(ticket)
         return ticket
@@ -89,6 +116,7 @@ final class AppStore {
 
     func deleteTicket(_ id: String) async throws {
         guard let client else { return }
+        guard isOnline else { throw HubClientError.offline }
         try await client.delete("/api/tickets/\(id)")
         tickets.removeAll { $0.id == id }
     }

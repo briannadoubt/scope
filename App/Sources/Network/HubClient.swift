@@ -7,6 +7,10 @@ import Security
 enum HubClientError: LocalizedError {
     case badStatus(Int, Data)
     case noData
+    /// Network is unreachable — surfaced by `AppStore` write methods before
+    /// even attempting the HTTP request, so we don't sit on a long URLSession
+    /// timeout. The UI shows this verbatim in the error banner.
+    case offline
 
     var errorDescription: String? {
         switch self {
@@ -15,6 +19,8 @@ enum HubClientError: LocalizedError {
             return "HTTP \(code): \(body)"
         case .noData:
             return "Server returned no data"
+        case .offline:
+            return "You're offline. Try again when the network returns."
         }
     }
 }

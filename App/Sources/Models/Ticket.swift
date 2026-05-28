@@ -20,6 +20,25 @@ enum TicketStatus: String, Codable, CaseIterable, Identifiable {
         case .cancelled:   "Cancelled"
         }
     }
+
+    /// The kanban flow order — the same left-to-right sequence the web UI
+    /// renders. `cancelled` is excluded: it's a manual sideways state, not
+    /// part of the forward progression, so swipe actions skip it.
+    static let flow: [TicketStatus] = [.backlog, .todo, .in_progress, .in_review, .done]
+
+    /// The next status in the flow, or `nil` if already at `done` (or in
+    /// the cancelled sideways state, which has no defined "next").
+    var next: TicketStatus? {
+        guard let i = Self.flow.firstIndex(of: self), i + 1 < Self.flow.count else { return nil }
+        return Self.flow[i + 1]
+    }
+
+    /// The previous status in the flow, or `nil` if already at `backlog`
+    /// (or in the cancelled sideways state).
+    var previous: TicketStatus? {
+        guard let i = Self.flow.firstIndex(of: self), i > 0 else { return nil }
+        return Self.flow[i - 1]
+    }
 }
 
 enum TicketPriority: String, Codable, CaseIterable, Identifiable {

@@ -4,10 +4,20 @@ struct RootView: View {
     @Environment(AppStore.self) private var store
 
     var body: some View {
-        if store.client == nil {
-            ConnectionView()
-        } else {
-            MainTabView()
+        ZStack(alignment: .top) {
+            if store.client == nil {
+                ConnectionView()
+            } else {
+                MainTabView()
+            }
+            // Offline banner (SCP-93). Lives at the root so it appears over
+            // every connected screen — Board, Overview, History, Settings —
+            // without each having to opt in. Drops off-screen when the
+            // network returns; AppStore refreshes tickets on that edge.
+            VStack { OfflineBanner() ; Spacer(minLength: 0) }
+                .animation(.spring(response: 0.34, dampingFraction: 0.85),
+                           value: store.isOnline)
+                .allowsHitTesting(false)
         }
     }
 }
