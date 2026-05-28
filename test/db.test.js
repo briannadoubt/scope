@@ -8,40 +8,42 @@ test('openDb is idempotent — re-opening the same dir reuses the schema', () =>
   const { scopeDir, db, cleanup } = createTempScope();
   try {
     const v1 = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-    assert.equal(v1.value, '1');
+    assert.equal(v1.value, '3');
     db.close();
     const db2 = openDb(scopeDir);
     const v2 = db2.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-    assert.equal(v2.value, '1');
+    assert.equal(v2.value, '3');
     db2.close();
   } finally {
     cleanup();
   }
 });
 
-test('nextTicketId increments atomically and uses the project key as prefix', () => {
+test('nextTicketId increments atomically and uses the workspace key as prefix', () => {
   const { db, cleanup } = createTempScope();
   try {
+    // The fresh DB already has a singleton workspace row. Set a known key so
+    // the assertions don't depend on the tmpdir name.
     db.prepare(
-      `INSERT INTO projects (id, key, name, created_at, updated_at)
-       VALUES ('app', 'APP', 'App', datetime('now'), datetime('now'))`
+      "UPDATE workspace SET key = 'APP', updated_at = datetime('now') WHERE id = 1"
     ).run();
-    const a = nextTicketId(db, 'app');
-    const b = nextTicketId(db, 'app');
-    const c = nextTicketId(db, 'app');
+    const a = nextTicketId(db);
+    const b = nextTicketId(db);
+    const c = nextTicketId(db);
     assert.deepEqual([a.id, b.id, c.id], ['APP-1', 'APP-2', 'APP-3']);
     assert.deepEqual([a.number, b.number, c.number], [1, 2, 3]);
-    const row = db.prepare('SELECT next_ticket_number FROM projects WHERE id=?').get('app');
+    const row = db.prepare('SELECT next_ticket_number FROM workspace WHERE id = 1').get();
     assert.equal(row.next_ticket_number, 4);
   } finally {
     cleanup();
   }
 });
 
-test('nextTicketId throws when the project is unknown', () => {
+test('nextTicketId throws when workspace row is missing', () => {
   const { db, cleanup } = createTempScope();
   try {
-    assert.throws(() => nextTicketId(db, 'nope'), /Project not found/);
+    db.prepare('DELETE FROM workspace WHERE id = 1').run();
+    assert.throws(() => nextTicketId(db), /Workspace row missing/);
   } finally {
     cleanup();
   }
@@ -50,13 +52,11 @@ test('nextTicketId throws when the project is unknown', () => {
 test('recordHistory skips no-op transitions and persists real ones', () => {
   const { db, cleanup } = createTempScope();
   try {
+    // Insert a ticket directly against the singleton workspace (no project_id
+    // column in v3).
     db.prepare(
-      `INSERT INTO projects (id, key, name, created_at, updated_at)
-       VALUES ('app', 'APP', 'App', datetime('now'), datetime('now'))`
-    ).run();
-    db.prepare(
-      `INSERT INTO tickets (id, project_id, number, type, title, status, created_at, updated_at)
-       VALUES ('APP-1', 'app', 1, 'story', 'x', 'todo', datetime('now'), datetime('now'))`
+      `INSERT INTO tickets (id, number, type, title, status, created_at, updated_at)
+       VALUES ('APP-1', 1, 'story', 'x', 'todo', datetime('now'), datetime('now'))`
     ).run();
     recordHistory(db, 'APP-1', 'status', 'todo', 'todo', 'me'); // no-op
     recordHistory(db, 'APP-1', 'status', 'todo', 'done', 'me');

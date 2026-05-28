@@ -5,8 +5,6 @@ const state = {
   serverVersion: null,
   workspaces: [],
   currentWorkspace: localStorage.getItem('scope.workspace') || null,
-  projects: [],
-  currentProject: null,
   epicFilter: '',
   view: 'board', // 'board' | 'overview' | 'history'
   history: null, // { entries: [...] } for the history view
@@ -82,15 +80,8 @@ async function init() {
     renderEmpty('No workspaces attached. Run `scope serve` in a repo with a .scope/ directory.');
     return;
   }
-  await reloadProjects();
-  if (state.projects.length === 0) {
-    updateBreadcrumb();
-    openProjectModal();
-  } else {
-    state.currentProject = state.projects[0].id;
-    updateBreadcrumb();
-    await refresh();
-  }
+  updateBreadcrumb();
+  await refresh();
 }
 
 async function reloadWorkspaces() {
@@ -98,20 +89,34 @@ async function reloadWorkspaces() {
   updateBreadcrumb();
 }
 
-async function reloadProjects() {
-  state.projects = await api('/api/projects');
-  updateBreadcrumb();
+function currentWorkspaceObj() {
+  return state.workspaces.find((x) => x.id === state.currentWorkspace) || null;
 }
 
 function updateBreadcrumb() {
-  const w = state.workspaces.find((x) => x.id === state.currentWorkspace);
-  const p = state.projects.find((x) => x.id === state.currentProject);
+  const w = currentWorkspaceObj();
   const wsEl = document.getElementById('bc-workspace');
   const pjEl = document.getElementById('bc-project');
-  if (!wsEl || !pjEl) return;
-  wsEl.textContent = w ? w.label : (state.workspaces.length ? 'Select workspace' : 'No workspaces');
-  pjEl.textContent = p ? `${p.key} · ${p.name}` : (state.projects.length ? 'Select project' : 'No project');
-  pjEl.classList.toggle('muted', !p);
+  if (!wsEl) return;
+  if (w) {
+    // Show workspace name plus key chip.
+    wsEl.innerHTML = '';
+    if (w.key) {
+      const chip = document.createElement('span');
+      chip.className = 'pkey';
+      chip.textContent = w.key;
+      wsEl.appendChild(chip);
+      wsEl.appendChild(document.createTextNode(' '));
+    }
+    wsEl.appendChild(document.createTextNode(w.name || w.label));
+  } else {
+    wsEl.textContent = state.workspaces.length ? 'Select workspace' : 'No workspaces';
+  }
+  // Project crumb no longer exists in v2 — hide it if present.
+  if (pjEl) {
+    pjEl.textContent = '';
+    pjEl.hidden = true;
+  }
   updateViewTrigger();
 }
 
@@ -128,7 +133,7 @@ function updateViewTrigger() {
 }
 
 async function refresh() {
-  if (!state.currentProject) return renderEmpty();
+  if (!state.currentWorkspace) return renderEmpty();
   await loadEpicsForFilter();
   if (state.view === 'overview') return renderOverview();
   if (state.view === 'history') return renderHistory();
@@ -141,9 +146,7 @@ async function refresh() {
 }
 
 async function loadEpicsForFilter() {
-  const tickets = await api(
-    `/api/tickets?project=${encodeURIComponent(state.currentProject)}&type=epic`
-  );
+  const tickets = await api('/api/tickets?type=epic');
   state.allEpics = tickets;
   // If the filter points at an epic that no longer exists, clear it.
   if (state.epicFilter && !tickets.some((t) => t.id === state.epicFilter)) {
@@ -153,9 +156,10 @@ async function loadEpicsForFilter() {
 }
 
 async function loadBoard() {
-  const params = new URLSearchParams({ project: state.currentProject });
+  const params = new URLSearchParams();
   if (state.epicFilter) params.set('epic', state.epicFilter);
-  state.board = await api(`/api/board?${params}`);
+  const q = params.toString();
+  state.board = await api(`/api/board${q ? `?${q}` : ''}`);
   lastBoardHash = hashBoard(state.board);
 }
 
@@ -329,7 +333,7 @@ function closePopover() {
 function openBreadcrumbPopover() {
   const anchor = document.getElementById('breadcrumb-trigger');
   if (popoverEl) return closePopover();
-  const pop = openPopover(anchor, {align: 'left', width: 520});
+  const pop = openPopover(anchor, {align: 'left', width: 320});
   pop.classList.add('popover-breadcrumb');
   pop.innerHTML = `
     <div class="pane pane-workspaces">
@@ -337,14 +341,8 @@ function openBreadcrumbPopover() {
       <div class="pane-list" id="bc-ws-list"></div>
       <button type="button" class="pane-foot" id="bc-attach">＋ Attach workspace…</button>
     </div>
-    <div class="pane pane-projects">
-      <div class="pane-head">Projects</div>
-      <div class="pane-list" id="bc-pj-list"></div>
-    </div>
   `;
   const wsList = pop.querySelector('#bc-ws-list');
-  const pjList = pop.querySelector('#bc-pj-list');
-  let hoverWorkspace = state.currentWorkspace;
 
   const renderWsList = () => {
     wsList.innerHTML = '';
@@ -353,26 +351,20 @@ function openBreadcrumbPopover() {
       item.type = 'button';
       item.className = 'pane-item';
       if (w.id === state.currentWorkspace) item.classList.add('active');
-      if (w.id === hoverWorkspace) item.classList.add('hover');
       item.innerHTML = `
-        <span class="pane-item-label">${escapeHtml(w.label)}</span>
+        <span class="pane-item-label">${w.key ? `<span class="pkey">${escapeHtml(w.key)}</span> ` : ''}${escapeHtml(w.name || w.label)}</span>
         <span class="pane-item-sub">${escapeHtml(w.scope_dir)}</span>
       `;
-      item.addEventListener('mouseenter', () => {
-        hoverWorkspace = w.id;
-        renderWsList();
-        renderPjList();
-      });
       item.addEventListener('click', async () => {
         if (w.id !== state.currentWorkspace) {
           state.currentWorkspace = w.id;
           localStorage.setItem('scope.workspace', w.id);
           state.epicFilter = '';
-          state.currentProject = null;
           state.view = 'board';
-          await reloadProjects();
-          if (state.projects.length) state.currentProject = state.projects[0].id;
           updateBreadcrumb();
+          // Restart SSE so the workspace filter is correct.
+          if (eventSource) { try { eventSource.close(); } catch {} eventSource = null; }
+          startEventStream();
           await refresh();
         }
         closePopover();
@@ -384,53 +376,12 @@ function openBreadcrumbPopover() {
     }
   };
 
-  const renderPjList = async () => {
-    let projects = state.projects;
-    if (hoverWorkspace && hoverWorkspace !== state.currentWorkspace) {
-      try {
-        projects = await api(`/api/projects?workspace=${encodeURIComponent(hoverWorkspace)}`);
-      } catch { projects = []; }
-    }
-    pjList.innerHTML = '';
-    if (projects.length === 0) {
-      pjList.innerHTML = '<div class="pane-empty">No projects in this workspace.</div>';
-      return;
-    }
-    for (const p of projects) {
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'pane-item';
-      if (p.id === state.currentProject && hoverWorkspace === state.currentWorkspace) {
-        item.classList.add('active');
-      }
-      item.innerHTML = `
-        <span class="pane-item-label"><span class="pkey">${escapeHtml(p.key)}</span> ${escapeHtml(p.name)}</span>
-        ${p.description ? `<span class="pane-item-sub">${escapeHtml(p.description)}</span>` : ''}
-      `;
-      item.addEventListener('click', async () => {
-        if (hoverWorkspace !== state.currentWorkspace) {
-          state.currentWorkspace = hoverWorkspace;
-          localStorage.setItem('scope.workspace', hoverWorkspace);
-          await reloadProjects();
-        }
-        state.currentProject = p.id;
-        state.epicFilter = '';
-        state.view = 'board';
-        updateBreadcrumb();
-        closePopover();
-        await refresh();
-      });
-      pjList.appendChild(item);
-    }
-  };
-
   pop.querySelector('#bc-attach').addEventListener('click', () => {
     closePopover();
     openAddWorkspaceModal();
   });
 
   renderWsList();
-  renderPjList();
 }
 
 function openViewPopover() {
@@ -493,10 +444,8 @@ function openOverflowMenu() {
   pop.classList.add('popover-menu');
   pop.innerHTML = `
     <button type="button" class="menu-item" data-act="refresh"><span class="mi-icon">↻</span> Refresh</button>
-    <button type="button" class="menu-item" data-act="overview"><span class="mi-icon">☰</span> ${state.view === 'overview' ? 'Back to board' : 'Project overview'}</button>
+    <button type="button" class="menu-item" data-act="overview"><span class="mi-icon">☰</span> ${state.view === 'overview' ? 'Back to board' : 'Workspace overview'}</button>
     <button type="button" class="menu-item" data-act="history"><span class="mi-icon">⏱</span> ${state.view === 'history' ? 'Back to board' : 'History'}</button>
-    <div class="menu-sep"></div>
-    <button type="button" class="menu-item" data-act="new-project"><span class="mi-icon">＋</span> New project</button>
   `;
   pop.querySelectorAll('.menu-item').forEach((b) => {
     b.addEventListener('click', async () => {
@@ -511,7 +460,6 @@ function openOverflowMenu() {
         state.view = state.view === 'history' ? 'board' : 'history';
         await refresh();
       }
-      else if (act === 'new-project') openProjectModal();
     });
   });
 }
@@ -640,7 +588,8 @@ function startEventStream() {
     const detail = safeParse(e.data);
     if (
       detail?.type === 'workspace.attached' ||
-      detail?.type === 'workspace.detached'
+      detail?.type === 'workspace.detached' ||
+      detail?.type === 'workspace.updated'
     ) {
       // Refresh the breadcrumb without dropping the user's selection.
       await reloadWorkspaces();
@@ -650,8 +599,6 @@ function startEventStream() {
         // Our workspace went away — fall back to the first one.
         state.currentWorkspace = state.workspaces[0].id;
         localStorage.setItem('scope.workspace', state.currentWorkspace);
-        await reloadProjects();
-        if (state.projects.length) state.currentProject = state.projects[0].id;
         updateBreadcrumb();
         await refresh();
       }
@@ -694,11 +641,12 @@ function scheduleRefresh(_detail) {
       setIndicator('paused');
       return;
     }
-    if (!state.currentProject) return;
+    if (!state.currentWorkspace) return;
     try {
-      const params = new URLSearchParams({ project: state.currentProject });
+      const params = new URLSearchParams();
       if (state.epicFilter) params.set('epic', state.epicFilter);
-      const board = await api(`/api/board?${params}`);
+      const q = params.toString();
+      const board = await api(`/api/board${q ? `?${q}` : ''}`);
       const hash = hashBoard(board);
       if (hash !== lastBoardHash) {
         const oldPositions = captureCardPositions();
@@ -1618,9 +1566,9 @@ function openAddWorkspaceModal() {
       await reloadWorkspaces();
       state.currentWorkspace = w.id;
       localStorage.setItem('scope.workspace', w.id);
-      await reloadProjects();
-      state.currentProject = state.projects[0]?.id || null;
       updateBreadcrumb();
+      if (eventSource) { try { eventSource.close(); } catch {} eventSource = null; }
+      startEventStream();
       await refresh();
     } catch (e) {
       modal.querySelector('#w-err').textContent = e.message;
@@ -1628,49 +1576,9 @@ function openAddWorkspaceModal() {
   });
 }
 
-function openProjectModal() {
-  const modal = openModal(`
-    <h3>New project</h3>
-    <label>ID (lowercase, kebab) <input id="p-id" placeholder="my-app" /></label>
-    <label>Key (2-10 uppercase) <input id="p-key" placeholder="APP" /></label>
-    <label>Name <input id="p-name" placeholder="My App" /></label>
-    <label>Description <input id="p-desc" placeholder="optional" /></label>
-    <label>Overview (goals, architecture)
-      <textarea id="p-overview" placeholder="Markdown supported"></textarea>
-    </label>
-    <div class="error" id="p-err"></div>
-    <div class="modal-actions">
-      <button class="btn ghost" id="p-cancel">Cancel</button>
-      <button class="btn primary" id="p-create">Create</button>
-    </div>
-  `);
-  modal.querySelector('#p-cancel').addEventListener('click', closeModal);
-  modal.querySelector('#p-create').addEventListener('click', async () => {
-    const body = {
-      id: modal.querySelector('#p-id').value.trim(),
-      key: modal.querySelector('#p-key').value.trim().toUpperCase(),
-      name: modal.querySelector('#p-name').value.trim(),
-      description: modal.querySelector('#p-desc').value.trim(),
-      overview: modal.querySelector('#p-overview').value,
-    };
-    try {
-      const p = await api('/api/projects', { method: 'POST', body });
-      closeModal();
-      await reloadProjects();
-      state.currentProject = p.id;
-      updateBreadcrumb();
-      await refresh();
-    } catch (e) {
-      modal.querySelector('#p-err').textContent = e.message;
-    }
-  });
-}
-
 async function openTicketModal({ status = 'backlog', parent = '' } = {}) {
-  if (!state.currentProject) return toast('Create a project first.', { variant: 'info' });
-  const epics = await api(
-    `/api/tickets?project=${encodeURIComponent(state.currentProject)}&type=epic`
-  );
+  if (!state.currentWorkspace) return toast('Attach a workspace first.', { variant: 'info' });
+  const epics = await api('/api/tickets?type=epic');
   const modal = openModal(`
     <h3>New ticket</h3>
     <label>Type
@@ -1715,7 +1623,6 @@ async function openTicketModal({ status = 'backlog', parent = '' } = {}) {
   modal.querySelector('#t-cancel').addEventListener('click', closeModal);
   modal.querySelector('#t-create').addEventListener('click', async () => {
     const body = {
-      projectIdOrKey: state.currentProject,
       type: typeSel.value,
       title: modal.querySelector('#t-title').value.trim(),
       description: modal.querySelector('#t-desc').value,
@@ -1738,7 +1645,11 @@ async function openTicketModal({ status = 'backlog', parent = '' } = {}) {
 /* ------------- overview ------------- */
 
 async function renderOverview() {
-  const p = await api(`/api/projects/${encodeURIComponent(state.currentProject)}`);
+  // The workspace IS the project in v2. Fetch via the back-compat /api/projects
+  // endpoint using the workspace's key (the synthesized id is key.toLowerCase()).
+  const w = currentWorkspaceObj();
+  if (!w || !w.key) return renderEmpty();
+  const p = await api(`/api/projects/${encodeURIComponent(w.key)}`);
   const root = document.getElementById('board');
   root.style.display = 'block';
   root.innerHTML = `
@@ -1749,9 +1660,7 @@ async function renderOverview() {
       ${
         p.overview && p.overview.trim()
           ? `<div class="overview-body markdown">${renderMarkdown(p.overview)}</div>`
-          : '<div class="overview-body" style="color: var(--text-dim)">No overview yet. Use <code>scope project edit ' +
-            p.key +
-            ' --edit</code> to add one.</div>'
+          : '<div class="overview-body" style="color: var(--text-dim)">No overview yet. Use <code>scope workspace set --edit</code> to add one.</div>'
       }
       <h3 style="margin-top: 28px;">Epics</h3>
       <div class="epics-grid">
@@ -1805,7 +1714,7 @@ async function renderOverview() {
 const HISTORY_PAGE_SIZE = 100;
 
 async function renderHistory() {
-  if (!state.currentProject) return renderEmpty();
+  if (!state.currentWorkspace) return renderEmpty();
   const root = document.getElementById('board');
   root.style.display = 'block';
   // Render shell first so the empty/loading state shows immediately.
@@ -1815,7 +1724,7 @@ async function renderHistory() {
         <h1>History</h1>
         <button type="button" class="btn ghost" id="history-back">← Back to board</button>
       </div>
-      <p class="history-sub">Every change to every ticket in this project, newest first.</p>
+      <p class="history-sub">Every change to every ticket in this workspace, newest first.</p>
       <div class="history-list" id="history-list">
         <div class="history-loading">Loading…</div>
       </div>
@@ -1829,9 +1738,7 @@ async function renderHistory() {
     await refresh();
   });
   try {
-    const data = await api(
-      `/api/history?project=${encodeURIComponent(state.currentProject)}&limit=${HISTORY_PAGE_SIZE}`
-    );
+    const data = await api(`/api/history?limit=${HISTORY_PAGE_SIZE}`);
     state.history = data;
     paintHistoryList(data.entries);
   } catch (e) {
@@ -1848,7 +1755,7 @@ async function renderHistory() {
       moreBtn.disabled = true;
       try {
         const older = await api(
-          `/api/history?project=${encodeURIComponent(state.currentProject)}&limit=${HISTORY_PAGE_SIZE}&before=${encodeURIComponent(last.changed_at)}&beforeId=${encodeURIComponent(last.id)}`
+          `/api/history?limit=${HISTORY_PAGE_SIZE}&before=${encodeURIComponent(last.changed_at)}&beforeId=${encodeURIComponent(last.id)}`
         );
         state.history.entries.push(...older.entries);
         paintHistoryList(state.history.entries);
@@ -2023,10 +1930,11 @@ function liveFeedIcon(type) {
 }
 
 async function hydrateExternalChange(_detail) {
-  if (!state.currentProject) return;
+  if (!state.currentWorkspace) return;
   try {
-    const rows = await api(`/api/history?project=${encodeURIComponent(state.currentProject)}&limit=10`);
-    if (!Array.isArray(rows) || !rows.length) return;
+    const resp = await api(`/api/history?limit=10`);
+    const rows = Array.isArray(resp) ? resp : (resp?.entries ?? []);
+    if (!rows.length) return;
     // First-ever external event: just record where we are; don't replay the
     // full backlog as toasts.
     if (lastLiveFeedHistoryId === 0) {

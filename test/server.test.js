@@ -34,25 +34,22 @@ test('GET /api/workspaces lists the attached test workspace', async () => {
   }
 });
 
-test('project + ticket happy path round-trips through HTTP', async () => {
+test('workspace + ticket happy path round-trips through HTTP', async () => {
   const t = await startTestServer();
   try {
-    const create = await apiFetch(t.baseUrl, '/api/projects', {
-      method: 'POST',
-      body: { id: 'app', key: 'APP', name: 'My App' },
+    // v3: there's no POST /api/projects — the workspace is the project.
+    // Update the singleton workspace via the workspaces endpoint.
+    const wsUpdate = await apiFetch(t.baseUrl, `/api/workspaces/${t.workspaceId}`, {
+      method: 'PATCH',
+      body: { key: 'APP', name: 'My App' },
     });
-    assert.equal(create.status, 201);
-    assert.equal(create.data.id, 'app');
-
-    const get = await apiFetch(t.baseUrl, '/api/projects/app');
-    assert.equal(get.status, 200);
-    assert.equal(get.data.key, 'APP');
-    assert.deepEqual(get.data.tickets, []);
-    assert.deepEqual(get.data.epics, []);
+    assert.equal(wsUpdate.status, 200);
+    assert.equal(wsUpdate.data.key, 'APP');
+    assert.equal(wsUpdate.data.name, 'My App');
 
     const epic = await apiFetch(t.baseUrl, '/api/tickets', {
       method: 'POST',
-      body: { projectIdOrKey: 'app', type: 'epic', title: 'Auth refactor', priority: 'high' },
+      body: { type: 'epic', title: 'Auth refactor', priority: 'high' },
     });
     assert.equal(epic.status, 201);
     assert.equal(epic.data.id, 'APP-1');
@@ -60,7 +57,7 @@ test('project + ticket happy path round-trips through HTTP', async () => {
 
     const story = await apiFetch(t.baseUrl, '/api/tickets', {
       method: 'POST',
-      body: { projectIdOrKey: 'app', type: 'story', title: 'OAuth', parent: epic.data.id },
+      body: { type: 'story', title: 'OAuth', parent: epic.data.id },
     });
     assert.equal(story.status, 201);
     assert.equal(story.data.parent_id, 'APP-1');
@@ -188,42 +185,39 @@ test('board endpoint groups tickets into status buckets', async () => {
   }
 });
 
-test('GET /api/history returns project-scoped, newest-first entries with cursor pagination', async () => {
+test('GET /api/history returns workspace-scoped, newest-first entries with cursor pagination', async () => {
   const t = await startTestServer();
   try {
-    await apiFetch(t.baseUrl, '/api/projects', { method: 'POST', body: { id: 'a', key: 'A1', name: 'a' } });
-    await apiFetch(t.baseUrl, '/api/projects', { method: 'POST', body: { id: 'b', key: 'B1', name: 'b' } });
     const tk = (await apiFetch(t.baseUrl, '/api/tickets', {
-      method: 'POST', body: { projectIdOrKey: 'a', type: 'story', title: 'x' },
+      method: 'POST', body: { type: 'story', title: 'x' },
     })).data;
     const other = (await apiFetch(t.baseUrl, '/api/tickets', {
-      method: 'POST', body: { projectIdOrKey: 'b', type: 'story', title: 'y' },
+      method: 'POST', body: { type: 'story', title: 'y' },
     })).data;
     // Generate history rows.
     await apiFetch(t.baseUrl, `/api/tickets/${tk.id}`, { method: 'PATCH', body: { status: 'todo', __by: 'ui' } });
     await apiFetch(t.baseUrl, `/api/tickets/${tk.id}`, { method: 'PATCH', body: { status: 'in_progress', __by: 'agent' } });
     await apiFetch(t.baseUrl, `/api/tickets/${other.id}`, { method: 'PATCH', body: { status: 'todo', __by: 'ui' } });
 
-    const missing = await apiFetch(t.baseUrl, '/api/history');
-    assert.equal(missing.status, 400);
-
-    const all = await apiFetch(t.baseUrl, '/api/history?project=a');
+    // v3: /api/history no longer requires ?project=. It resolves the
+    // workspace via the standard resolveWs path (single attached workspace).
+    const all = await apiFetch(t.baseUrl, '/api/history');
     assert.equal(all.status, 200);
     assert.ok(Array.isArray(all.data.entries));
-    assert.equal(all.data.entries.length, 2);
-    // Other project's row excluded.
-    assert.ok(all.data.entries.every((r) => r.ticket_id === tk.id));
-    // Ticket meta joined in.
-    assert.equal(all.data.entries[0].ticket_title, 'x');
-    assert.equal(all.data.entries[0].ticket_type, 'story');
+    assert.equal(all.data.entries.length, 3);
     // Newest first.
-    assert.ok(all.data.entries[0].changed_at >= all.data.entries[1].changed_at);
+    for (let i = 0; i < all.data.entries.length - 1; i++) {
+      assert.ok(all.data.entries[i].changed_at >= all.data.entries[i + 1].changed_at);
+    }
+    // Ticket meta joined in.
+    assert.ok(all.data.entries[0].ticket_title);
+    assert.ok(all.data.entries[0].ticket_type);
 
     // Pagination via composite cursor (changed_at + id).
     const cursorRow = all.data.entries[0];
     const page = await apiFetch(
       t.baseUrl,
-      `/api/history?project=a&before=${encodeURIComponent(cursorRow.changed_at)}&beforeId=${cursorRow.id}`,
+      `/api/history?before=${encodeURIComponent(cursorRow.changed_at)}&beforeId=${cursorRow.id}`,
     );
     assert.equal(page.status, 200);
     assert.equal(page.data.entries.length, all.data.entries.length - 1);
@@ -232,8 +226,13 @@ test('GET /api/history returns project-scoped, newest-first entries with cursor 
       (r.changed_at === cursorRow.changed_at && r.id < cursorRow.id)
     ));
 
+    // Explicit workspace filter works too.
+    const scoped = await apiFetch(t.baseUrl, `/api/history?workspace=${t.workspaceId}`);
+    assert.equal(scoped.status, 200);
+    assert.equal(scoped.data.entries.length, all.data.entries.length);
+
     // Limit clamp.
-    const lim = await apiFetch(t.baseUrl, '/api/history?project=a&limit=1');
+    const lim = await apiFetch(t.baseUrl, '/api/history?limit=1');
     assert.equal(lim.data.entries.length, 1);
   } finally {
     await t.close();

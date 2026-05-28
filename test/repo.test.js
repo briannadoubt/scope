@@ -3,48 +3,47 @@ import assert from 'node:assert/strict';
 
 import { createTempScope } from './helpers.js';
 import {
-  createProject, getProject, listProjects, updateProject, deleteProject,
+  updateWorkspace, getWorkspace, listWorkspaces,
   createTicket, getTicket, listTickets, updateTicket, deleteTicket,
   addRelation, removeRelation, listRelations,
-  addComment, listComments, listHistory, listProjectHistory,
+  addComment, listComments, listHistory, listWorkspaceHistory,
   listEpicChildren, epicProgress,
 } from '../src/repo.js';
 
-/* ---------------- projects ---------------- */
+/* ---------------- workspace ---------------- */
 
-test('createProject rejects invalid ids and keys', () => {
+test('updateWorkspace rejects invalid keys', () => {
   const { db, cleanup } = createTempScope();
   try {
-    assert.throws(() => createProject(db, { id: 'Bad-Id', key: 'OK', name: 'x' }), /Invalid project id/);
-    assert.throws(() => createProject(db, { id: 'ok', key: 'bad', name: 'x' }), /Invalid project key/);
-    assert.throws(() => createProject(db, { id: 'ok', key: 'X', name: 'x' }), /Invalid project key/); // too short
-    assert.throws(() => createProject(db, { id: 'ok', key: 'TOO_LONG_KEY_HERE', name: 'x' }), /Invalid project key/);
+    assert.throws(() => updateWorkspace(db, { key: 'bad' }), /Invalid workspace key/);
+    assert.throws(() => updateWorkspace(db, { key: 'X' }), /Invalid workspace key/); // too short
+    assert.throws(() => updateWorkspace(db, { key: 'TOO_LONG_KEY_HERE' }), /Invalid workspace key/);
   } finally {
     cleanup();
   }
 });
 
-test('project CRUD round-trip', () => {
+test('workspace update round-trip', () => {
   const { db, cleanup } = createTempScope();
   try {
-    const p = createProject(db, { id: 'app', key: 'APP', name: 'My App', description: 'a thing' });
-    assert.equal(p.id, 'app');
-    assert.equal(p.key, 'APP');
-    assert.equal(p.description, 'a thing');
+    // Fresh DB already has a singleton workspace.
+    const initial = getWorkspace(db);
+    assert.ok(initial.key);
+    assert.equal(initial.id, 1);
 
-    // Lookup by id OR key.
-    assert.equal(getProject(db, 'app').id, 'app');
-    assert.equal(getProject(db, 'APP').id, 'app');
+    const updated = updateWorkspace(db, { key: 'APP', name: 'My App', description: 'a thing' });
+    assert.equal(updated.key, 'APP');
+    assert.equal(updated.name, 'My App');
+    assert.equal(updated.description, 'a thing');
 
-    const updated = updateProject(db, 'app', { name: 'Renamed', description: 'new desc' });
-    assert.equal(updated.name, 'Renamed');
-    assert.equal(updated.description, 'new desc');
+    // Back-compat listing returns the singleton as a 1-element array.
+    assert.equal(listWorkspaces(db).length, 1);
+    assert.equal(listWorkspaces(db)[0].key, 'APP');
 
-    assert.equal(listProjects(db).length, 1);
-
-    assert.equal(deleteProject(db, 'app'), true);
-    assert.equal(deleteProject(db, 'app'), false); // already gone
-    assert.equal(getProject(db, 'app'), undefined);
+    const renamed = updateWorkspace(db, { name: 'Renamed', description: 'new desc' });
+    assert.equal(renamed.name, 'Renamed');
+    assert.equal(renamed.description, 'new desc');
+    assert.equal(renamed.key, 'APP'); // unchanged
   } finally {
     cleanup();
   }
@@ -53,8 +52,8 @@ test('project CRUD round-trip', () => {
 /* ---------------- tickets ---------------- */
 
 function seed(db) {
-  createProject(db, { id: 'app', key: 'APP', name: 'App' });
-  const epic = createTicket(db, { projectIdOrKey: 'app', type: 'epic', title: 'Auth' });
+  updateWorkspace(db, { key: 'APP', name: 'App' });
+  const epic = createTicket(db, { type: 'epic', title: 'Auth' });
   return { epic };
 }
 
@@ -62,38 +61,37 @@ test('createTicket validates inputs', () => {
   const { db, cleanup } = createTempScope();
   try {
     seed(db);
-    assert.throws(() => createTicket(db, { projectIdOrKey: 'app', type: 'task', title: 'x' }), /Invalid type/);
-    assert.throws(() => createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'x', status: 'bogus' }), /Invalid status/);
-    assert.throws(() => createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'x', priority: 'bogus' }), /Invalid priority/);
-    assert.throws(() => createTicket(db, { projectIdOrKey: 'app', type: 'story', title: '   ' }), /title is required/);
-    assert.throws(() => createTicket(db, { projectIdOrKey: 'nope', type: 'story', title: 'x' }), /Project not found/);
+    assert.throws(() => createTicket(db, { type: 'task', title: 'x' }), /Invalid type/);
+    assert.throws(() => createTicket(db, { type: 'story', title: 'x', status: 'bogus' }), /Invalid status/);
+    assert.throws(() => createTicket(db, { type: 'story', title: 'x', priority: 'bogus' }), /Invalid priority/);
+    assert.throws(() => createTicket(db, { type: 'story', title: '   ' }), /title is required/);
   } finally {
     cleanup();
   }
 });
 
-test('createTicket enforces parent rules: only epics can be parents, same project, no epic-of-epic', () => {
+test('createTicket enforces parent rules: only epics can be parents, no epic-of-epic', () => {
   const { db, cleanup } = createTempScope();
   try {
     const { epic } = seed(db);
     // Non-existent parent
     assert.throws(
-      () => createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'x', parent: 'APP-999' }),
+      () => createTicket(db, { type: 'story', title: 'x', parent: 'APP-999' }),
       /Parent ticket not found/,
     );
     // Story as parent
-    const story = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'a story' });
+    const story = createTicket(db, { type: 'story', title: 'a story' });
     assert.throws(
-      () => createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'x', parent: story.id }),
+      () => createTicket(db, { type: 'story', title: 'x', parent: story.id }),
       /Parent must be an epic/,
     );
     // Epic with an epic parent
     assert.throws(
-      () => createTicket(db, { projectIdOrKey: 'app', type: 'epic', title: 'sub-epic', parent: epic.id }),
+      () => createTicket(db, { type: 'epic', title: 'sub-epic', parent: epic.id }),
       /Epics cannot have an epic parent/,
     );
     // Happy path
-    const child = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'real child', parent: epic.id });
+    const child = createTicket(db, { type: 'story', title: 'real child', parent: epic.id });
     assert.equal(child.parent_id, epic.id);
   } finally {
     cleanup();
@@ -104,7 +102,7 @@ test('createTicket hydrates labels as a real array', () => {
   const { db, cleanup } = createTempScope();
   try {
     seed(db);
-    const t = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'x', labels: ['ui', 'p1'] });
+    const t = createTicket(db, { type: 'story', title: 'x', labels: ['ui', 'p1'] });
     assert.deepEqual(t.labels, ['ui', 'p1']);
     const fetched = getTicket(db, t.id);
     assert.deepEqual(fetched.labels, ['ui', 'p1']);
@@ -117,9 +115,9 @@ test('listTickets filters and orders by number', () => {
   const { db, cleanup } = createTempScope();
   try {
     const { epic } = seed(db);
-    const s1 = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 's1', parent: epic.id, status: 'todo' });
-    const s2 = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 's2', status: 'done', assignee: 'bri' });
-    const b1 = createTicket(db, { projectIdOrKey: 'app', type: 'bug', title: 'b1', parent: epic.id });
+    const s1 = createTicket(db, { type: 'story', title: 's1', parent: epic.id, status: 'todo' });
+    const s2 = createTicket(db, { type: 'story', title: 's2', status: 'done', assignee: 'bri' });
+    const b1 = createTicket(db, { type: 'bug', title: 'b1', parent: epic.id });
 
     assert.equal(listTickets(db).length, 4);
     assert.equal(listTickets(db, { type: 'bug' }).length, 1);
@@ -127,9 +125,8 @@ test('listTickets filters and orders by number', () => {
     assert.equal(listTickets(db, { assignee: 'bri' })[0].id, s2.id);
     assert.equal(listTickets(db, { parentId: epic.id }).length, 2);
     assert.equal(listTickets(db, { parentId: null }).length, 2); // the epic itself + s2
-    assert.equal(listTickets(db, { projectIdOrKey: 'missing' }).length, 0);
 
-    // Order: project_id, number
+    // Order: number
     const ids = listTickets(db).map((t) => t.id);
     assert.deepEqual(ids, [epic.id, s1.id, s2.id, b1.id]);
   } finally {
@@ -141,7 +138,7 @@ test('updateTicket records history per changed field and refuses bad parent move
   const { db, cleanup } = createTempScope();
   try {
     const { epic } = seed(db);
-    const story = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 's1' });
+    const story = createTicket(db, { type: 'story', title: 's1' });
 
     const after = updateTicket(db, story.id, { status: 'in_progress', priority: 'high' }, 'me');
     assert.equal(after.status, 'in_progress');
@@ -162,7 +159,7 @@ test('updateTicket records history per changed field and refuses bad parent move
     assert.throws(() => updateTicket(db, story.id, { priority: 'bogus' }), /Invalid priority/);
 
     // Self-parent
-    const epic2 = createTicket(db, { projectIdOrKey: 'app', type: 'epic', title: 'e2' });
+    const epic2 = createTicket(db, { type: 'epic', title: 'e2' });
     assert.throws(() => updateTicket(db, epic2.id, { parent_id: epic2.id }), /cannot be its own parent|Epics cannot have a parent/);
 
     // Move story under epic
@@ -170,13 +167,8 @@ test('updateTicket records history per changed field and refuses bad parent move
     assert.equal(moved.parent_id, epic.id);
 
     // Non-epic parent
-    const other = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'other' });
+    const other = createTicket(db, { type: 'story', title: 'other' });
     assert.throws(() => updateTicket(db, story.id, { parent_id: other.id }), /Parent must be an epic/);
-
-    // Cross-project parent
-    createProject(db, { id: 'other', key: 'OTH', name: 'O' });
-    const otherEpic = createTicket(db, { projectIdOrKey: 'other', type: 'epic', title: 'oe' });
-    assert.throws(() => updateTicket(db, story.id, { parent_id: otherEpic.id }), /same project/);
   } finally {
     cleanup();
   }
@@ -186,7 +178,7 @@ test('deleteTicket removes the row and is idempotent', () => {
   const { db, cleanup } = createTempScope();
   try {
     seed(db);
-    const t = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'x' });
+    const t = createTicket(db, { type: 'story', title: 'x' });
     assert.equal(deleteTicket(db, t.id), true);
     assert.equal(deleteTicket(db, t.id), false);
     assert.equal(getTicket(db, t.id), null);
@@ -199,7 +191,7 @@ test('deleting an epic detaches its children (ON DELETE SET NULL)', () => {
   const { db, cleanup } = createTempScope();
   try {
     const { epic } = seed(db);
-    const child = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'c', parent: epic.id });
+    const child = createTicket(db, { type: 'story', title: 'c', parent: epic.id });
     deleteTicket(db, epic.id);
     const orphan = getTicket(db, child.id);
     assert.equal(orphan.parent_id, null);
@@ -214,8 +206,8 @@ test('addRelation creates the inverse and is idempotent', () => {
   const { db, cleanup } = createTempScope();
   try {
     seed(db);
-    const a = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'a' });
-    const b = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'b' });
+    const a = createTicket(db, { type: 'story', title: 'a' });
+    const b = createTicket(db, { type: 'story', title: 'b' });
 
     addRelation(db, a.id, b.id, 'blocks');
     const aRels = listRelations(db, a.id);
@@ -238,7 +230,7 @@ test('addRelation rejects self-references and unknown types', () => {
   const { db, cleanup } = createTempScope();
   try {
     seed(db);
-    const a = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'a' });
+    const a = createTicket(db, { type: 'story', title: 'a' });
     assert.throws(() => addRelation(db, a.id, a.id, 'blocks'), /relate a ticket to itself/);
     assert.throws(() => addRelation(db, a.id, a.id, 'cousin_of'), /Invalid relation type/);
   } finally {
@@ -250,8 +242,8 @@ test('removeRelation tears down both sides', () => {
   const { db, cleanup } = createTempScope();
   try {
     seed(db);
-    const a = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'a' });
-    const b = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'b' });
+    const a = createTicket(db, { type: 'story', title: 'a' });
+    const b = createTicket(db, { type: 'story', title: 'b' });
     addRelation(db, a.id, b.id, 'duplicates');
     removeRelation(db, a.id, b.id, 'duplicates');
     assert.equal(listRelations(db, a.id).length, 0);
@@ -267,7 +259,7 @@ test('comments persist in insertion order', async () => {
   const { db, cleanup } = createTempScope();
   try {
     seed(db);
-    const t = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'x' });
+    const t = createTicket(db, { type: 'story', title: 'x' });
     addComment(db, t.id, 'first', 'a');
     // The schema stores created_at to ms precision; nudge so the second one
     // sorts strictly after the first when read back.
@@ -298,10 +290,10 @@ test('epicProgress counts children by status and reports percent done', () => {
   const { db, cleanup } = createTempScope();
   try {
     const { epic } = seed(db);
-    createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'a', parent: epic.id, status: 'done' });
-    createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'b', parent: epic.id, status: 'done' });
-    createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'c', parent: epic.id, status: 'in_progress' });
-    createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'd', parent: epic.id, status: 'todo' });
+    createTicket(db, { type: 'story', title: 'a', parent: epic.id, status: 'done' });
+    createTicket(db, { type: 'story', title: 'b', parent: epic.id, status: 'done' });
+    createTicket(db, { type: 'story', title: 'c', parent: epic.id, status: 'in_progress' });
+    createTicket(db, { type: 'story', title: 'd', parent: epic.id, status: 'todo' });
 
     const p = epicProgress(db, epic.id);
     assert.equal(p.total, 4);
@@ -312,7 +304,7 @@ test('epicProgress counts children by status and reports percent done', () => {
     assert.equal(p.counts.in_progress, 1);
 
     // Empty epic
-    const empty = createTicket(db, { projectIdOrKey: 'app', type: 'epic', title: 'empty' });
+    const empty = createTicket(db, { type: 'epic', title: 'empty' });
     const ep = epicProgress(db, empty.id);
     assert.equal(ep.total, 0);
     assert.equal(ep.percent, 0);
@@ -321,24 +313,19 @@ test('epicProgress counts children by status and reports percent done', () => {
   }
 });
 
-test('listProjectHistory returns rows newest-first, joined with ticket meta, and paginates via before=', () => {
+test('listWorkspaceHistory returns rows newest-first, joined with ticket meta, and paginates via before=', () => {
   const { db, cleanup } = createTempScope();
   try {
-    createProject(db, { id: 'app', key: 'APP', name: 'App' });
-    createProject(db, { id: 'other', key: 'OTH', name: 'Other' });
-    const t1 = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'first' });
-    const t2 = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'second' });
-    const tOther = createTicket(db, { projectIdOrKey: 'other', type: 'story', title: 'unrelated' });
+    updateWorkspace(db, { key: 'APP', name: 'App' });
+    const t1 = createTicket(db, { type: 'story', title: 'first' });
+    const t2 = createTicket(db, { type: 'story', title: 'second' });
 
-    // Make a handful of history rows across both projects.
+    // Make a handful of history rows.
     updateTicket(db, t1.id, { status: 'todo' }, 'ui');
     updateTicket(db, t1.id, { status: 'in_progress' }, 'agent');
     updateTicket(db, t2.id, { priority: 'high' }, 'cli');
-    updateTicket(db, tOther.id, { status: 'todo' }, 'ui');
 
-    const all = listProjectHistory(db, 'app');
-    // Other project's row must be excluded.
-    assert.ok(all.every((r) => r.ticket_id === t1.id || r.ticket_id === t2.id));
+    const all = listWorkspaceHistory(db);
     assert.equal(all.length, 3);
     // Newest first.
     for (let i = 0; i < all.length - 1; i++) {
@@ -351,15 +338,14 @@ test('listProjectHistory returns rows newest-first, joined with ticket meta, and
     assert.ok(sample.field);
 
     // Limit honored + clamped to [1, 500].
-    assert.equal(listProjectHistory(db, 'app', { limit: 1 }).length, 1);
-    assert.equal(listProjectHistory(db, 'app', { limit: 99999 }).length, 3);
-    assert.equal(listProjectHistory(db, 'app', { limit: 0 }).length, 1);
+    assert.equal(listWorkspaceHistory(db, { limit: 1 }).length, 1);
+    assert.equal(listWorkspaceHistory(db, { limit: 99999 }).length, 3);
+    assert.equal(listWorkspaceHistory(db, { limit: 0 }).length, 1);
 
     // Cursor: before=(changed_at,id) returns only strictly-older rows under
-    // the composite (changed_at DESC, id DESC) ordering. Pass the row's id
-    // as a tiebreaker because rapid updates often share a millisecond.
+    // the composite (changed_at DESC, id DESC) ordering.
     const cursorRow = all[0];
-    const older = listProjectHistory(db, 'app', {
+    const older = listWorkspaceHistory(db, {
       before: cursorRow.changed_at,
       beforeId: cursorRow.id,
     });
@@ -368,9 +354,6 @@ test('listProjectHistory returns rows newest-first, joined with ticket meta, and
       r.changed_at < cursorRow.changed_at ||
       (r.changed_at === cursorRow.changed_at && r.id < cursorRow.id)
     ));
-
-    // Unknown project throws.
-    assert.throws(() => listProjectHistory(db, 'nope'), /Project not found/);
   } finally {
     cleanup();
   }
@@ -380,10 +363,10 @@ test('listEpicChildren returns only direct children, ordered', () => {
   const { db, cleanup } = createTempScope();
   try {
     const { epic } = seed(db);
-    const s = createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 's', parent: epic.id });
-    const b = createTicket(db, { projectIdOrKey: 'app', type: 'bug', title: 'b', parent: epic.id });
-    const otherEpic = createTicket(db, { projectIdOrKey: 'app', type: 'epic', title: 'other' });
-    createTicket(db, { projectIdOrKey: 'app', type: 'story', title: 'orphan' }); // unrelated
+    const s = createTicket(db, { type: 'story', title: 's', parent: epic.id });
+    const b = createTicket(db, { type: 'bug', title: 'b', parent: epic.id });
+    const otherEpic = createTicket(db, { type: 'epic', title: 'other' });
+    createTicket(db, { type: 'story', title: 'orphan' }); // unrelated
 
     const children = listEpicChildren(db, epic.id);
     const ids = children.map((c) => c.id).sort();

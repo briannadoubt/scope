@@ -22,11 +22,10 @@ import {
   DB_FILE_NAME,
 } from './db.js';
 import {
-  createProject,
-  getProject,
-  listProjects,
-  updateProject,
-  deleteProject,
+  getWorkspace,
+  setWorkspace,
+  listWorkspaces,
+  updateWorkspace,
   createTicket,
   getTicket,
   listTickets,
@@ -198,50 +197,102 @@ export function buildProgram() {
     .command('init')
     .description(`Create a ${SCOPE_DIR_NAME}/ directory in the current folder.`)
     .option('-f, --force', 'reinitialize if it already exists', false)
-    .action((opts, cmd) => {
+    .option('--key <key>', 'workspace key (2-10 uppercase letters/digits)')
+    .option('--name <name>', 'workspace name')
+    .option('--description <text>', 'short description')
+    .action(async (opts, cmd) => {
       const dir = defaultScopeDir();
+      const isJson = cmd.optsWithGlobals().json;
       if (existsSync(dir) && !opts.force) {
         console.error(chalk.yellow(`${SCOPE_DIR_NAME}/ already exists at ${dir}`));
         process.exit(0);
       }
       mkdirSync(dir, { recursive: true });
       const db = openDb(dir);
+
+      // Prompt for key/name if interactive and not provided.
+      let key = opts.key;
+      let name = opts.name;
+      let description = opts.description;
+      if (!isJson && process.stdin.isTTY) {
+        const current = getWorkspace(db);
+        if (!opts.key) {
+          const ans = (await stdinPrompt(
+            `Workspace key [${current.key}]: `
+          )).trim();
+          if (ans) key = ans;
+        }
+        if (!opts.name) {
+          const ans = (await stdinPrompt(
+            `Workspace name [${current.name}]: `
+          )).trim();
+          if (ans) name = ans;
+        }
+        if (opts.description === undefined) {
+          const ans = (await stdinPrompt('Description (optional): ')).trim();
+          if (ans) description = ans;
+        }
+      }
+      const updates = {};
+      if (key) updates.key = key.toUpperCase();
+      if (name) updates.name = name;
+      if (description !== undefined) updates.description = description;
+      if (Object.keys(updates).length) {
+        try { setWorkspace(db, updates); }
+        catch (e) { db.close(); fail(e.message); }
+      }
+      const ws = getWorkspace(db);
       db.close();
       out(
         cmd,
-        { scope_dir: dir, db: join(dir, DB_FILE_NAME) },
+        { scope_dir: dir, db: join(dir, DB_FILE_NAME), workspace: ws },
         (d) =>
           chalk.green('✓') +
           ` Initialized scope at ${chalk.bold(d.scope_dir)}\n` +
-          chalk.gray(`  db: ${d.db}\n  Next: scope project create <id> <KEY> <name>`)
+          chalk.gray(`  db:        ${d.db}\n`) +
+          chalk.gray(`  key:       ${d.workspace.key}\n`) +
+          chalk.gray(`  name:      ${d.workspace.name}\n`) +
+          chalk.gray(`  Next: scope ticket create -t story "first ticket"`)
       );
     });
 
-  /* ---------- project ---------- */
-  const project = program.command('project').description('Manage projects.');
+  /* ---------- project (deprecated aliases to workspace) ---------- */
+
+  const project = program
+    .command('project')
+    .description('Deprecated alias for `scope workspace` (kept for back-compat).');
+
+  function warnProjectDeprecated() {
+    process.stderr.write(
+      chalk.yellow(
+        '! `scope project ...` is deprecated — use `scope workspace ...` instead.\n'
+      )
+    );
+  }
 
   project
-    .command('create <id> <key> <name...>')
-    .description('Create a project. <id> lowercase-kebab, <key> 2-10 uppercase letters (e.g. SCP).')
-    .option('-d, --description <text>', 'short description')
-    .option('--overview <text>', 'long overview (goals, architecture, etc.)')
-    .option('--overview-file <path>', 'read overview from a file (often a README)')
+    .command('create [id] [key] [name...]')
+    .description('Set the workspace key/name/description (deprecated).')
+    .option('-d, --description <text>')
+    .option('--overview <text>')
+    .option('--overview-file <path>')
     .option('-e, --edit', 'edit overview in $EDITOR', false)
     .action((id, key, nameWords, opts, cmd) => {
+      warnProjectDeprecated();
       const { db } = openOrDie();
-      let overview = opts.overview ?? '';
+      const fields = {};
+      if (key) fields.key = key.toUpperCase();
+      if (nameWords && nameWords.length) fields.name = nameWords.join(' ');
+      if (opts.description !== undefined) fields.description = opts.description;
+      let overview;
+      if (opts.overview !== undefined) overview = opts.overview;
       if (opts.overviewFile) overview = readFileSync(opts.overviewFile, 'utf8');
-      if (opts.edit) overview = editorPrompt(overview);
+      if (opts.edit) overview = editorPrompt(overview ?? '');
+      if (overview !== undefined) fields.overview = overview;
       try {
-        const p = createProject(db, {
-          id,
-          key: key.toUpperCase(),
-          name: nameWords.join(' '),
-          description: opts.description ?? '',
-          overview,
-        });
-        out(cmd, p, (p) =>
-          chalk.green('✓') + ` Created project ${chalk.bold(p.key)} (${p.id}): ${p.name}`
+        const updated = updateWorkspace(db, fields);
+        out(cmd, updated, (p) =>
+          chalk.green('✓') + ` Workspace is now ${chalk.bold(p.key)}: ${p.name}`
         );
       } catch (e) {
         fail(e.message);
@@ -251,17 +302,21 @@ export function buildProgram() {
   project
     .command('list')
     .alias('ls')
-    .description('List projects.')
+    .description('List workspaces (deprecated — always one).')
     .action((opts, cmd) => {
+      warnProjectDeprecated();
       const { db } = openOrDie();
-      const rows = listProjects(db);
+      const rows = listWorkspaces(db).map((w) => ({
+        ...w,
+        id: w.key.toLowerCase(),
+      }));
       out(cmd, rows, (rows) =>
         table(
           rows.map((r) => ({
             key: chalk.bold(r.key),
             id: r.id,
             name: r.name,
-            description: r.description,
+            description: r.description ?? '',
           })),
           [
             { key: 'key', header: 'KEY' },
@@ -274,55 +329,60 @@ export function buildProgram() {
     });
 
   project
-    .command('show <idOrKey>')
-    .description('Show project details with its epics and tickets.')
+    .command('show [idOrKey]')
+    .description('Show the workspace (deprecated).')
     .action((idOrKey, opts, cmd) => {
+      warnProjectDeprecated();
       const { db } = openOrDie();
-      const p = getProject(db, idOrKey);
-      if (!p) fail(`Project not found: ${idOrKey}`);
-      const tickets = listTickets(db, { projectIdOrKey: p.id });
+      const ws = getWorkspace(db);
+      if (
+        idOrKey &&
+        idOrKey.toUpperCase() !== ws.key &&
+        idOrKey.toLowerCase() !== ws.key.toLowerCase()
+      ) {
+        fail(`Workspace key is ${ws.key}, got ${idOrKey}.`);
+      }
+      const tickets = listTickets(db);
       const epics = tickets.filter((t) => t.type === 'epic');
-      out(cmd, { ...p, tickets, epics }, (data) =>
-        projectDetail(data, { tickets: data.tickets, epics: data.epics })
+      out(
+        cmd,
+        { ...ws, id: ws.key.toLowerCase(), tickets, epics },
+        (data) => projectDetail(data, { tickets: data.tickets, epics: data.epics })
       );
     });
 
   project
-    .command('edit <idOrKey>')
-    .description('Edit a project.')
+    .command('edit [idOrKey]')
+    .description('Edit the workspace (deprecated).')
     .option('-n, --name <name>')
     .option('-d, --description <text>')
     .option('--overview <text>')
     .option('--overview-file <path>')
     .option('-e, --edit', 'edit overview in $EDITOR', false)
     .action((idOrKey, opts, cmd) => {
+      warnProjectDeprecated();
       const { db } = openOrDie();
-      const p = getProject(db, idOrKey);
-      if (!p) fail(`Project not found: ${idOrKey}`);
       const fields = {};
       if (opts.name) fields.name = opts.name;
       if (opts.description !== undefined) fields.description = opts.description;
       if (opts.overview !== undefined) fields.overview = opts.overview;
       if (opts.overviewFile) fields.overview = readFileSync(opts.overviewFile, 'utf8');
-      if (opts.edit) fields.overview = editorPrompt(p.overview ?? '');
-      const updated = updateProject(db, p.id, fields);
-      out(cmd, updated, (u) => chalk.green('✓') + ` Updated ${u.key}`);
+      if (opts.edit) fields.overview = editorPrompt(getWorkspace(db).overview ?? '');
+      try {
+        const updated = updateWorkspace(db, fields);
+        out(cmd, updated, (u) => chalk.green('✓') + ` Updated ${u.key}`);
+      } catch (e) {
+        fail(e.message);
+      }
     });
 
   project
-    .command('delete <idOrKey>')
-    .description('Delete a project and all its tickets.')
+    .command('delete [idOrKey]')
+    .description('(Deprecated) Workspace cannot be deleted from the CLI.')
     .option('-y, --yes', 'skip confirmation', false)
-    .action((idOrKey, opts, cmd) => {
-      const { db } = openOrDie();
-      const p = getProject(db, idOrKey);
-      if (!p) fail(`Project not found: ${idOrKey}`);
-      if (!opts.yes) {
-        fail(`Refusing to delete ${p.key} without --yes. This removes all tickets too.`);
-      }
-      deleteProject(db, p.id);
-      out(cmd, { deleted: p.id }, (d) =>
-        chalk.green('✓') + ` Deleted project ${d.deleted}`
+    .action(() => {
+      fail(
+        "Workspace can't be deleted via the CLI. To remove it, run `rm -rf .scope/`."
       );
     });
 
@@ -330,8 +390,8 @@ export function buildProgram() {
   const ticket = program.command('ticket').description('Manage tickets (epics, stories, bugs).');
 
   ticket
-    .command('create <projectKey> <title...>')
-    .description('Create a ticket in a project.')
+    .command('create [title...]')
+    .description('Create a ticket in the local workspace.')
     .addOption(
       new Option('-t, --type <type>', 'ticket type')
         .choices(['epic', 'story', 'bug'])
@@ -353,12 +413,24 @@ export function buildProgram() {
     .option('--pr <url>', 'pull request URL')
     .option('--assignee <name>', 'assignee handle')
     .option('--labels <csv>', 'comma-separated labels')
-    .action((projectKey, titleWords, opts, cmd) => {
+    .option('--project <key>', '(deprecated) validated against workspace key')
+    .action((titleWords, opts, cmd) => {
       const { db } = openOrDie();
+      if (opts.project) {
+        const ws = getWorkspace(db);
+        if (opts.project.toUpperCase() !== ws.key) {
+          fail(`--project ${opts.project} doesn't match workspace key ${ws.key}.`);
+        }
+        process.stderr.write(
+          chalk.yellow('! --project is deprecated — tickets always go in the local workspace.\n')
+        );
+      }
+      if (!titleWords || !titleWords.length) {
+        fail('Ticket title is required.');
+      }
       const description = readBodyFromOpts(opts) ?? '';
       try {
         const t = createTicket(db, {
-          projectIdOrKey: projectKey,
           type: opts.type,
           title: titleWords.join(' '),
           description,
@@ -383,15 +455,23 @@ export function buildProgram() {
     .command('list')
     .alias('ls')
     .description('List tickets, optionally filtered.')
-    .option('-p, --project <key>', 'filter by project')
+    .option('-p, --project <key>', '(deprecated) validated against workspace key')
     .addOption(new Option('-t, --type <type>').choices(['epic', 'story', 'bug']))
     .addOption(new Option('-s, --status <status>').choices(SCHEMA_STATUSES))
     .option('--parent <epicId>', 'filter by parent epic ("none" for top-level)')
     .option('--assignee <name>')
     .action((opts, cmd) => {
       const { db } = openOrDie();
+      if (opts.project) {
+        const ws = getWorkspace(db);
+        if (opts.project.toUpperCase() !== ws.key) {
+          fail(`--project ${opts.project} doesn't match workspace key ${ws.key}.`);
+        }
+        process.stderr.write(
+          chalk.yellow('! -p/--project is deprecated.\n')
+        );
+      }
       const filter = {
-        projectIdOrKey: opts.project,
         type: opts.type,
         status: opts.status,
         assignee: opts.assignee,
@@ -631,10 +711,16 @@ export function buildProgram() {
   epic
     .command('list [projectKey]')
     .alias('ls')
-    .description('List epics, optionally filtered to one project.')
+    .description('List epics. [projectKey] is deprecated (validated against workspace key).')
     .action((projectKey, opts, cmd) => {
       const { db } = openOrDie();
-      const epics = listTickets(db, { projectIdOrKey: projectKey, type: 'epic' });
+      if (projectKey) {
+        const ws = getWorkspace(db);
+        if (projectKey.toUpperCase() !== ws.key) {
+          fail(`Project key ${projectKey} doesn't match workspace key ${ws.key}.`);
+        }
+      }
+      const epics = listTickets(db, { type: 'epic' });
       const enriched = epics.map((e) => ({
         ...e,
         progress: epicProgress(db, e.id),
@@ -717,14 +803,20 @@ export function buildProgram() {
   program
     .command('board')
     .description('Render a kanban board in the terminal.')
-    .option('-p, --project <key>', 'filter by project')
+    .option('-p, --project <key>', '(deprecated) validated against workspace key')
     .option('--epic <id>', 'only tickets in a given epic')
     .action((opts, cmd) => {
       const { db } = openOrDie();
-      const tickets = listTickets(db, {
-        projectIdOrKey: opts.project,
-        parentId: opts.epic,
-      });
+      if (opts.project) {
+        const ws = getWorkspace(db);
+        if (opts.project.toUpperCase() !== ws.key) {
+          fail(`--project ${opts.project} doesn't match workspace key ${ws.key}.`);
+        }
+        process.stderr.write(
+          chalk.yellow('! -p/--project is deprecated.\n')
+        );
+      }
+      const tickets = listTickets(db, { parentId: opts.epic });
       out(cmd, tickets, boardView);
     });
 
@@ -734,8 +826,50 @@ export function buildProgram() {
     .command('workspace')
     .alias('ws')
     .description(
-      'Attach, detach, and list workspaces on the running hub (http://localhost:<port>).'
+      'Show/edit the local workspace, or attach/detach/list workspaces on the running hub.'
     );
+
+  workspace
+    .command('show')
+    .description('Show the local workspace (key, name, description, overview).')
+    .action((opts, cmd) => {
+      const { db } = openOrDie();
+      const ws = getWorkspace(db);
+      const tickets = listTickets(db);
+      const epics = tickets.filter((t) => t.type === 'epic');
+      out(cmd, { ...ws, tickets, epics }, (data) =>
+        projectDetail(
+          { ...data, id: data.key.toLowerCase() },
+          { tickets: data.tickets, epics: data.epics }
+        )
+      );
+    });
+
+  workspace
+    .command('set')
+    .description('Set fields on the local workspace.')
+    .option('--key <key>', 'workspace key (2-10 uppercase letters/digits)')
+    .option('-n, --name <name>')
+    .option('-d, --description <text>')
+    .option('--overview <text>')
+    .option('--overview-file <path>')
+    .option('-e, --edit', 'edit overview in $EDITOR', false)
+    .action((opts, cmd) => {
+      const { db } = openOrDie();
+      const fields = {};
+      if (opts.key) fields.key = opts.key.toUpperCase();
+      if (opts.name) fields.name = opts.name;
+      if (opts.description !== undefined) fields.description = opts.description;
+      if (opts.overview !== undefined) fields.overview = opts.overview;
+      if (opts.overviewFile) fields.overview = readFileSync(opts.overviewFile, 'utf8');
+      if (opts.edit) fields.overview = editorPrompt(getWorkspace(db).overview ?? '');
+      try {
+        const updated = updateWorkspace(db, fields);
+        out(cmd, updated, (u) => chalk.green('✓') + ` Updated ${chalk.bold(u.key)}`);
+      } catch (e) {
+        fail(e.message);
+      }
+    });
 
   workspace
     .command('add [path]')

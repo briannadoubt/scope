@@ -16,10 +16,11 @@ import { createPairingContext } from './pair.js';
 import { reloadCrl, installCrlReloadSignal } from './revocation.js';
 import { bus, wsContext } from './events.js';
 import {
-  createProject,
-  getProject,
-  listProjects,
-  updateProject,
+  getWorkspace,
+  setWorkspace,
+  listWorkspaces,
+  updateWorkspace,
+  listWorkspaceHistory,
   createTicket,
   getTicket,
   listTickets,
@@ -31,7 +32,6 @@ import {
   addComment,
   listComments,
   listHistory,
-  listProjectHistory,
   listEpicChildren,
   epicProgress,
   SCHEMA_STATUSES,
@@ -211,14 +211,56 @@ export async function startServer({
       priorities: SCHEMA_PRIORITIES,
       ticket_types: SCHEMA_TICKET_TYPES,
       relation_types: SCHEMA_RELATION_TYPES,
-      hub: { port, workspaces: mgr.list() },
+      hub: { port, workspaces: enrichedWorkspaces() },
       security,
     });
   });
 
   /* ---------- workspaces ---------- */
 
-  app.get('/api/workspaces', (_req, res) => res.json(mgr.list()));
+  /**
+   * Enrich the WorkspaceManager listing with each workspace's singleton row
+   * (key/name/description/overview). Tolerates missing/uninitialized rows.
+   */
+  function enrichedWorkspaces() {
+    return mgr.list().map((w) => {
+      const ws = mgr.get(w.id);
+      let row = null;
+      try { row = ws ? getWorkspace(ws.db) : null; } catch { row = null; }
+      return {
+        id: w.id,
+        scope_dir: w.scope_dir,
+        label: w.label,
+        key: row?.key ?? null,
+        name: row?.name ?? null,
+        description: row?.description ?? '',
+        overview: row?.overview ?? '',
+      };
+    });
+  }
+
+  /**
+   * Synthesize a v1-shaped project payload from a workspace + its singleton row.
+   * id is the lowercased key so old clients have something kebab-ish.
+   */
+  function projectFromWorkspace(w) {
+    const ws = mgr.get(w.id);
+    if (!ws) return null;
+    let row;
+    try { row = getWorkspace(ws.db); } catch { return null; }
+    return {
+      id: row.key.toLowerCase(),
+      key: row.key,
+      name: row.name,
+      description: row.description ?? '',
+      overview: row.overview ?? '',
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      workspace: w.id,
+    };
+  }
+
+  app.get('/api/workspaces', (_req, res) => res.json(enrichedWorkspaces()));
 
   app.post('/api/workspaces', (req, res) => {
     try {
@@ -233,46 +275,81 @@ export async function startServer({
     }
   });
 
+  app.patch('/api/workspaces/:id', (req, res) => {
+    const w = mgr.get(req.params.id);
+    if (!w) return res.status(404).json({ error: 'unknown workspace' });
+    try {
+      wsContext.run(w.id, () => {
+        const updated = updateWorkspace(w.db, req.body || {});
+        res.json({
+          id: w.id,
+          scope_dir: w.scope_dir,
+          label: w.label,
+          key: updated.key,
+          name: updated.name,
+          description: updated.description ?? '',
+          overview: updated.overview ?? '',
+        });
+      });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.delete('/api/workspaces/:id', (req, res) => {
     const ok = mgr.detach(req.params.id);
     if (!ok) return res.status(404).json({ error: 'unknown workspace' });
     res.json({ detached: req.params.id });
   });
 
-  /* ---------- projects ---------- */
+  /* ---------- projects (back-compat synthesized from workspace rows) ---------- */
 
-  app.get('/api/projects', ws((_req, res, w) => res.json(listProjects(w.db))));
+  app.get('/api/projects', (req, res) => {
+    const filterWs = req.query.workspace;
+    const list = mgr.list()
+      .filter((w) => !filterWs || w.id === filterWs)
+      .map(projectFromWorkspace)
+      .filter(Boolean);
+    res.json(list);
+  });
 
-  app.get('/api/projects/:id', ws((req, res, w) => {
-    const p = getProject(w.db, req.params.id);
+  app.get('/api/projects/:idOrKey', ws((req, res, w) => {
+    const p = projectFromWorkspace({ id: w.id });
     if (!p) return res.status(404).json({ error: 'not found' });
-    const tickets = listTickets(w.db, { projectIdOrKey: p.id });
+    const idOrKey = req.params.idOrKey;
+    if (
+      idOrKey &&
+      idOrKey.toLowerCase() !== p.id &&
+      idOrKey.toUpperCase() !== p.key
+    ) {
+      return res.status(404).json({ error: 'not found' });
+    }
+    const tickets = listTickets(w.db);
     const epics = tickets
       .filter((t) => t.type === 'epic')
       .map((e) => ({ ...e, progress: epicProgress(w.db, e.id) }));
     res.json({ ...p, tickets, epics });
   }));
 
-  app.post('/api/projects', ws((req, res, w) => {
-    const p = createProject(w.db, req.body);
-    res.status(201).json(p);
-  }));
-
-  app.patch('/api/projects/:id', ws((req, res, w) => {
-    const p = updateProject(w.db, req.params.id, req.body);
-    res.json(p);
+  app.patch('/api/projects/:idOrKey', ws((req, res, w) => {
+    const updated = updateWorkspace(w.db, req.body || {});
+    res.json({
+      id: updated.key.toLowerCase(),
+      key: updated.key,
+      name: updated.name,
+      description: updated.description ?? '',
+      overview: updated.overview ?? '',
+      created_at: updated.created_at,
+      updated_at: updated.updated_at,
+      workspace: w.id,
+    });
   }));
 
   /* ---------- tickets ---------- */
 
   app.get('/api/tickets', ws((req, res, w) => {
-    const { project, type, status, parent, assignee } = req.query;
-    const filter = {
-      projectIdOrKey: project,
-      type,
-      status,
-      assignee,
-    };
+    const { type, status, parent, assignee } = req.query;
+    const filter = { type, status, assignee };
     if (parent !== undefined) filter.parentId = parent === 'none' ? null : parent;
     res.json(listTickets(w.db, filter));
   }));
@@ -291,7 +368,12 @@ export async function startServer({
   }));
 
   app.post('/api/tickets', ws((req, res, w) => {
-    const t = createTicket(w.db, req.body);
+    const body = { ...(req.body || {}) };
+    // Strip legacy v1 fields so they don't confuse createTicket().
+    delete body.project;
+    delete body.projectIdOrKey;
+    delete body.workspace;
+    const t = createTicket(w.db, body);
     res.status(201).json(t);
   }));
 
@@ -340,20 +422,16 @@ export async function startServer({
   /* ---------- history ---------- */
 
   app.get('/api/history', ws((req, res, w) => {
-    const { project, limit, before, beforeId } = req.query;
-    if (!project) return res.status(400).json({ error: 'project is required' });
-    const rows = listProjectHistory(w.db, project, { limit, before, beforeId });
+    const { limit, before, beforeId } = req.query;
+    const rows = listWorkspaceHistory(w.db, { limit, before, beforeId });
     res.json({ entries: rows, limit: rows.length, before: before ?? null });
   }));
 
   /* ---------- board ---------- */
 
   app.get('/api/board', ws((req, res, w) => {
-    const { project, epic } = req.query;
-    const tickets = listTickets(w.db, {
-      projectIdOrKey: project,
-      parentId: epic,
-    });
+    const { epic } = req.query;
+    const tickets = listTickets(w.db, { parentId: epic });
     const buckets = Object.fromEntries(SCHEMA_STATUSES.map((s) => [s, []]));
     for (const t of tickets) if (buckets[t.status]) buckets[t.status].push(t);
     res.json({ columns: SCHEMA_STATUSES, buckets });
@@ -370,7 +448,7 @@ export async function startServer({
     });
     res.write('retry: 2000\n');
     res.write(
-      `event: hello\ndata: ${JSON.stringify({ workspaces: mgr.list() })}\n\n`
+      `event: hello\ndata: ${JSON.stringify({ workspaces: enrichedWorkspaces() })}\n\n`
     );
 
     // Optional filter — UI can pass ?workspace=<id> to only receive that

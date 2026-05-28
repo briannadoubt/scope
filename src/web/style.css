@@ -175,11 +175,9 @@ button { font-family: inherit; }
   overflow: auto;
 }
 
-/* Breadcrumb popover — 2-pane workspace / project picker. */
+/* Breadcrumb popover — single-pane workspace picker (v2 has no project layer). */
 .popover-breadcrumb {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  display: block;
   padding: 0;
 }
 .popover-breadcrumb .pane {

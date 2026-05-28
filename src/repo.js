@@ -1,61 +1,56 @@
-import { nowIso, nextTicketId, recordHistory } from './db.js';
+import { nowIso, nextTicketId, recordHistory, getWorkspace } from './db.js';
 import { emitChange } from './events.js';
 
-/* ---------------- projects ---------------- */
+/* ---------------- workspace ---------------- */
 
-export function createProject(db, { id, key, name, description = '', overview = '' }) {
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(id))
-    throw new Error(`Invalid project id "${id}" — use lowercase letters, digits, hyphens.`);
-  if (!/^[A-Z][A-Z0-9]{1,9}$/.test(key))
-    throw new Error(`Invalid project key "${key}" — use 2-10 uppercase letters/digits, e.g. "SCP".`);
-  const now = nowIso();
-  db.prepare(
-    `INSERT INTO projects (id, key, name, description, overview, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, key, name, description, overview, now, now);
-  const created = getProject(db, id);
-  emitChange({ type: 'project.created', id });
-  return created;
+/**
+ * Update the singleton workspace row. The row itself is created by the
+ * db.js migration/init step, so this is purely an UPDATE.
+ *
+ * Accepts: { key, name, description, overview } — any subset.
+ */
+export function setWorkspace(db, fields = {}) {
+  return updateWorkspace(db, fields);
 }
 
-export function getProject(db, idOrKey) {
-  return db
-    .prepare('SELECT * FROM projects WHERE id = ? OR key = ?')
-    .get(idOrKey, idOrKey);
+export { getWorkspace };
+
+/**
+ * Back-compat shim: the v1 API exposed listProjects(). The v2 workspace
+ * is a singleton, so this returns a one-element array. The API layer can
+ * keep returning a list to old clients.
+ */
+export function listWorkspaces(db) {
+  try {
+    return [getWorkspace(db)];
+  } catch {
+    return [];
+  }
 }
 
-export function listProjects(db) {
-  return db.prepare('SELECT * FROM projects ORDER BY name').all();
-}
-
-export function updateProject(db, idOrKey, fields) {
-  const project = getProject(db, idOrKey);
-  if (!project) throw new Error(`Project not found: ${idOrKey}`);
-  const allowed = ['name', 'description', 'overview'];
+export function updateWorkspace(db, fields = {}) {
+  const ws = getWorkspace(db);
+  const allowed = ['key', 'name', 'description', 'overview'];
   const updates = [];
   const values = [];
   for (const k of allowed) {
     if (k in fields) {
+      if (k === 'key' && !/^[A-Z][A-Z0-9]{1,9}$/.test(fields[k])) {
+        throw new Error(
+          `Invalid workspace key "${fields[k]}" — use 2-10 uppercase letters/digits, e.g. "SCP".`
+        );
+      }
       updates.push(`${k} = ?`);
       values.push(fields[k]);
     }
   }
-  if (!updates.length) return project;
+  if (!updates.length) return ws;
   updates.push('updated_at = ?');
   values.push(nowIso());
-  values.push(project.id);
-  db.prepare(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-  const updated = getProject(db, project.id);
-  emitChange({ type: 'project.updated', id: project.id });
+  db.prepare(`UPDATE workspace SET ${updates.join(', ')} WHERE id = 1`).run(...values);
+  const updated = getWorkspace(db);
+  emitChange({ type: 'workspace.updated', id: 1 });
   return updated;
-}
-
-export function deleteProject(db, idOrKey) {
-  const project = getProject(db, idOrKey);
-  if (!project) return false;
-  db.prepare('DELETE FROM projects WHERE id = ?').run(project.id);
-  emitChange({ type: 'project.deleted', id: project.id });
-  return true;
 }
 
 /* ---------------- tickets ---------------- */
@@ -67,7 +62,6 @@ const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 export function createTicket(
   db,
   {
-    projectIdOrKey,
     type,
     title,
     description = '',
@@ -85,31 +79,25 @@ export function createTicket(
   if (!PRIORITIES.includes(priority)) throw new Error(`Invalid priority "${priority}".`);
   if (!title || !title.trim()) throw new Error('Ticket title is required.');
 
-  const project = getProject(db, projectIdOrKey);
-  if (!project) throw new Error(`Project not found: ${projectIdOrKey}`);
-
   let parentId = null;
   if (parent) {
     const parentTicket = getTicket(db, parent);
     if (!parentTicket) throw new Error(`Parent ticket not found: ${parent}`);
     if (parentTicket.type !== 'epic')
       throw new Error(`Parent must be an epic, got "${parentTicket.type}" (${parentTicket.id}).`);
-    if (parentTicket.project_id !== project.id)
-      throw new Error('Parent epic belongs to a different project.');
     if (type === 'epic') throw new Error('Epics cannot have an epic parent.');
     parentId = parentTicket.id;
   }
 
-  const { id, number } = nextTicketId(db, project.id);
+  const { id, number } = nextTicketId(db);
   const now = nowIso();
   db.prepare(
     `INSERT INTO tickets
-       (id, project_id, number, type, title, description, status, priority,
+       (id, number, type, title, description, status, priority,
         parent_id, branch, pr_url, assignee, labels, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
-    project.id,
     number,
     type,
     title,
@@ -125,7 +113,7 @@ export function createTicket(
     now
   );
   const created = getTicket(db, id);
-  emitChange({ type: 'ticket.created', id, project: project.id });
+  emitChange({ type: 'ticket.created', id });
   return created;
 }
 
@@ -150,15 +138,9 @@ function safeParseJson(s, fallback) {
   }
 }
 
-export function listTickets(db, { projectIdOrKey, type, status, parentId, assignee } = {}) {
+export function listTickets(db, { type, status, parentId, assignee } = {}) {
   const where = [];
   const params = [];
-  if (projectIdOrKey) {
-    const project = getProject(db, projectIdOrKey);
-    if (!project) return [];
-    where.push('project_id = ?');
-    params.push(project.id);
-  }
   if (type) {
     where.push('type = ?');
     params.push(type);
@@ -180,7 +162,7 @@ export function listTickets(db, { projectIdOrKey, type, status, parentId, assign
   }
   const sql = `SELECT * FROM tickets ${
     where.length ? 'WHERE ' + where.join(' AND ') : ''
-  } ORDER BY project_id, number`;
+  } ORDER BY number`;
   return db.prepare(sql).all(...params).map(hydrateTicket);
 }
 
@@ -210,8 +192,6 @@ export function updateTicket(db, id, fields, who = null) {
     if (!parent) throw new Error(`Parent ticket not found: ${fields.parent_id}`);
     if (parent.type !== 'epic')
       throw new Error(`Parent must be an epic, got "${parent.type}".`);
-    if (parent.project_id !== ticket.project_id)
-      throw new Error('Parent epic must be in the same project.');
     if (parent.id === ticket.id) throw new Error('A ticket cannot be its own parent.');
     if (ticket.type === 'epic') throw new Error('Epics cannot have a parent.');
     fields.parent_id = parent.id;
@@ -234,7 +214,7 @@ export function updateTicket(db, id, fields, who = null) {
   values.push(ticket.id);
   db.prepare(`UPDATE tickets SET ${updates.join(', ')} WHERE id = ?`).run(...values);
   const after = getTicket(db, ticket.id);
-  emitChange({ type: 'ticket.updated', id: ticket.id, project: ticket.project_id });
+  emitChange({ type: 'ticket.updated', id: ticket.id });
   return after;
 }
 
@@ -242,7 +222,7 @@ export function deleteTicket(db, id) {
   const t = getTicket(db, id);
   if (!t) return false;
   db.prepare('DELETE FROM tickets WHERE id = ?').run(t.id);
-  emitChange({ type: 'ticket.deleted', id: t.id, project: t.project_id });
+  emitChange({ type: 'ticket.deleted', id: t.id });
   return true;
 }
 
@@ -316,7 +296,7 @@ export function addComment(db, ticketId, body, author = null) {
        VALUES (?, ?, ?, ?)`
     )
     .run(t.id, author, body, nowIso());
-  emitChange({ type: 'comment.added', id: t.id, project: t.project_id });
+  emitChange({ type: 'comment.added', id: t.id });
   return { id: res.lastInsertRowid, ticket_id: t.id, author, body };
 }
 
@@ -339,42 +319,26 @@ export function listHistory(db, ticketId) {
 }
 
 /**
- * Project-scoped history feed, newest first, with cursor-based pagination.
+ * Workspace-wide history feed, newest first, with cursor-based pagination.
+ * (In v1 this was project-scoped; v2 has a single workspace, so the feed
+ * covers the whole DB.)
  *
  * @param {object} db
- * @param {string} projectIdOrKey
  * @param {object} [opts]
  * @param {number} [opts.limit=100]  - max rows to return (clamped to 1..500)
  * @param {string} [opts.before]     - ISO timestamp; only rows with
  *                                     changed_at strictly before this cursor.
- *                                     Use the last row's changed_at to paginate.
- * @returns {Array<{
- *   id: number,
- *   ticket_id: string,
- *   ticket_title: string,
- *   ticket_type: string,
- *   field: string,
- *   old_value: string|null,
- *   new_value: string|null,
- *   changed_by: string|null,
- *   changed_at: string,
- * }>}
+ * @param {number} [opts.beforeId]   - id tiebreaker for the cursor.
  */
-export function listProjectHistory(db, projectIdOrKey, opts = {}) {
-  const project = getProject(db, projectIdOrKey);
-  if (!project) throw new Error(`Project not found: ${projectIdOrKey}`);
+export function listWorkspaceHistory(db, opts = {}) {
   const rawLimit = Number(opts.limit);
   const limit = Number.isFinite(rawLimit)
     ? Math.max(1, Math.min(500, Math.floor(rawLimit)))
     : 100;
-  const params = [project.id];
-  let where = 'WHERE t.project_id = ?';
+  const params = [];
+  let where = '';
   if (opts.before) {
-    // Tuple cursor: rows strictly "older" than (changed_at, id) in the
-    // composite (changed_at DESC, id DESC) order. Including id as a
-    // tiebreaker avoids losing rows that share a millisecond timestamp
-    // (very common when several updates happen in the same tick).
-    where += ' AND (h.changed_at < ? OR (h.changed_at = ? AND h.id < ?))';
+    where = 'WHERE (h.changed_at < ? OR (h.changed_at = ? AND h.id < ?))';
     params.push(String(opts.before), String(opts.before));
     const beforeId = Number(opts.beforeId);
     params.push(Number.isFinite(beforeId) ? beforeId : Number.MAX_SAFE_INTEGER);
