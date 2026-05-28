@@ -41,7 +41,12 @@ struct ColumnView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 8) {
                     ForEach(tickets) { ticket in
-                        CardView(ticket: ticket) {
+                        // Horizontal swipe → advance/regress status (SCP-92).
+                        // SwipeCardContainer reveals a destructive-style label
+                        // during the gesture and commits on release past the
+                        // threshold; the resulting SSE update animates the
+                        // card into its new column.
+                        SwipeCardContainer(ticket: ticket) {
                             onTap(ticket)
                         }
                     }

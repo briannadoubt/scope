@@ -155,8 +155,10 @@ struct TicketDetailView: View {
                     TextEditor(text: $draftDescription)
                         .frame(minHeight: 120)
                 } else if let desc = ticket.description, !desc.isEmpty {
-                    Text(desc)
-                        .fixedSize(horizontal: false, vertical: true)
+                    // Markdown prose + inline Mermaid blocks (matches the
+                    // web UI's renderer — see MarkdownView for the splitter
+                    // and MermaidView for the WKWebView).
+                    MarkdownView(text: desc)
                 } else {
                     Text("No description")
                         .foregroundStyle(.secondary)
