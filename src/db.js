@@ -338,11 +338,20 @@ function migrate(db, scopeDir) {
             updated_at TEXT NOT NULL,
             UNIQUE(number)
           );
+          -- Renumber globally. In v1, "number" was unique per project, so
+          -- two projects in the same workspace could both have number=1. The
+          -- v2 schema enforces UNIQUE(number) workspace-wide, so we assign
+          -- fresh sequential numbers ordered by (created_at, id) for
+          -- determinism. Ticket IDs are preserved verbatim (they are TEXT and
+          -- still embed the original project key, so external references like
+          -- branch names and commit messages keep working).
           INSERT INTO tickets_new
             (id, number, type, title, description, status, priority,
              parent_id, branch, pr_url, assignee, labels, created_at, updated_at)
           SELECT
-             id, number, type, title, description, status, priority,
+             id,
+             ROW_NUMBER() OVER (ORDER BY created_at ASC, id ASC) AS number,
+             type, title, description, status, priority,
              parent_id, branch, pr_url, assignee, labels, created_at, updated_at
           FROM tickets;
           DROP TABLE tickets;
@@ -352,6 +361,16 @@ function migrate(db, scopeDir) {
           CREATE INDEX IF NOT EXISTS idx_tickets_parent ON tickets(parent_id);
           CREATE INDEX IF NOT EXISTS idx_tickets_type ON tickets(type);
         `);
+
+        // Advance next_ticket_number past the highest renumbered ticket so
+        // new tickets don't reuse a number we just assigned.
+        db.prepare(
+          `UPDATE workspace
+             SET next_ticket_number = COALESCE(
+               (SELECT MAX(number) FROM tickets), 0
+             ) + 1
+           WHERE id = 1`
+        ).run();
       } else {
         db.exec(CREATE_TICKETS);
       }
