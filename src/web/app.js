@@ -1830,8 +1830,8 @@ function relativeTime(iso) {
 // SCP-67: floating column of SSE-driven activity toasts. Distinct from the
 // alert toast() helper above — this is an ambient feed, not a notification.
 
-const LIVE_FEED_MAX = 6;
-const LIVE_FEED_TTL_MS = 6000;
+const LIVE_FEED_MAX = 4;
+const LIVE_FEED_TTL_MS = 5000;
 
 function ensureLiveFeedRoot() {
   let root = document.getElementById('live-feed');
@@ -1883,20 +1883,26 @@ function pushLiveFeed(detail) {
   const icon = liveFeedIcon(detail.type);
   const desc = liveFeedDescription(detail);
   const tid = detail.id || detail.ticket || '';
+  const clickable = tid && /^[A-Z][A-Z0-9]*-\d+$/.test(tid);
+  if (clickable) {
+    el.classList.add('clickable');
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('title', `Open ${tid}`);
+  }
+  // Single-line layout: [icon] [ID] [desc — flexes + truncates].
+  // Drop the separate "now" label and the absolute open button; the whole
+  // row is the click target for ticket toasts.
   el.innerHTML = `
     <span class="live-icon" aria-hidden="true">${icon}</span>
-    <div class="live-body">
-      ${tid ? `<div class="live-id">${escapeHtml(tid)}</div>` : ''}
-      <div class="live-desc">${escapeHtml(desc)}</div>
-    </div>
-    <span class="live-when">now</span>
-    ${tid && /^[A-Z][A-Z0-9]*-\d+$/.test(tid) ? `<button type="button" class="live-open" title="Open ${escapeHtml(tid)}" aria-label="Open ${escapeHtml(tid)}">↗</button>` : ''}
+    ${tid ? `<span class="live-id">${escapeHtml(tid)}</span>` : ''}
+    <span class="live-desc">${escapeHtml(desc)}</span>
   `;
-  const openBtn = el.querySelector('.live-open');
-  if (openBtn) {
-    openBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openDrawer(tid);
+  if (clickable) {
+    const open = () => openDrawer(tid);
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
     });
   }
   root.appendChild(el);
@@ -1906,15 +1912,22 @@ function pushLiveFeed(detail) {
   }
   // Enter transition.
   requestAnimationFrame(() => el.classList.add('show'));
-  // Auto-dismiss.
+
+  // Auto-dismiss with hover-pause-and-resume. Bug before: mouseenter cleared
+  // the timer once and never re-armed, so any accidental hover pinned the
+  // toast forever (especially painful on narrow viewports where toasts cover
+  // the board).
+  let timer = null;
   const dismiss = () => {
     if (!el.isConnected) return;
     el.classList.remove('show');
     el.classList.add('leaving');
     setTimeout(() => el.remove(), 240);
   };
-  const timer = setTimeout(dismiss, LIVE_FEED_TTL_MS);
-  el.addEventListener('mouseenter', () => clearTimeout(timer), { once: true });
+  const arm = (ms) => { clearTimeout(timer); timer = setTimeout(dismiss, ms); };
+  arm(LIVE_FEED_TTL_MS);
+  el.addEventListener('mouseenter', () => clearTimeout(timer));
+  el.addEventListener('mouseleave', () => arm(LIVE_FEED_TTL_MS));
 }
 
 function liveFeedIcon(type) {
@@ -1935,8 +1948,9 @@ function liveFeedDescription(detail) {
       // field/new_value tuple so we can describe the change concretely.
       if (detail.field) {
         const v = detail.new_value;
-        if (detail.field === 'status') return `→ ${v}`;
-        if (detail.field === 'priority') return `priority → ${v}`;
+        const o = detail.old_value;
+        if (detail.field === 'status') return o ? `${o} → ${v}` : `status: ${v}`;
+        if (detail.field === 'priority') return o ? `priority ${o} → ${v}` : `priority: ${v}`;
         if (detail.field === 'assignee') return v ? `assigned ${v}` : 'unassigned';
         if (detail.field === 'branch') return v ? `branch ${v}` : 'branch cleared';
         if (detail.field === 'pr_url') return v ? 'PR linked' : 'PR cleared';
