@@ -10,15 +10,23 @@ struct BoardView: View {
     @State private var showNewTicketSheet: Bool = false
     @State private var selectedTicket: Ticket? = nil
 
-    private var project: Project? { store.selectedProject }
+    private var workspace: Workspace? { store.selectedWorkspace }
+
+    private var navigationTitle: String {
+        guard let ws = workspace else { return "Board" }
+        if let key = ws.key, !key.isEmpty {
+            return "\(key) · \(ws.displayName)"
+        }
+        return ws.displayName
+    }
 
     var body: some View {
         Group {
-            if project == nil {
+            if workspace == nil {
                 ContentUnavailableView(
-                    "No Project Selected",
+                    "No Workspace Selected",
                     systemImage: "square.3.layers.3d",
-                    description: Text("Select a project from the Projects tab.")
+                    description: Text("Select a workspace from the menu.")
                 )
             } else if store.isLoading && store.tickets.isEmpty {
                 ProgressView("Loading…")
@@ -27,13 +35,13 @@ struct BoardView: View {
                 boardContent
             }
         }
-        .navigationTitle(project?.name ?? "Board")
+        .navigationTitle(navigationTitle)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("New", systemImage: "plus") {
                     showNewTicketSheet = true
                 }
-                .disabled(project == nil)
+                .disabled(workspace == nil)
             }
         }
         .sheet(isPresented: $showNewTicketSheet) {
@@ -44,8 +52,8 @@ struct BoardView: View {
                 TicketDetailView(ticket: ticket)
             }
         }
-        .task(id: project?.id) {
-            guard project != nil else { return }
+        .task(id: workspace?.id) {
+            guard workspace != nil else { return }
             await store.loadTickets()
             startEventStream()
         }
@@ -102,19 +110,3 @@ struct BoardView: View {
         stream.connect(workspaceId: store.selectedWorkspace?.id)
     }
 }
-
-// MARK: - Stub: WorkspaceProjectPicker
-
-/// Placeholder — a full picker will be written by another agent.
-struct WorkspaceProjectPicker: View {
-    @Environment(AppStore.self) private var store
-
-    var body: some View {
-        Text(store.selectedProject?.key ?? "—")
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.quaternary, in: Capsule())
-    }
-}
-

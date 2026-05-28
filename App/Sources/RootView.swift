@@ -24,13 +24,13 @@ private struct MainTabView: View {
                     BoardView()
                         .toolbar {
                             ToolbarItem(placement: .topBarLeading) {
-                                workspaceProjectMenu
+                                workspaceMenu
                             }
                         }
                 }
             }
-            Tab("Projects", systemImage: "folder") {
-                NavigationStack { ProjectOverviewView() }
+            Tab("Overview", systemImage: "doc.text") {
+                NavigationStack { WorkspaceOverviewView() }
             }
             Tab("History", systemImage: "clock") {
                 NavigationStack { HistoryView() }
@@ -42,94 +42,124 @@ private struct MainTabView: View {
         .tabViewStyle(.sidebarAdaptable)
     }
 
-    // NOTE: PairingView integration lives in ConnectionView.swift / HubRowView.swift.
-    // HubRowView should offer a long-press or swipe action that presents
-    // PairingView(hub:) as a sheet. This file does not own those views.
-
     @ViewBuilder
-    private var workspaceProjectMenu: some View {
+    private var workspaceMenu: some View {
         Menu {
-            // Project selection
-            Section("Projects") {
-                Button {
-                    store.selectedProject = nil
-                } label: {
-                    if store.selectedProject == nil {
-                        Label("All Projects", systemImage: "checkmark")
-                    } else {
-                        Text("All Projects")
-                    }
-                }
-
-                ForEach(store.projects) { project in
+            Section("Workspaces") {
+                ForEach(store.workspaces) { ws in
                     Button {
-                        Task { await store.selectProject(project) }
+                        store.selectedWorkspace = ws
                     } label: {
-                        if store.selectedProject?.id == project.id {
-                            Label(project.name, systemImage: "checkmark")
+                        if store.selectedWorkspace?.id == ws.id {
+                            Label(ws.displayName, systemImage: "checkmark")
                         } else {
-                            Text(project.name)
-                        }
-                    }
-                }
-            }
-
-            // Workspace selection (only shown when there are multiple workspaces)
-            if store.workspaces.count > 1 {
-                Section("Workspaces") {
-                    ForEach(store.workspaces) { ws in
-                        Button {
-                            store.selectedWorkspace = ws
-                        } label: {
-                            if store.selectedWorkspace?.id == ws.id {
-                                Label(ws.label, systemImage: "checkmark")
-                            } else {
-                                Text(ws.label)
-                            }
+                            Text(ws.displayName)
                         }
                     }
                 }
             }
         } label: {
-            Label(
-                store.selectedProject?.name ?? "All Projects",
-                systemImage: "chevron.up.chevron.down"
-            )
+            HStack(spacing: 6) {
+                if let key = store.selectedWorkspace?.key, !key.isEmpty {
+                    Text(key)
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
+                }
+                Text(store.selectedWorkspace?.displayName ?? "Workspace")
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+            }
         }
     }
 }
 
-struct ProjectOverviewView: View {
+// MARK: - Workspace overview
+
+struct WorkspaceOverviewView: View {
     @Environment(AppStore.self) private var store
+    @State private var showSwitcher = false
 
     var body: some View {
-        List(store.projects) { project in
-            Button {
-                Task { await store.selectProject(project) }
-            } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(project.name)
-                        .font(.headline)
-                    Text(project.key)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        Group {
+            if let ws = store.selectedWorkspace {
+                Form {
+                    Section {
+                        Button {
+                            showSwitcher = true
+                        } label: {
+                            Label("Switch workspace", systemImage: "arrow.left.arrow.right")
+                        }
+                    }
+
+                    Section("Identifier") {
+                        if let key = ws.key, !key.isEmpty {
+                            metadataRow(label: "Key", value: key)
+                        }
+                        metadataRow(label: "Name", value: ws.displayName)
+                        metadataRow(label: "Scope Dir", value: ws.scopeDir)
+                    }
+
+                    if let desc = ws.description, !desc.isEmpty {
+                        Section("Description") {
+                            Text(desc)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    if let overview = ws.overview, !overview.isEmpty {
+                        Section("Overview") {
+                            // Render as markdown when possible; fall back to plain text.
+                            if let attributed = try? AttributedString(
+                                markdown: overview,
+                                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                            ) {
+                                Text(attributed)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } else {
+                                Text(overview)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
                 }
-            }
-            .buttonStyle(.plain)
-        }
-        .navigationTitle("Projects")
-        .overlay {
-            if store.projects.isEmpty && !store.isLoading {
+                .navigationTitle("Overview")
+                .confirmationDialog(
+                    "Switch Workspace",
+                    isPresented: $showSwitcher,
+                    titleVisibility: .visible
+                ) {
+                    ForEach(store.workspaces) { other in
+                        Button(other.displayName) {
+                            store.selectedWorkspace = other
+                        }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                }
+            } else {
                 ContentUnavailableView(
-                    "No Projects",
+                    "No Workspace Selected",
                     systemImage: "folder",
-                    description: Text("Create a project from the Scope CLI.")
+                    description: Text("Select a workspace from the menu.")
                 )
+                .navigationTitle("Overview")
             }
         }
-        .task { await store.loadProjects() }
+        .task { await store.loadWorkspaces() }
+    }
+
+    private func metadataRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label).foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .multilineTextAlignment(.trailing)
+        }
     }
 }
+
+// MARK: - History
 
 struct HistoryView: View {
     @Environment(AppStore.self) private var store
@@ -139,7 +169,7 @@ struct HistoryView: View {
 
     var body: some View {
         Group {
-            if let project = store.selectedProject {
+            if let ws = store.selectedWorkspace {
                 List(entries) { entry in
                     HistoryEntryRow(entry: entry)
                 }
@@ -149,29 +179,29 @@ struct HistoryView: View {
                         ContentUnavailableView(
                             "No History",
                             systemImage: "clock",
-                            description: Text("No changes recorded yet for \(project.name).")
+                            description: Text("No changes recorded yet for \(ws.displayName).")
                         )
                     }
                 }
-                .task(id: project.id) {
-                    await fetchHistory(projectId: project.id)
+                .task(id: ws.id) {
+                    await fetchHistory()
                 }
             } else {
                 ContentUnavailableView(
-                    "No Project Selected",
+                    "No Workspace Selected",
                     systemImage: "clock",
-                    description: Text("Select a project to view its history.")
+                    description: Text("Select a workspace to view its history.")
                 )
                 .navigationTitle("History")
             }
         }
     }
 
-    private func fetchHistory(projectId: String) async {
+    private func fetchHistory() async {
         isLoading = true
         defer { isLoading = false }
         do {
-            let response = try await store.loadHistory(project: projectId)
+            let response = try await store.loadHistory()
             entries = response.entries
         } catch {
             errorMessage = error.localizedDescription
@@ -225,7 +255,7 @@ struct SettingsView: View {
                 )) {
                     Text("None").tag(Optional<Workspace>.none)
                     ForEach(store.workspaces) { ws in
-                        Text(ws.label).tag(Optional(ws))
+                        Text(ws.displayName).tag(Optional(ws))
                     }
                 }
             }
@@ -235,8 +265,6 @@ struct SettingsView: View {
                     store.client = nil
                     store.workspaces = []
                     store.selectedWorkspace = nil
-                    store.projects = []
-                    store.selectedProject = nil
                     store.tickets = []
                 }
             }

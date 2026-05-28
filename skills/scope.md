@@ -1,8 +1,8 @@
 # Using Scope
 
-Scope is a local-first kanban for projects, epics, stories, and bugs. It ships
-as a CLI and a GitHub-Projects-style web UI. Use it to plan, track, and report
-on multi-step work without leaving the terminal.
+Scope is a local-first kanban for epics, stories, and bugs. It ships as a
+CLI, a GitHub-Projects-style web UI, and a `scope serve` hub daemon. Use it
+to plan, track, and report on multi-step work without leaving the terminal.
 
 ## When to use
 
@@ -11,8 +11,8 @@ Reach for Scope when:
 - The user describes a multi-step task ("rebuild auth", "ship feature X") that
   spans more than a single tool call. Create an **epic** plus child **stories**
   and walk through them.
-- The user starts a session and wants context. List open tickets in the project
-  before diving in.
+- The user starts a session and wants context. List open tickets in the
+  current workspace before diving in.
 - You finish a discrete piece of work. Mark the relevant ticket **done** and
   attach the branch / PR if there was one.
 - You discover a real bug worth tracking (not a fix you just made). Create a
@@ -27,9 +27,9 @@ Shell out to the `scope` CLI. Every command supports `--json` for parseable
 output:
 
 ```bash
-scope --json ticket list -p MA           # always pass --json for parsing
+scope --json ticket list                 # current workspace, all tickets
 scope --json ticket show MA-3
-scope --json get_meta                    # legal enums (statuses/priorities/types)
+scope --json meta                        # legal enums (statuses/priorities/types)
 ```
 
 If the CLI isn't installed:
@@ -40,8 +40,10 @@ brew install briannadoubt/tap/scope
 
 ## Data model
 
-- **Project** — top-level container. Has a slug (`my-app`) and a 2-10 letter
-  key (`MA`) that prefixes all ticket IDs.
+- **Hub** — the `scope serve` daemon. Brokers traffic across workspaces.
+- **Workspace** — a `.scope/` directory. Owns the key prefix (`MA`), name,
+  description, overview, and all tickets in that repo. One SQLite DB per
+  workspace.
 - **Epic** — high-level body of work. Holds stories and bugs as children.
 - **Story** — a unit of work toward an epic.
 - **Bug** — a defect; can also live under an epic.
@@ -51,20 +53,23 @@ brew install briannadoubt/tap/scope
   (+ `cancelled`). The board has one column per status.
 - **Priority** — `low` / `medium` / `high` / `urgent`.
 
-Ticket IDs look like `MA-3`. Branches and PR URLs can be attached to any ticket
-and are surfaced in the UI.
+Ticket IDs look like `MA-3` (workspace key + number) and are immutable.
+Branches and PR URLs can be attached to any ticket and are surfaced in the UI.
 
 ## Common operations
 
 ```bash
 # one-time setup in a repo
-scope init
-scope project create my-app MA "My App" -d "Short description"
+scope init --key MA --name "My App"
+scope workspace set --description "Short description"
+
+# inspect
+scope workspace show
 
 # plan
-scope ticket create MA "Auth refactor" -t epic -p high
-scope ticket create MA "OAuth login"  -t story --parent MA-1
-scope ticket create MA "Password reset broken on Safari" -t bug --parent MA-1 -p high
+scope ticket create "Auth refactor" -t epic -p high
+scope ticket create "OAuth login"  -t story --parent MA-1
+scope ticket create "Password reset broken on Safari" -t bug --parent MA-1 -p high
 
 # start work
 scope branch MA-2 feat/oauth --in-progress
@@ -73,10 +78,10 @@ scope branch MA-2 feat/oauth --in-progress
 scope pr MA-2 https://github.com/owner/repo/pull/42 --in-review
 
 # close
-scope status MA-2 done
+scope status MA-2 done --by you
 
 # see the board (terminal kanban view)
-scope board -p MA
+scope board
 
 # see one ticket with relations, comments, history
 scope --json ticket show MA-2
@@ -88,9 +93,10 @@ scope link add MA-2 blocked_by MA-7
 
 ## Guardrails
 
-- **Don't create projects without an explicit human request.** Projects are
-  durable. Adding tickets, comments, and statuses to an existing project is
-  always fine.
+- **Don't change a workspace's key without an explicit human request.**
+  Ticket IDs are immutable — once tickets exist with a prefix, changing the
+  key leaves them stranded under the old one. Adding tickets, comments, and
+  statuses to an existing workspace is always fine.
 - **Don't delete tickets** to "clean up." Set status to `cancelled` so history
   is preserved and the audit log makes sense.
 - **Keep titles human-readable.** A title is what shows up on the kanban card
@@ -103,10 +109,11 @@ scope link add MA-2 blocked_by MA-7
 ## Realtime + multi-agent
 
 If the user runs `scope serve` somewhere, the web UI comes up at
-`http://localhost:4321` and every `scope` CLI call (yours, the user's, another
-agent's) pushes to all viewers via SSE within ~100ms. **Never pass `--port`**
-unless you're explicitly told to — concurrent `scope serve` invocations
-auto-discover the running hub and register their workspace with it.
+`https://localhost:4321` and every `scope` CLI call (yours, the user's,
+another agent's) pushes to all viewers via SSE within ~100ms. **Never pass
+`--port`** unless you're explicitly told to — concurrent `scope serve`
+invocations auto-discover the running hub and register their workspace with
+it.
 
 If multiple agents are working in parallel, **always read state before writing
 state** — there is no merge logic for conflicting `ticket edit` calls, last
@@ -115,8 +122,8 @@ write wins.
 ## Useful follow-ups
 
 - `scope --json epic list` to see epic progress at a glance.
-- `scope --json ticket list -p MA --status todo` to find the next thing to do.
-- `scope --json get_board project=MA` returns columns + buckets for rendering.
+- `scope --json ticket list --status todo` to find the next thing to do.
+- `scope --json board` returns columns + buckets for rendering.
 - `scope history MA-2` is the change log for a single ticket.
 
 ## Repo

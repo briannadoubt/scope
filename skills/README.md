@@ -56,7 +56,7 @@ mkdir -p .cursor/rules && \
 
 In short: when to reach for Scope (multi-step work, planning, status updates,
 bug tracking), how to invoke it (the CLI, with `--json` for parseable output),
-the data model (project / epic / story / bug / relations / statuses /
+the data model (workspace / epic / story / bug / relations / statuses /
 priorities), and a handful of common commands. See [`scope.md`](./scope.md)
 for the canonical text — the per-tool files are mostly the same content with
 different frontmatter.

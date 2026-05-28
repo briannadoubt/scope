@@ -5,9 +5,6 @@ final class AppStore {
     var client: HubClient?
     var workspaces: [Workspace] = []
 
-    /// Use `setSelectedWorkspace(_:)` to change the selection; mutating this
-    /// property directly is also fine — the setter fires the side-effects via
-    /// the `_selectedWorkspace` backing store trick that `@Observable` supports.
     private var _selectedWorkspace: Workspace? = nil
     var selectedWorkspace: Workspace? {
         get { _selectedWorkspace }
@@ -15,12 +12,10 @@ final class AppStore {
             guard newValue?.id != _selectedWorkspace?.id else { return }
             _selectedWorkspace = newValue
             client?.workspaceId = newValue?.id
-            Task { await loadProjects() }
+            Task { await loadTickets() }
         }
     }
 
-    var projects: [Project] = []
-    var selectedProject: Project?
     var tickets: [Ticket] = []
     var isLoading: Bool = false
     var error: String? = nil
@@ -48,7 +43,10 @@ final class AppStore {
         do {
             let list: [Workspace] = try await client.get("/api/workspaces")
             workspaces = list
-            if selectedWorkspace == nil, let first = list.first {
+            if let current = selectedWorkspace,
+               let refreshed = list.first(where: { $0.id == current.id }) {
+                _selectedWorkspace = refreshed
+            } else if selectedWorkspace == nil, let first = list.first {
                 selectedWorkspace = first
             }
         } catch {
@@ -56,41 +54,15 @@ final class AppStore {
         }
     }
 
-    // MARK: - Projects
-
-    func loadProjects() async {
-        guard let client else { return }
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            let list: [Project] = try await client.get("/api/projects")
-            projects = list
-            if let current = selectedProject,
-               let refreshed = list.first(where: { $0.id == current.id }) {
-                selectedProject = refreshed
-            } else if selectedProject == nil, let first = list.first {
-                // Auto-select the first project on first load so the board
-                // isn't empty out of the gate.
-                await selectProject(first)
-            }
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-
-    func selectProject(_ project: Project) async {
-        selectedProject = project
-        await loadTickets()
-    }
-
     // MARK: - Tickets
 
     func loadTickets() async {
-        guard let client, let project = selectedProject else { return }
+        guard let client, selectedWorkspace != nil else { return }
         isLoading = true
         defer { isLoading = false }
         do {
-            let list: [Ticket] = try await client.get("/api/tickets?project=\(project.id)")
+            // Workspace ID is injected automatically by HubClient.url(for:).
+            let list: [Ticket] = try await client.get("/api/tickets")
             tickets = list
         } catch {
             self.error = error.localizedDescription
@@ -121,11 +93,11 @@ final class AppStore {
         tickets.removeAll { $0.id == id }
     }
 
-    func loadHistory(project: String, before: String? = nil) async throws -> HistoryResponse {
+    func loadHistory(before: String? = nil) async throws -> HistoryResponse {
         guard let client else { throw HubClientError.noData }
-        var path = "/api/history?project=\(project)"
+        var path = "/api/history"
         if let before {
-            path += "&before=\(before)"
+            path += "?before=\(before)"
         }
         return try await client.get(path)
     }

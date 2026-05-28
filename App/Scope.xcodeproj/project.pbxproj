@@ -11,7 +11,6 @@
 		303892B0CAFC5E56B617A610 /* HubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02AC61CBB90D96A4965C239A /* HubClient.swift */; };
 		37CCE29C5AC17F89D8D743A5 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F1C89F5E60A5A7ECBEA925D /* AppStore.swift */; };
 		4902A14AD2F8B7AFFA094660 /* Ticket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B7E10A471A8B56FE4335B38 /* Ticket.swift */; };
-		4D6C02237773CEA2C36D29DF /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5673EEC3C6A12F7C8B199F0A /* Project.swift */; };
 		4EA1CD635896DBD8D753EF5A /* NewTicketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AB7E62CB4C892092B6EDB7E /* NewTicketView.swift */; };
 		651C9EA582A5F3D65D8E5336 /* HubRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76823E0A4BE12F0D76D83B39 /* HubRowView.swift */; };
 		6F37CEB830FD2C7F9909FE1A /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 737DE714330F419B048F4273 /* BoardView.swift */; };
@@ -37,12 +36,11 @@
 		2AB7E62CB4C892092B6EDB7E /* NewTicketView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewTicketView.swift; sourceTree = "<group>"; };
 		2EBA788CAED4C40F24C4C65C /* EventStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStream.swift; sourceTree = "<group>"; };
 		3844D21AB160670552A5305C /* HubDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubDiscovery.swift; sourceTree = "<group>"; };
-		38F51C93FC085CA288B4A57E /* Scope.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Scope.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		38F51C93FC085CA288B4A57E /* Scope.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Scope.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		39A28FF80944B72144EA7E75 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		4C6109CAA80628052CBC93EE /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		525DAF524A8B214FEBCE491C /* ScopeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopeApp.swift; sourceTree = "<group>"; };
 		53DBBED92209D089DFD2B325 /* PairingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingManager.swift; sourceTree = "<group>"; };
-		5673EEC3C6A12F7C8B199F0A /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
 		6550203C655ED244830A5BD1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		670655EEAFAD4158DE13176A /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
 		69DE3D5E232C20F7120D047A /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
@@ -102,7 +100,6 @@
 			isa = PBXGroup;
 			children = (
 				99EB82EA0FC83656FCEC82D5 /* HistoryEntry.swift */,
-				5673EEC3C6A12F7C8B199F0A /* Project.swift */,
 				1B7E10A471A8B56FE4335B38 /* Ticket.swift */,
 				71F7B0603315017D3577B142 /* Workspace.swift */,
 			);
@@ -193,6 +190,7 @@
 				LastUpgradeCheck = 1620;
 				TargetAttributes = {
 					BE8EDEE931599A2E56928300 = {
+						DevelopmentTeam = 8Q2C44U4HC;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -235,7 +233,6 @@
 				4EA1CD635896DBD8D753EF5A /* NewTicketView.swift in Sources */,
 				9C91EC6BDCF339773BB4EBA7 /* PairingManager.swift in Sources */,
 				729DB21549CD118FF6EE7ADD /* PairingView.swift in Sources */,
-				4D6C02237773CEA2C36D29DF /* Project.swift in Sources */,
 				76FA8D42961C5566747A406D /* RootView.swift in Sources */,
 				7D97E5C2E97509D5F0950FDB /* ScopeApp.swift in Sources */,
 				4902A14AD2F8B7AFFA094660 /* Ticket.swift in Sources */,
@@ -378,7 +375,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = LU6454UVH5;
 				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -396,7 +392,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = LU6454UVH5;
 				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

@@ -39,7 +39,6 @@ struct Ticket: Identifiable, Codable, Hashable {
     var status: TicketStatus
     var priority: TicketPriority
     var description: String?
-    let projectId: String
     var parentId: String?
     var assignee: String?
     var labels: [String]
@@ -48,7 +47,6 @@ struct Ticket: Identifiable, Codable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, type, status, priority, description, assignee, labels
-        case projectId  = "project_id"
         case parentId   = "parent_id"
         case createdAt  = "created_at"
         case updatedAt  = "updated_at"
@@ -56,7 +54,6 @@ struct Ticket: Identifiable, Codable, Hashable {
 }
 
 struct CreateTicket: Encodable {
-    let projectId: String
     var title: String
     var type: TicketType
     var status: TicketStatus
@@ -66,8 +63,7 @@ struct CreateTicket: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case title, type, status, priority, description
-        case projectId = "project_id"
-        case parentId  = "parent_id"
+        case parentId = "parent_id"
     }
 }
 

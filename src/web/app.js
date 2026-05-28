@@ -96,7 +96,6 @@ function currentWorkspaceObj() {
 function updateBreadcrumb() {
   const w = currentWorkspaceObj();
   const wsEl = document.getElementById('bc-workspace');
-  const pjEl = document.getElementById('bc-project');
   if (!wsEl) return;
   if (w) {
     // Show workspace name plus key chip.
@@ -111,11 +110,6 @@ function updateBreadcrumb() {
     wsEl.appendChild(document.createTextNode(w.name || w.label));
   } else {
     wsEl.textContent = state.workspaces.length ? 'Select workspace' : 'No workspaces';
-  }
-  // Project crumb no longer exists in v2 — hide it if present.
-  if (pjEl) {
-    pjEl.textContent = '';
-    pjEl.hidden = true;
   }
   updateViewTrigger();
 }

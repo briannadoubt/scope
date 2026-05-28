@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Sheet for creating a new ticket in the currently-selected project.
+/// Sheet for creating a new ticket in the currently-selected workspace.
 ///
 /// Present this as a `.sheet`.  The view dismisses itself after a successful
 /// save or when the user taps **Cancel**.
@@ -154,8 +154,8 @@ struct NewTicketView: View {
     // MARK: Action
 
     private func saveTicket() {
-        guard let project = store.selectedProject else {
-            saveError = "No project selected."
+        guard store.selectedWorkspace != nil else {
+            saveError = "No workspace selected."
             return
         }
 
@@ -163,7 +163,6 @@ struct NewTicketView: View {
         guard !trimmedTitle.isEmpty else { return }
 
         let create = CreateTicket(
-            projectId:   project.id,
             title:       trimmedTitle,
             type:        type,
             status:      status,
@@ -190,22 +189,23 @@ struct NewTicketView: View {
 
 #Preview("New Ticket Sheet") {
     let store = AppStore()
-    // Give the store a selected project so the Save path is reachable.
-    store.selectedProject = Project(
-        id: "proj-1",
-        key: "SCOPE",
-        name: "Scope",
-        description: nil,
-        overview: nil,
-        nextTicketNumber: 42,
-        createdAt: .now,
-        updatedAt: .now
-    )
+    store.workspaces = [
+        Workspace(
+            id: "ws-1",
+            label: "scope",
+            scopeDir: "/repo/.scope",
+            key: "SCP",
+            name: "Scope",
+            description: nil,
+            overview: nil
+        )
+    ]
+    store.selectedWorkspace = store.workspaces.first
     return NewTicketView()
         .environment(store)
 }
 
-#Preview("No project selected") {
+#Preview("No workspace selected") {
     NewTicketView()
         .environment(AppStore())
 }

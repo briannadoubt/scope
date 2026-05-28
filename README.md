@@ -1,11 +1,12 @@
 # scope
 
-Local-first kanban for projects, epics, stories, and bugs — built so coding
+Local-first kanban for epics, stories, and bugs — built so coding
 agents and humans can plan and track work without leaving the command line.
 
-Ships as a **CLI** and a **GitHub-Projects-style web UI**. Everything lives in
-a `.scope/` directory in your repo (SQLite, WAL mode), so it works offline,
-syncs through git if you want, and needs no server.
+Ships as a **CLI**, a **GitHub-Projects-style web UI**, and a **hub daemon**
+(`scope serve`) that fans changes out to every viewer over SSE. Everything
+lives in a `.scope/` directory in your repo (SQLite, WAL mode), so it works
+offline, syncs through git if you want, and needs no external service.
 
 ```
 brew install briannadoubt/tap/scope     # macOS / Linuxbrew
@@ -17,13 +18,16 @@ npx scope-kanban --help                 # one-shot, no install
 
 ```bash
 cd ~/my-app
-scope init
-scope project create my-app MA "My App"
-scope ticket create MA "Auth refactor" -t epic -p high
-scope ticket create MA "OAuth login"   -t story --parent MA-1
+scope init                               # prompts for workspace key + name on a TTY
+scope workspace set --key MA --name "My App" --description "Short blurb"
+scope ticket create "Auth refactor" -t epic -p high
+scope ticket create "OAuth login"   -t story --parent MA-1
 scope serve                              # → https://localhost:4321 (also https://scope.local:4321)
 scope ca trust                           # one-time: trust the local CA so browsers stop warning
 ```
+
+`scope init` accepts `--key MA --name "My App"` if you want to skip the prompts
+(e.g. from another agent or a non-interactive shell).
 
 ## LAN security
 
@@ -53,24 +57,29 @@ The CA's private key lives at `~/.scope-hub/ca/ca.key` (mode `0600`) and
 never leaves the machine. The cert at `~/.scope-hub/ca/ca.crt` is what gets
 trusted by the keychain.
 
-## What you get
+## What ships today
 
-- **CLI** — `project / ticket / epic / link / status / branch / pr / board`
+- **CLI** — `workspace / ticket / epic / link / status / branch / pr / board`
   with `--json` output on every command for agent consumption.
 - **Web UI** — kanban columns, drag-and-drop, ticket drawer with inline edit,
-  project overview, epic filter, **swimlanes** (group by epic / assignee /
+  workspace overview, epic filter, **swimlanes** (group by epic / assignee /
   priority / type), live updates via SSE.
-- **`scope serve`** — one long-lived process that serves the UI, the REST
-  API, and the SSE event stream on `http://localhost:4321`. Multiple agents
-  and a human in the browser all share one SQLite DB; writes from any source
-  push to every viewer over Server-Sent Events within ~100ms.
+- **`scope serve` hub** — one long-lived process that serves the UI, the REST
+  API, and the SSE event stream on `https://localhost:4321` (loopback HTTP
+  also bound for CLI traffic). Multiple agents and a human in the browser all
+  share the workspace's SQLite DB; writes from any source push to every viewer
+  over Server-Sent Events within ~100ms.
 - **Self-healing federated hub** — every `scope serve` invocation
   auto-discovers a running hub (default port `4321`, walks forward to `4330`
-  if taken by a non-scope process) and registers its local `.scope/` with it.
-  First one to start binds the port; the rest idle with a watchdog that
-  promotes a survivor if the hub-owning process dies. Concurrent Claude Code
-  sessions / previews / repos all converge on the same UI, no port flags
-  required. Each repo keeps its own `.db` file (so it travels with `git clone`).
+  if taken by a non-scope process) and registers its local `.scope/` workspace
+  with it. First one to start binds the port; the rest idle with a watchdog
+  that promotes a survivor if the hub-owning process dies. Concurrent Claude
+  Code sessions / previews / repos all converge on the same UI, no port flags
+  required. Each repo keeps its own `.scope/scope.db` (so it travels with
+  `git clone`).
+- **iOS app** — SwiftUI client that discovers the hub over Bonjour, pairs via
+  mTLS, and renders the same board + ticket detail + live updates. Lives in
+  `App/` in this repo.
 
 ## The web UI
 
@@ -97,8 +106,8 @@ machine-readable output. No MCP server, no extra config; if `scope` is on
 
 ```jsonc
 // example tool use from an agent
-scope --json ticket list -p MA --status todo
-scope --json ticket create MA "Fix CSRF on /signup" -t bug --priority high
+scope --json ticket list --status todo
+scope --json ticket create "Fix CSRF on /signup" -t bug --priority high
 scope --json status MA-7 in_progress --by claude
 ```
 
@@ -109,7 +118,7 @@ scope skills install                      # uses bundled copy from your install
 curl -fsSL https://raw.githubusercontent.com/briannadoubt/scope/main/skills/install.sh | bash   # remote
 ```
 
-Force a subset or target a specific Cursor project:
+Force a subset or target a specific repo:
 
 ```bash
 scope skills install --tool claude
@@ -125,7 +134,9 @@ state* when multiple agents share a board).
 
 | | |
 |---|---|
-| **Project** | Top-level container. Slug + 2–10 letter key (e.g. `MA`). |
+| **Hub** | The `scope serve` daemon. Discovers and brokers traffic across one or more workspaces on a machine / LAN. |
+| **Workspace** | A `.scope/` directory: owns the key prefix (e.g. `MA`), name, description, and overview. Each workspace is one SQLite database. |
+| **Ticket** | Epic, story, or bug. Belongs to one workspace. IDs are `<KEY>-<n>` (e.g. `MA-3`). |
 | **Epic** | High-level work. Parents stories and bugs. |
 | **Story** | Unit of work toward an epic. |
 | **Bug** | Defect. Can live under an epic. |
@@ -133,31 +144,39 @@ state* when multiple agents share a board).
 | **Priority** | `low` / `medium` / `high` / `urgent` |
 | **Relation** | `blocks`, `blocked_by`, `relates_to`, `duplicates`, `duplicate_of` (inverse auto-created) |
 
-Ticket IDs look like `MA-3` (project key + number).
+Ticket IDs are immutable — once a ticket is created, its prefix is baked into
+its ID. Changing the workspace key after the fact leaves old tickets with the
+old prefix.
 
 ## Command reference
 
 | Command | What it does |
 |---|---|
-| `scope init` | Create `.scope/` in the current directory |
-| `scope project create <id> <KEY> <name>` | New project |
-| `scope project list / show / edit / delete` | Manage projects |
-| `scope ticket create <KEY> <title> -t <type> [--parent <epic>]` | New ticket |
-| `scope ticket list / show / edit / delete` | Manage tickets |
-| `scope status <id> <status>` | Move a ticket |
-| `scope branch <id> [<name>] [--in-progress]` | Get/set branch, optionally flip status |
-| `scope pr <id> [<url>] [--in-review\|--merged]` | Get/set PR, optionally flip status |
-| `scope link add <from> <type> <to>` | Relate two tickets |
-| `scope epic list / children <id>` | Epic-focused views |
-| `scope comment <id> <body> [--by <name>]` | Add a comment |
-| `scope history <id>` | Change log for a ticket |
-| `scope board [-p <key>] [--epic <id>]` | Terminal kanban view |
-| `scope serve [-p <port>]` | Run the web UI (auto-attaches to a running hub) |
-| `scope workspace add / list / remove` | Manage workspaces on the running hub |
-| `scope ca fingerprint / trust / untrust / path` | Manage the local certificate authority |
-| `scope pair` | Pair a new native client (prints a one-time 6-digit code) |
-| `scope devices list / rename` | Inspect or rename paired native clients |
-| `scope skills install [--tool ...] [--project ...]` | Install agent skill |
+| `scope init [--key KEY --name NAME]` | Create `.scope/` in the current directory. Prompts on a TTY if flags are omitted. |
+| `scope workspace show` | Print the current workspace (key, name, description, overview). |
+| `scope workspace set [--key KEY] [--name NAME] [--description ...] [--overview ...]` | Edit workspace metadata. |
+| `scope workspace add / list / remove` | Manage which workspaces the running hub knows about. |
+| `scope ticket create <title> -t <type> [--parent <epic>]` | New ticket in the current workspace. |
+| `scope ticket list / show / edit / delete` | Manage tickets. |
+| `scope status <id> <status> [--by <name>]` | Move a ticket. |
+| `scope branch <id> [<name>] [--in-progress]` | Get/set branch, optionally flip status. |
+| `scope pr <id> [<url>] [--in-review\|--merged]` | Get/set PR, optionally flip status. |
+| `scope link add <from> <type> <to>` | Relate two tickets. |
+| `scope epic list / children <id>` | Epic-focused views. |
+| `scope comment <id> <body> [--by <name>]` | Add a comment. |
+| `scope history <id>` | Change log for a ticket. |
+| `scope board [--epic <id>]` | Terminal kanban view. |
+| `scope serve [-p <port>]` | Run the hub (auto-attaches to a running hub if one exists). |
+| `scope ca fingerprint / trust / untrust / path` | Manage the local certificate authority. |
+| `scope pair` | Pair a new native client (prints a one-time 6-digit code). |
+| `scope devices list / rename` | Inspect or rename paired native clients. |
+| `scope skills install [--tool ...] [--project ...]` | Install agent skill. |
+
+> **Deprecated.** `scope project create / show / list / edit` are kept as
+> aliases that route to the `scope workspace` commands and print a yellow
+> warning. `scope project delete` errors out — there's nothing to delete now
+> that each workspace owns exactly one project. `scope ticket create` still
+> accepts `--project <KEY>` but ignores it with a deprecation warning.
 
 Every command accepts `--json` for machine-readable output.
 
@@ -165,8 +184,14 @@ Every command accepts `--json` for machine-readable output.
 
 - **Storage** — SQLite via `better-sqlite3`, in `.scope/scope.db`. WAL mode
   for safe multi-process writes; serialization happens at the SQLite layer.
+  Each DB has a singleton `workspace` row (key, name, description, overview)
+  and a `tickets` table — the old `projects` table has been folded into
+  `workspace`. Existing DBs migrate on first open.
 - **CLI** — Node 20+ ES modules, `commander` for parsing.
 - **Server** — Express. Mounts the REST API and an SSE `/events` channel.
+  `GET /api/workspaces` returns `{id, scope_dir, label, key, name,
+  description, overview}`; `GET /api/projects` is kept as a back-compat shim
+  that synthesizes one project per workspace for older clients.
 - **Realtime** — in-process `EventEmitter` bus emits on every mutation;
   `fs.watch` on `.scope/` plus a `PRAGMA data_version` check catches writes
   from *other* processes (CLI, sibling serve processes) and feeds them into
@@ -215,6 +240,7 @@ npm run release 1.0.0      # explicit
 │   ├── workspaces.js         # workspace registry
 │   ├── format.js             # terminal table / board renderers
 │   └── web/                  # vanilla-JS SPA (no build step)
+├── App/                      # SwiftUI iOS client
 ├── skills/                   # agent skills (Claude / Codex / Cursor)
 ├── Formula/scope.rb          # Homebrew formula
 ├── .github/workflows/        # tag-driven release
