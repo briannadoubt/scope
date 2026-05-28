@@ -1420,6 +1420,62 @@ export function buildProgram() {
       }
     });
 
+  /* ---------- preview ---------- */
+
+  program
+    .command('preview')
+    .description(
+      'Run a per-pane proxy to the scope hub. Designed for Claude Code\'s ' +
+      '`.claude/launch.json` — each preview pane runs `scope preview --port <unique>` ' +
+      'so `preview_start` (which keys its registry by port) doesn\'t make ' +
+      'panes stop each other. All proxies forward to the single shared hub.'
+    )
+    .requiredOption('-p, --port <port>', 'unique port for this preview proxy (must differ from the hub port and from any other project\'s preview port)')
+    .option('--hub-port <port>', 'hub port to forward to', String(DEFAULT_HUB_PORT))
+    .action(async (opts) => {
+      const { scopeDir } = openOrDie();
+      const port = Number.parseInt(opts.port, 10);
+      const hubPort = Number.parseInt(opts.hubPort, 10);
+      if (!Number.isFinite(port)) fail(`--port must be a number, got ${opts.port}`);
+      if (port === hubPort) {
+        fail(
+          `--port ${port} collides with the hub port. Pick a unique port per project ` +
+          `(e.g. 4322, 4323, ...) — the hub stays on ${hubPort}.`
+        );
+      }
+
+      const ensureOpts = {
+        scopeDir,
+        preferredPort: hubPort,
+        openBrowser: false,
+      };
+      const res = await ensureHub(ensureOpts);
+      startHubWatchdog(res, ensureOpts);
+
+      const { startPreviewProxy } = await import('./preview.js');
+      try {
+        await startPreviewProxy({
+          port,
+          getUpstreamPort: () => res.port,
+        });
+      } catch (e) {
+        if (e?.code === 'EADDRINUSE') {
+          fail(
+            `Port ${port} is already in use. Each project's preview proxy needs its own port — ` +
+            `pick another number in your .claude/launch.json.`
+          );
+        }
+        throw e;
+      }
+
+      process.stdout.write(
+        chalk.green('✓') +
+          ` scope preview proxy on ${chalk.bold(`http://localhost:${port}`)} → ${chalk.bold(res.url)}\n` +
+        chalk.gray('  Ctrl-C to detach (the hub keeps running)') + '\n'
+      );
+      idleUntilSignaled();
+    });
+
   return program;
 }
 

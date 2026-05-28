@@ -86,6 +86,13 @@ hub and register their workspace with it. If multiple agents are working in
 parallel, **read state before writing it** — there is no merge logic for
 conflicting updates, last write wins.
 
+If the user previews scope from Claude Code, the project's
+`.claude/launch.json` must use `scope preview --port <unique>` (not
+`scope serve`). `preview_start` enforces one tracked server per port — two
+projects both registering `port: 4321` stop each other when their previews
+open in different panes. `scope preview` is a per-pane reverse proxy that
+forwards a unique port (4322, 4323, ...) to the shared hub on 4321.
+
 ## Source
 
 https://github.com/briannadoubt/scope

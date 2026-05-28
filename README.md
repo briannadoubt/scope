@@ -130,6 +130,42 @@ status updates, bug tracking), **how** to invoke it (CLI with `--json`), the
 data model, and a handful of guardrails (e.g. *read state before writing
 state* when multiple agents share a board).
 
+### Previewing in Claude Code
+
+If you want the kanban available in Claude Code's preview pane, use
+`scope preview --port <unique>` in `.claude/launch.json` — **never** plain
+`scope serve` for previews:
+
+```json
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "scope-myproject",
+      "runtimeExecutable": "scope",
+      "runtimeArgs": ["preview", "--port", "4322"],
+      "port": 4322,
+      "autoPort": false
+    }
+  ]
+}
+```
+
+**Why:** Claude Code's `preview_start` enforces one tracked server per port.
+If two projects both register `port: 4321` (the hub), opening the preview in
+the second pane forcibly stops the first pane's tracked process — the iframe
+goes blank with "The preview server stopped." Even with unique server names
+this happens, because the collision is on `port`.
+
+`scope preview --port <N>` works around this with a tiny per-pane reverse
+proxy: each project picks its own port (e.g. 4322, 4323, ...), and every
+proxy forwards to the single shared hub on 4321. Each pane gets its own
+preview-tracked server (no collision), all viewers see the same federated
+kanban. The first `scope preview` to run lazily starts the hub via the
+usual `ensureHub()` path; subsequent ones just proxy.
+
+Pick a different port for every project (suggested range: 4322–4399).
+
 ## Data model
 
 | | |
@@ -167,6 +203,7 @@ old prefix.
 | `scope history <id>` | Change log for a ticket. |
 | `scope board [--epic <id>]` | Terminal kanban view. |
 | `scope serve [-p <port>]` | Run the hub (auto-attaches to a running hub if one exists). |
+| `scope preview --port <N>` | Run a per-pane proxy to the hub. For Claude Code's `.claude/launch.json` — each pane uses a unique port so `preview_start` doesn't make panes stop each other. |
 | `scope ca fingerprint / trust / untrust / path` | Manage the local certificate authority. |
 | `scope pair` | Pair a new native client (prints a one-time 6-digit code). |
 | `scope devices list / rename` | Inspect or rename paired native clients. |

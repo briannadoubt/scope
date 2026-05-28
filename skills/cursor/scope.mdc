@@ -75,6 +75,13 @@ SSE in ~100ms. **Never pass `--port`** — concurrent `scope serve` invocations
 auto-discover the running hub. With multiple agents, **read state before
 writing state** — last write wins on conflicting updates.
 
+If the user previews scope from Claude Code, each project's
+`.claude/launch.json` must use `scope preview --port <unique>` (not
+`scope serve`) — `preview_start` enforces one tracked server per port, and
+two projects both registering `port: 4321` stop each other across panes.
+`scope preview` is a tiny per-pane reverse proxy forwarding a unique port
+(4322, 4323, ...) to the shared hub.
+
 ## Source
 
 https://github.com/briannadoubt/scope

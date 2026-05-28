@@ -124,6 +124,31 @@ If multiple agents are working in parallel, **always read state before writing
 state** — there is no merge logic for conflicting `ticket edit` calls, last
 write wins.
 
+### Claude Code preview pane setup
+
+For Claude Code's preview pane, `.claude/launch.json` must use
+`scope preview --port <unique>`, **not** `scope serve`. `preview_start`
+enforces one tracked server per port — if two projects both register
+`port: 4321` (the hub), opening the preview in the second pane stops the
+first pane's tracked process and the iframe shows "The preview server
+stopped." `scope preview` is a tiny per-pane reverse proxy: each project
+picks its own port (4322, 4323, ...) and forwards to the shared hub on 4321.
+
+```json
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "scope-myproject",
+      "runtimeExecutable": "scope",
+      "runtimeArgs": ["preview", "--port", "4322"],
+      "port": 4322,
+      "autoPort": false
+    }
+  ]
+}
+```
+
 ## Useful follow-ups
 
 - `scope --json epic list` to see epic progress at a glance.

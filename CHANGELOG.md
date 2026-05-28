@@ -28,6 +28,14 @@
   workspace metadata (key, name, description, overview).
 - **`scope init` prompts for key + name** on a TTY, or accepts
   `--key MA --name "My App"` for non-interactive setup.
+- **`scope preview --port <N>` command.** Per-pane reverse proxy to the
+  scope hub, intended for Claude Code's `.claude/launch.json`. Claude Code's
+  `preview_start` enforces one tracked server per port, so two projects both
+  registering `port: 4321` (the hub) stop each other when their previews
+  open in different panes — `scope preview` gives each pane its own
+  unique-port slot while every proxy still forwards to the shared hub on
+  4321. README, skills (`scope.md`, claude/codex/cursor variants), and the
+  skills README document the new pattern.
 
 ## 0.5.1
 

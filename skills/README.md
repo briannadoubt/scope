@@ -73,3 +73,29 @@ its `.scope/` with that running hub automatically; the workspace switcher in
 the topbar lets you pick which board to look at. If the hub-owning process
 dies, a watchdog in any sibling `scope serve` instance promotes itself within
 ~30s — no manual intervention.
+
+### Claude Code preview pane
+
+For Claude Code's preview pane, use `scope preview --port <unique>` in
+`.claude/launch.json` — **not** `scope serve`. `preview_start` enforces one
+tracked server per port; if two projects both register `port: 4321` (the
+hub), opening the preview in a second pane stops the first pane's tracked
+process and the iframe shows "The preview server stopped." `scope preview`
+is a tiny per-pane reverse proxy: each project picks its own port (4322,
+4323, ...) and forwards to the shared hub on 4321 — so every pane gets its
+own preview slot while still showing the same federated kanban.
+
+```json
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "scope-myproject",
+      "runtimeExecutable": "scope",
+      "runtimeArgs": ["preview", "--port", "4322"],
+      "port": 4322,
+      "autoPort": false
+    }
+  ]
+}
+```
