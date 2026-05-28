@@ -887,10 +887,14 @@ function renderBoard() {
     const head = document.createElement('header');
     head.className = 'lane-head';
     const isEpic = lane.kind === 'epic';
+    // .lane-break is a zero-width flex item that forces a wrap onto the
+    // next row at narrow viewports (via CSS @media). At wide widths it's
+    // display:none, so the head stays a single line.
     head.innerHTML = `
       <span class="lane-chevron">▾</span>
       ${isEpic ? '<span class="lane-epic-badge">EPIC</span>' : ''}
       <span class="lane-title">${escapeHtml(lane.label)}</span>
+      <span class="lane-break" aria-hidden="true"></span>
       ${isEpic && lane.status
         ? `<span class="lane-status ${lane.status}">
              <span class="dot ${lane.status}"></span>${escapeHtml(lane.status.replace('_', ' '))}

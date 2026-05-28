@@ -302,15 +302,41 @@ button { font-family: inherit; }
 .menu-item .mi-icon { color: var(--text-muted); width: 14px; text-align: center; }
 .menu-sep { height: 1px; background: var(--border-soft); margin: 4px 6px; }
 
-/* Narrow widths: tighten the breadcrumb labels before anything else gives. */
+/* Narrow widths: tighten labels progressively. Keep interactive widgets
+   (switch, live-dot, triggers) from being squished by flex layout. */
+.topbar > * { flex-shrink: 0; }   /* never compress controls; spacer is the only flex slot */
+.switch { flex-shrink: 0; }
+.live-dot { flex-shrink: 0; }
+.switch-field { flex-shrink: 0; }
+.trigger { flex-shrink: 0; }
+.breadcrumb { min-width: 0; }     /* the one trigger that's allowed to ellipsize */
+.breadcrumb .bc-label { max-width: 180px; }
+
 @media (max-width: 760px) {
   .breadcrumb .bc-label { max-width: 120px; }
 }
-@media (max-width: 560px) {
-  .breadcrumb .bc-label { max-width: 80px; }
-  .topbar { padding: 8px 10px; }
+@media (max-width: 600px) {
+  .topbar { padding: 8px 10px; gap: 6px; }
+  /* Breadcrumb collapses to the brand mark only — text label was an
+     unreadable 3-character ellipsis anyway. The full workspace name still
+     appears in the popover when the user taps it. */
+  .breadcrumb .bc-label,
+  .breadcrumb .caret { display: none; }
+  .breadcrumb { padding: 5px 8px; }
+  .breadcrumb .brand-mark { margin: 0; font-size: 16px; }
+  /* View trigger keeps its current label since "≡ Epic" still fits. */
+  /* Auto-scroll collapses to just the switch (the switch IS the icon). */
+  .switch-field .switch-label { display: none; }
+  .switch-field { padding: 0 4px; }
+  /* "+" with no text. */
   #new-ticket .nt-label { display: none; }
   #new-ticket { padding: 6px 10px; }
+}
+@media (max-width: 460px) {
+  /* View trigger drops its text too — the icon is enough at this width. */
+  .topbar #view-trigger .t-label,
+  .topbar #view-trigger .caret { display: none; }
+  .topbar #view-trigger { padding: 5px 9px; }
 }
 .btn {
   background: var(--bg-elev-2);
@@ -416,8 +442,15 @@ button { font-family: inherit; }
 .lane-title {
   font-weight: 600;
   font-size: 13px;
+  /* Take all remaining row space and truncate before forcing other items
+     to wrap. The lane head must stay a single row at any width. */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.lane-meta { color: var(--text-muted); font-size: 12px; }
+.lane-meta { color: var(--text-muted); font-size: 12px; flex-shrink: 0; }
 /* Epic badge in the lane head — visually anchors the lane to its epic. */
 .lane-epic-badge {
   display: inline-block;
@@ -446,6 +479,30 @@ button { font-family: inherit; }
   padding: 1px 8px;
   font-size: 11px;
   margin-left: auto;
+  flex-shrink: 0;
+}
+.lane-chevron, .lane-epic-badge, .lane-open-btn { flex-shrink: 0; }
+.lane-progress { flex-shrink: 0; }
+.lane-status, .lane-meta { flex-shrink: 0; }
+/* Zero-width line-break element. Hidden by default so the lane head stays a
+   single row at wide viewports. Toggled to display:block at narrow widths
+   below, which forces everything after it to wrap onto a new line via
+   flex-basis: 100%. Cleaner than restructuring the DOM. */
+.lane-break { flex-basis: 100%; height: 0; display: none; }
+
+/* Narrow lane heads: title gets its own row above the metadata strip
+   (status, progress, count, ↗). Nothing is hidden — just reflowed. */
+@media (max-width: 600px) {
+  .lane-head {
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    row-gap: 8px;
+  }
+  .lane-break { display: block; }
+  /* Second row sits flush-left under the title, with the count tucked at
+     the far right so the meta strip reads chevron-aligned. */
+  .lane-status { margin-left: 0; }
+  .lane-count { margin-left: auto; }
 }
 .lane-open-btn {
   background: none;
