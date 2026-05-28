@@ -313,18 +313,14 @@ button { font-family: inherit; }
 .breadcrumb .bc-label { max-width: 180px; }
 
 @media (max-width: 760px) {
-  .breadcrumb .bc-label { max-width: 120px; }
+  .breadcrumb .bc-label { max-width: 140px; }
 }
 @media (max-width: 600px) {
   .topbar { padding: 8px 10px; gap: 6px; }
-  /* Breadcrumb collapses to the brand mark only — text label was an
-     unreadable 3-character ellipsis anyway. The full workspace name still
-     appears in the popover when the user taps it. */
-  .breadcrumb .bc-label,
-  .breadcrumb .caret { display: none; }
+  /* Keep the workspace name visible — most fit easily. Just tighten the
+     budget so it ellipsizes gracefully if it can't. */
+  .breadcrumb .bc-label { max-width: 120px; }
   .breadcrumb { padding: 5px 8px; }
-  .breadcrumb .brand-mark { margin: 0; font-size: 16px; }
-  /* View trigger keeps its current label since "≡ Epic" still fits. */
   /* Auto-scroll collapses to just the switch (the switch IS the icon). */
   .switch-field .switch-label { display: none; }
   .switch-field { padding: 0 4px; }
@@ -337,6 +333,14 @@ button { font-family: inherit; }
   .topbar #view-trigger .t-label,
   .topbar #view-trigger .caret { display: none; }
   .topbar #view-trigger { padding: 5px 9px; }
+  /* Workspace name budget shrinks further; still visible. */
+  .breadcrumb .bc-label { max-width: 90px; }
+}
+@media (max-width: 360px) {
+  /* True last resort — name finally hides at smartwatch widths. */
+  .breadcrumb .bc-label,
+  .breadcrumb .caret { display: none; }
+  .breadcrumb .brand-mark { margin: 0; font-size: 16px; }
 }
 .btn {
   background: var(--bg-elev-2);
