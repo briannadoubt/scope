@@ -1,6 +1,6 @@
 {
   "name": "scope-kanban",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Local-first kanban for projects, epics, stories, and bugs — built for agents. CLI + web UI.",
   "type": "module",
   "bin": {
