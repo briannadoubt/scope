@@ -16,12 +16,14 @@
 		4EA1CD635896DBD8D753EF5A /* NewTicketView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AB7E62CB4C892092B6EDB7E /* NewTicketView.swift */; };
 		651C9EA582A5F3D65D8E5336 /* HubRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76823E0A4BE12F0D76D83B39 /* HubRowView.swift */; };
 		6F37CEB830FD2C7F9909FE1A /* BoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 737DE714330F419B048F4273 /* BoardView.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* FlowGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1E2D3C4B5A69788796A5B4 /* FlowGraphView.swift */; };
 		729DB21549CD118FF6EE7ADD /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DE3D5E232C20F7120D047A /* PairingView.swift */; };
 		76FA8D42961C5566747A406D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C6109CAA80628052CBC93EE /* RootView.swift */; };
 		7B903C31CE8E3FBC57C72A56 /* CardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151432F79B0C1E2337425760 /* CardView.swift */; };
 		7D97E5C2E97509D5F0950FDB /* ScopeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 525DAF524A8B214FEBCE491C /* ScopeApp.swift */; };
 		80774B7E5F1C10CBB0AD214B /* MermaidView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28D32DD366AC04A4A95418E6 /* MermaidView.swift */; };
 		8D0E74B331EAE240D9AD73D3 /* ColumnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2EE3A960B5B553371CE8C2C /* ColumnView.swift */; };
+		95C06DA60F09FF53F8799BD1 /* BoardEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56421265BE5A738717270F99 /* BoardEmptyStateView.swift */; };
 		9B6EFBB720C9964041DE57E1 /* HistoryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99EB82EA0FC83656FCEC82D5 /* HistoryEntry.swift */; };
 		9C91EC6BDCF339773BB4EBA7 /* PairingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53DBBED92209D089DFD2B325 /* PairingManager.swift */; };
 		A1FE49F1A6F04F7B7DA55311 /* TicketDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F891BDC308203A67B7BBC5DA /* TicketDetailView.swift */; };
@@ -35,6 +37,7 @@
 
 /* Begin PBXFileReference section */
 		02AC61CBB90D96A4965C239A /* HubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubClient.swift; sourceTree = "<group>"; };
+		0F1E2D3C4B5A69788796A5B4 /* FlowGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowGraphView.swift; sourceTree = "<group>"; };
 		151432F79B0C1E2337425760 /* CardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardView.swift; sourceTree = "<group>"; };
 		1B7E10A471A8B56FE4335B38 /* Ticket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ticket.swift; sourceTree = "<group>"; };
 		1F1C89F5E60A5A7ECBEA925D /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
@@ -48,6 +51,7 @@
 		4C6109CAA80628052CBC93EE /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		525DAF524A8B214FEBCE491C /* ScopeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopeApp.swift; sourceTree = "<group>"; };
 		53DBBED92209D089DFD2B325 /* PairingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingManager.swift; sourceTree = "<group>"; };
+		56421265BE5A738717270F99 /* BoardEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardEmptyStateView.swift; sourceTree = "<group>"; };
 		6550203C655ED244830A5BD1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		670655EEAFAD4158DE13176A /* ConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionView.swift; sourceTree = "<group>"; };
 		69DE3D5E232C20F7120D047A /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
@@ -101,6 +105,14 @@
 				76823E0A4BE12F0D76D83B39 /* HubRowView.swift */,
 			);
 			path = Connection;
+			sourceTree = "<group>";
+		};
+		C0FFEE1234567890ABCDEF01 /* Graph */ = {
+			isa = PBXGroup;
+			children = (
+				0F1E2D3C4B5A69788796A5B4 /* FlowGraphView.swift */,
+			);
+			path = Graph;
 			sourceTree = "<group>";
 		};
 		91A8A192E8D72268AF58CCD7 /* Network */ = {
@@ -162,6 +174,7 @@
 		F796CDE1CBDB5320D1E3A3FB /* Board */ = {
 			isa = PBXGroup;
 			children = (
+				56421265BE5A738717270F99 /* BoardEmptyStateView.swift */,
 				737DE714330F419B048F4273 /* BoardView.swift */,
 				151432F79B0C1E2337425760 /* CardView.swift */,
 				E2EE3A960B5B553371CE8C2C /* ColumnView.swift */,
@@ -176,6 +189,7 @@
 				3A265EFC4311C26324A1DC17 /* OfflineBanner.swift */,
 				F796CDE1CBDB5320D1E3A3FB /* Board */,
 				6909AC21255B2C37242F8340 /* Connection */,
+				C0FFEE1234567890ABCDEF01 /* Graph */,
 				4F772DBD5A24208CD3C0972C /* Markdown */,
 				C97C7612DEBA45F290148763 /* Pairing */,
 				C0DB16026A1F00BF33C494B0 /* Tickets */,
@@ -243,11 +257,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				37CCE29C5AC17F89D8D743A5 /* AppStore.swift in Sources */,
+				95C06DA60F09FF53F8799BD1 /* BoardEmptyStateView.swift in Sources */,
 				6F37CEB830FD2C7F9909FE1A /* BoardView.swift in Sources */,
 				7B903C31CE8E3FBC57C72A56 /* CardView.swift in Sources */,
 				8D0E74B331EAE240D9AD73D3 /* ColumnView.swift in Sources */,
 				BD9C5A9530B27DC808626B83 /* ConnectionView.swift in Sources */,
 				CB9A5155C44C234D06D97C07 /* EventStream.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* FlowGraphView.swift in Sources */,
 				9B6EFBB720C9964041DE57E1 /* HistoryEntry.swift in Sources */,
 				303892B0CAFC5E56B617A610 /* HubClient.swift in Sources */,
 				1509544C7CE4B73EBB204E21 /* HubDiscovery.swift in Sources */,

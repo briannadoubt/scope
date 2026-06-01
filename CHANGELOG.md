@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### Added
+
+- **Relationship graph view (web).** A new scrollable node-link diagram
+  (overflow menu → "Relationship graph") that lays epics out as tinted
+  umbrella clusters over their child tickets, with cross-ticket relations
+  (blocks / relates-to / duplicates) overlaid as colour-coded dashed edges
+  with arrowheads. Each epic fans its children into a responsive 1–3 column
+  grid, and the clusters pack into a masonry that fills the viewport width
+  (wide screen → grid, narrow → a single vertical column). Hovering a node
+  spotlights it and its direct connections; epics collapse/expand (persisted
+  in `localStorage`); zoom controls and the legend live together in one
+  pinned floating control panel. Clicking a node opens the ticket drawer.
+  Relations are fetched per-ticket and deduped from the hub's bidirectional
+  storage.
+
+- **Full-text ticket search.** A new `GET /api/tickets/search?q=…` endpoint
+  backed by a SQLite **FTS5** index that spans every searchable field —
+  ticket key (`SCP-12`), number, title, description, assignee, labels,
+  branch, PR URL — **and comment bodies**, ranked by relevance (bm25). The
+  index is maintained by triggers so it stays in lockstep with every write
+  (CLI, hub, direct SQL) and is rebuilt automatically when missing. In the
+  **web UI** a command palette opens from the new ⌕ topbar button or the `/`
+  and ⌘/Ctrl-K shortcuts: debounced live results with type/priority/status
+  plus assignee · label · branch chips, keyboard navigation (↑/↓/↵), and
+  click-to-open into the ticket drawer. Also on the CLI as
+  `scope ticket search <query>` (alias `find`).
+
 ### Fixed
 
 - **Web UI topbar no longer collapses labels before they actually collide.**
@@ -19,6 +46,17 @@
 (The iOS app is not on npm; these are reference notes for users tracking the
 in-repo `App/` target.)
 
+- **Relationship graph tab.** SwiftUI port of the web relationship graph: a
+  new "Graph" tab rendering the same masonry of tinted epic clusters with
+  curved hierarchy + relation edges drawn in a `Canvas`, responsive
+  multi-column child fan-out (viewport width via `GeometryReader`),
+  tap-to-spotlight a node's connections, collapse/expand epics
+  (`@AppStorage`), pinch + button zoom, and a single floating zoom-plus-legend
+  control panel pinned to the scroll frame. Tapping a node opens
+  `TicketDetailView`; relations are fetched per-ticket
+  (`GET /api/tickets/:id/relations`) and deduped. A DEBUG-only `UITEST_*`
+  launch-environment hook (`ScopeApp`) lets headless tooling open the graph
+  directly for verification.
 - **SCP-91 — Markdown + Mermaid rendering** in ticket descriptions.
   `MarkdownView` splits prose from ```` ```mermaid ```` fences; prose
   renders via `AttributedString(.full)`, diagrams via a `WKWebView` loading
@@ -37,6 +75,10 @@ in-repo `App/` target.)
   `.task` modifier that catches the already-paired case. Also: tapping a
   previously-paired hub from `ConnectionView` now skips the pair sheet
   entirely (Keychain check → direct `store.connect()`).
+- **Ticket search.** A `.searchable` board search wired to the new
+  `/api/tickets/search` endpoint: debounced full-text queries across all
+  fields and comments, ranked results in a list with type/priority/status
+  badges and assignee/label chips, tap-to-open into `TicketDetailView`.
 
 ## 0.6.0
 

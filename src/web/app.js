@@ -6,9 +6,14 @@ const state = {
   workspaces: [],
   currentWorkspace: localStorage.getItem('scope.workspace') || null,
   epicFilter: '',
-  view: 'board', // 'board' | 'overview' | 'history'
+  view: 'board', // 'board' | 'overview' | 'history' | 'graph'
   history: null, // { entries: [...] } for the history view
   board: null,
+  graphData: null, // { tickets, edges } cached while the graph view is open
+  graphScale: 1,   // zoom factor for the graph view
+  graphCollapsed: new Set(
+    JSON.parse(localStorage.getItem('scope.graphCollapsed') || '[]')
+  ),
   drawerTicketId: null,
   groupBy: localStorage.getItem('scope.groupBy') || 'none',
   showDoneEpics: localStorage.getItem('scope.showDoneEpics') === 'true',
@@ -128,9 +133,13 @@ function updateViewTrigger() {
 
 async function refresh() {
   if (!state.currentWorkspace) return renderEmpty();
+  // The graph view repurposes #board with its own host class; clear it on every
+  // refresh so non-graph views aren't constrained by the graph's layout rules.
+  document.getElementById('board').classList.remove('graph-host');
   await loadEpicsForFilter();
   if (state.view === 'overview') return renderOverview();
   if (state.view === 'history') return renderHistory();
+  if (state.view === 'graph') return renderGraph();
   const oldPositions = captureCardPositions();
   const oldBoard = state.board;
   await loadBoard();
@@ -267,6 +276,8 @@ function bindTopbar() {
   document.getElementById('breadcrumb-trigger').addEventListener('click', openBreadcrumbPopover);
   document.getElementById('view-trigger').addEventListener('click', openViewPopover);
   document.getElementById('overflow-trigger').addEventListener('click', openOverflowMenu);
+  document.getElementById('search-trigger').addEventListener('click', () => openSearchModal());
+  bindSearchShortcuts();
   const autoInput = document.getElementById('autoscroll-toggle');
   autoInput.checked = state.autoScroll;
   autoInput.addEventListener('change', () => {
@@ -438,6 +449,7 @@ function openOverflowMenu() {
   pop.classList.add('popover-menu');
   pop.innerHTML = `
     <button type="button" class="menu-item" data-act="refresh"><span class="mi-icon">↻</span> Refresh</button>
+    <button type="button" class="menu-item" data-act="graph"><span class="mi-icon">⛓</span> ${state.view === 'graph' ? 'Back to board' : 'Relationship graph'}</button>
     <button type="button" class="menu-item" data-act="overview"><span class="mi-icon">☰</span> ${state.view === 'overview' ? 'Back to board' : 'Workspace overview'}</button>
     <button type="button" class="menu-item" data-act="history"><span class="mi-icon">⏱</span> ${state.view === 'history' ? 'Back to board' : 'History'}</button>
   `;
@@ -446,6 +458,11 @@ function openOverflowMenu() {
       const act = b.dataset.act;
       closePopover();
       if (act === 'refresh') { flashIndicator('tick'); await repairHubConnection(); }
+      else if (act === 'graph') {
+        state.view = state.view === 'graph' ? 'board' : 'graph';
+        if (state.view === 'graph') state.graphData = null; // force a fresh fetch
+        await refresh();
+      }
       else if (act === 'overview') {
         state.view = state.view === 'overview' ? 'board' : 'overview';
         await refresh();
@@ -631,6 +648,10 @@ function scheduleRefresh(_detail) {
   pendingRefresh = true;
   setTimeout(async () => {
     pendingRefresh = false;
+    // Keep an open search palette live: re-run its current query so remote
+    // create/edit/delete is reflected in the results (and a since-deleted hit
+    // drops out). The board itself stays paused while a modal is open.
+    if (activeSearchRerun) activeSearchRerun();
     if (applyPaused()) {
       setIndicator('paused');
       return;
@@ -846,6 +867,160 @@ function renderEmpty(msg) {
     '</div>';
 }
 
+function isBoardEmpty(board) {
+  if (!board || !board.buckets) return false;
+  for (const status of BOARD_COLUMNS) {
+    if ((board.buckets[status] || []).length > 0) return false;
+  }
+  return true;
+}
+
+/**
+ * Hero empty state for the board. `variant` controls copy + CTAs:
+ *   - 'empty'     — workspace has zero tickets (the default)
+ *   - 'all-done'  — swimlanes by epic, but every epic is done and the
+ *                   "Show completed epics" toggle is off; primary CTA
+ *                   flips that toggle so the user's work reappears.
+ *   - 'filtered'  — buildLanes returned no lanes for another reason
+ *                   (e.g. every ticket is in a non-board status). Same
+ *                   shape, generic copy, no toggle CTA.
+ */
+function renderBoardEmptyState(root, { variant = 'empty' } = {}) {
+  const w = currentWorkspaceObj();
+  const name = (w && (w.name || w.label)) || 'this workspace';
+  const keyHint = w && w.key ? ` (workspace key <code>${escapeHtml(w.key)}</code>)` : '';
+
+  let title, desc, showToggleCta = false;
+  if (variant === 'all-done') {
+    title = 'All epics complete';
+    desc = `Every epic in ${escapeHtml(name)} is marked done, and
+            “Show completed epics” is off. Plan a new epic — or bring the
+            finished ones back into view.`;
+    showToggleCta = true;
+  } else if (variant === 'filtered') {
+    title = 'Nothing to show';
+    desc = `Your current view has no lanes. Adjust the view options,
+            plan a new epic, or add a ticket directly.`;
+  } else {
+    title = 'Plan your first epic';
+    desc = `${escapeHtml(name)} doesn't have any tickets yet. Ask your
+            coding agent to scope an epic${keyHint} — or add one yourself.`;
+  }
+
+  root.classList.add('board-empty-wrap');
+  root.innerHTML = `
+    <div class="board-empty">
+      <div class="board-empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none"
+             stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>
+          <circle cx="12" cy="12" r="3.2"/>
+        </svg>
+      </div>
+      <h2 class="board-empty-title">${title}</h2>
+      <p class="board-empty-desc">${desc}</p>
+      <div class="board-empty-actions">
+        ${showToggleCta ? `
+          <button type="button" class="btn primary" id="board-empty-showdone">
+            <span aria-hidden="true">👁</span>
+            <span>Show completed epics</span>
+          </button>
+          <button type="button" class="btn" id="board-empty-agent">
+            <span aria-hidden="true">✨</span>
+            <span class="be-label">Plan with your agent</span>
+          </button>
+        ` : `
+          <button type="button" class="btn primary" id="board-empty-agent">
+            <span aria-hidden="true">✨</span>
+            <span class="be-label">Plan with your agent</span>
+          </button>
+        `}
+        <button type="button" class="btn" id="board-empty-manual">
+          <span aria-hidden="true">＋</span>
+          <span>Add a ticket manually</span>
+        </button>
+      </div>
+      <p class="board-empty-hint">
+        “Plan with your agent” copies a starter prompt to your clipboard.
+      </p>
+    </div>
+  `;
+
+  const agentBtn = document.getElementById('board-empty-agent');
+  if (agentBtn) {
+    agentBtn.addEventListener('click', (e) => {
+      copyAgentStarterPrompt(w, e.currentTarget);
+    });
+  }
+  document.getElementById('board-empty-manual').addEventListener('click', () => {
+    openTicketModal();
+  });
+  const showDoneBtn = document.getElementById('board-empty-showdone');
+  if (showDoneBtn) {
+    showDoneBtn.addEventListener('click', () => {
+      state.showDoneEpics = true;
+      localStorage.setItem('scope.showDoneEpics', 'true');
+      // Re-sync the view popover's checkbox if it's currently open, so the
+      // toggle there reflects the new value the next time the user looks.
+      const cb = document.getElementById('vp-showdone');
+      if (cb) cb.checked = true;
+      renderBoard();
+    });
+  }
+}
+
+function copyAgentStarterPrompt(workspace, buttonEl) {
+  const name = (workspace && (workspace.name || workspace.label)) || 'this project';
+  const keyHint = workspace && workspace.key ? ` (workspace key \`${workspace.key}\`)` : '';
+  const prompt = [
+    `Plan an epic for ${name}${keyHint} using the Scope CLI.`,
+    '',
+    '- Create an epic that captures the next meaningful body of work.',
+    '- Break it down into stories (and bugs, where relevant) underneath it.',
+    '- Use `scope ticket create … -t epic|story|bug --parent <epic>` and link related tickets with `scope link add`.',
+    "- When you're done, show me the resulting board with `scope --json ticket list`.",
+  ].join('\n');
+
+  const onCopied = () => {
+    if (buttonEl) {
+      const label = buttonEl.querySelector('.be-label');
+      const prev = label ? label.textContent : null;
+      if (label) label.textContent = 'Prompt copied';
+      buttonEl.classList.add('copied');
+      setTimeout(() => {
+        if (label && prev != null) label.textContent = prev;
+        buttonEl.classList.remove('copied');
+      }, 2000);
+    }
+    toast('Starter prompt copied to clipboard. Paste it to your agent.', { variant: 'info', timeout: 3500 });
+  };
+
+  // navigator.clipboard requires a secure context — the hub serves HTTPS, but
+  // fall back to the legacy execCommand path for the unlikely HTTP case so the
+  // button still does something instead of silently failing.
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(prompt).then(onCopied).catch(() => fallbackCopy(prompt, onCopied));
+  } else {
+    fallbackCopy(prompt, onCopied);
+  }
+}
+
+function fallbackCopy(text, onDone) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'absolute';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  document.body.removeChild(ta);
+  if (ok) { onDone && onDone(); }
+  else { toast('Could not copy prompt — your browser blocked clipboard access.'); }
+}
+
 function renderBoard() {
   const root = document.getElementById('board');
   // Capture scroll state before wiping. Without this the browser clamps
@@ -858,6 +1033,9 @@ function renderBoard() {
     if (key != null) savedLaneScroll.set(key, lane.scrollLeft);
   }
   root.style.display = '';
+  // Always clear the empty-state wrapper class so transitioning out of the
+  // empty state restores normal board flex/grid behavior.
+  root.classList.remove('board-empty-wrap');
   root.innerHTML = '';
   const restoreScroll = () => {
     if (savedWindowY) window.scrollTo({ top: savedWindowY, behavior: 'instant' });
@@ -868,6 +1046,19 @@ function renderBoard() {
   };
   if (!state.board) { restoreScroll(); return; }
 
+  // No tickets yet in this workspace — replace the (otherwise empty)
+  // columns with a tasteful empty state that nudges the user toward
+  // planning an epic with their agent. Skipped when an epic filter is
+  // active (zero results there is a real filter outcome, not "the
+  // workspace has no tickets").
+  const trulyEmpty = !state.epicFilter && isBoardEmpty(state.board);
+  if (trulyEmpty && state.groupBy === 'none') {
+    root.classList.remove('swim');
+    renderBoardEmptyState(root, { variant: 'empty' });
+    restoreScroll();
+    return;
+  }
+
   if (state.groupBy === 'none') {
     root.classList.remove('swim');
     renderColumnRow(root, state.board.buckets, { showHeader: true });
@@ -875,8 +1066,25 @@ function renderBoard() {
     return;
   }
 
-  root.classList.add('swim');
   const lanes = buildLanes(state.board, state.groupBy);
+  // Swimlane path: lanes can end up empty even when board.buckets isn't —
+  // e.g. all epics are done and the "Show completed epics" toggle is off,
+  // or every ticket is in a non-board status. Without this, the user sees
+  // a blank page with no explanation.
+  if (lanes.length === 0) {
+    root.classList.remove('swim');
+    let variant = 'empty';
+    if (!trulyEmpty) {
+      variant = (state.groupBy === 'epic' && !state.showDoneEpics)
+        ? 'all-done'
+        : 'filtered';
+    }
+    renderBoardEmptyState(root, { variant });
+    restoreScroll();
+    return;
+  }
+
+  root.classList.add('swim');
   for (const lane of lanes) {
     const section = document.createElement('section');
     section.className = 'lane';
@@ -1518,6 +1726,9 @@ async function deleteDrawer(t) {
 /* ------------- modals ------------- */
 
 function openModal(html) {
+  // Opening any modal tears down whatever was in modal-root, including a search
+  // palette — drop its live-refresh hook so a stale closure can't keep firing.
+  activeSearchRerun = null;
   const root = document.getElementById('modal-root');
   root.innerHTML = `<div class="modal-backdrop"><div class="modal">${html}</div></div>`;
   root.querySelector('.modal-backdrop').addEventListener('click', (e) => {
@@ -1526,7 +1737,194 @@ function openModal(html) {
   return root.querySelector('.modal');
 }
 function closeModal() {
+  activeSearchRerun = null;
   document.getElementById('modal-root').innerHTML = '';
+}
+
+/* ------------- search ------------- */
+
+// `/` opens search from anywhere on the board; Cmd/Ctrl-K works even while a
+// field is focused. We never hijack the keys while the user is typing in a
+// field (so `/` in a title still types a slash) or when another modal is up.
+function bindSearchShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Any modal (including an already-open palette) blocks both shortcuts:
+    // ⌘K/Ctrl-K must NOT openModal() over a half-filled New-ticket/Attach form
+    // and wipe it. The search palette is itself a .modal-backdrop, so this also
+    // no-ops the shortcut while the palette is open.
+    const modalOpen = !!document.querySelector('.modal-backdrop');
+    const t = e.target;
+    const typing =
+      t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      if (!modalOpen) openSearchModal();
+      return;
+    }
+    if (e.key === '/' && !typing && !modalOpen) {
+      e.preventDefault();
+      openSearchModal();
+    }
+  });
+}
+
+// Set by openSearchModal to a closure that re-runs the palette's current
+// query; called from scheduleRefresh so live SSE changes update open results.
+// Cleared by openModal/closeModal. Null when no palette is open.
+let activeSearchRerun = null;
+// Clients don't request a custom page size, so results cap at the server
+// default; we surface that cap in a footer when we hit it.
+const SEARCH_PAGE_SIZE = 50;
+
+function openSearchModal(initial = '') {
+  if (!state.currentWorkspace) {
+    toast('Select a workspace to search.');
+    return;
+  }
+  // Per-palette state — kept local so a second palette can't collide with a
+  // stale debounce/sequence from a previous one.
+  let searchSeq = 0;
+  let searchDebounce = null;
+  const modal = openModal(`
+    <div class="search-head">
+      <span class="search-icon" aria-hidden="true">⌕</span>
+      <input id="search-q" class="search-input" type="text" autocomplete="off"
+             spellcheck="false" enterkeyhint="search"
+             placeholder="Search tickets — title, SCP-12, @assignee, label, comment…" />
+    </div>
+    <div id="search-results" class="search-results"></div>
+    <div class="search-foot">
+      <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+      <span><kbd>↵</kbd> open</span>
+      <span><kbd>esc</kbd> close</span>
+    </div>
+  `);
+  modal.classList.add('search-palette');
+  const input = modal.querySelector('#search-q');
+  const resultsEl = modal.querySelector('#search-results');
+  let results = [];
+  let active = -1;
+
+  const highlight = () => {
+    const rows = resultsEl.querySelectorAll('.search-row');
+    rows.forEach((row, i) => row.classList.toggle('active', i === active));
+    rows[active]?.scrollIntoView({ block: 'nearest' });
+  };
+
+  const choose = async (i) => {
+    const t = results[i];
+    if (!t) return;
+    closeModal();
+    // Await + catch: the result list can outlive the ticket (it may be deleted
+    // remotely between render and click), and openDrawer fetches by id — a 404
+    // would otherwise be an unhandled rejection over a half-open drawer.
+    try {
+      await openDrawer(t.id);
+    } catch (e) {
+      closeDrawer();
+      toast(`Couldn’t open ${t.id}: ${e.message}`);
+    }
+  };
+
+  const render = (items, q) => {
+    results = items;
+    active = items.length ? 0 : -1;
+    if (!q.trim()) {
+      resultsEl.innerHTML =
+        `<div class="search-empty">Search every field — id, title, description, assignee, labels, branch, PR, and comments.</div>`;
+      return;
+    }
+    if (!items.length) {
+      resultsEl.innerHTML = `<div class="search-empty">No tickets match “${escapeHtml(q)}”.</div>`;
+      return;
+    }
+    // Surface the server-side cap so a >50-match query doesn't look complete.
+    const footer =
+      items.length >= SEARCH_PAGE_SIZE
+        ? `<div class="search-note">Showing the first ${SEARCH_PAGE_SIZE} matches — refine your search to narrow.</div>`
+        : '';
+    resultsEl.innerHTML = items.map(searchRowHtml).join('') + footer;
+    highlight();
+    resultsEl.querySelectorAll('.search-row').forEach((row) => {
+      const i = Number(row.dataset.i);
+      row.addEventListener('click', () => choose(i));
+      row.addEventListener('mousemove', () => {
+        if (active !== i) { active = i; highlight(); }
+      });
+    });
+  };
+
+  const run = async (q) => {
+    const seq = ++searchSeq;
+    if (!q.trim()) return render([], q);
+    try {
+      const items = await api(`/api/tickets/search?q=${encodeURIComponent(q)}`);
+      if (seq === searchSeq) render(items, q);
+    } catch (e) {
+      if (seq === searchSeq) {
+        resultsEl.innerHTML = `<div class="search-empty">${escapeHtml(e.message)}</div>`;
+      }
+    }
+  };
+
+  input.addEventListener('input', () => {
+    clearTimeout(searchDebounce);
+    const q = input.value;
+    searchDebounce = setTimeout(() => run(q), 140);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+    if (!results.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      active = (active + 1) % results.length;
+      highlight();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      active = (active - 1 + results.length) % results.length;
+      highlight();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (active >= 0) choose(active);
+    }
+  });
+
+  render([], '');
+  input.value = initial;
+  input.focus();
+  if (initial) run(initial);
+
+  // Live-refresh hook: scheduleRefresh() calls this on every SSE change so the
+  // open palette re-runs its current query. Re-uses the seq guard in run().
+  activeSearchRerun = () => run(input.value);
+}
+
+function searchRowHtml(t, i) {
+  const pri =
+    t.priority && t.priority !== 'medium'
+      ? `<span class="search-pri ${escapeHtml(t.priority)}">${escapeHtml(t.priority)}</span>`
+      : '';
+  const meta = [];
+  if (t.parent_id) meta.push(`<span class="chip epic">↑ ${escapeHtml(t.parent_id)}</span>`);
+  if (t.assignee) meta.push(`<span class="chip">@${escapeHtml(t.assignee)}</span>`);
+  if (t.branch) meta.push(`<span class="chip branch">⎇ ${escapeHtml(t.branch)}</span>`);
+  // Match the board card, which shows a PR chip (renderCard); search omitted it.
+  if (t.pr_url) meta.push(`<span class="chip pr">⇄ PR</span>`);
+  if (Array.isArray(t.labels)) {
+    for (const l of t.labels) meta.push(`<span class="chip">${escapeHtml(l)}</span>`);
+  }
+  return `
+    <div class="search-row" data-i="${i}">
+      <div class="search-row-main">
+        <span class="badge ${escapeHtml(t.type)}">${escapeHtml(t.type)}</span>
+        <span class="search-id">${escapeHtml(t.id)}</span>
+        <span class="search-title">${escapeHtml(t.title)}</span>
+        <span class="search-grow"></span>
+        ${pri}
+        <span class="search-status">${escapeHtml(STATUS_LABELS[t.status] || t.status)}</span>
+      </div>
+      ${meta.length ? `<div class="search-row-meta">${meta.join('')}</div>` : ''}
+    </div>`;
 }
 
 function openAddWorkspaceModal() {
@@ -1705,6 +2103,475 @@ async function renderOverview() {
     })
   );
   hydrateMermaid(root);
+}
+
+/* ------------- relationship graph view ------------- */
+//
+// A scrollable node-link diagram of the workspace: epics sit at the top as
+// "umbrella" nodes with their child tickets flowing beneath (the parent_id
+// hierarchy), and cross-ticket relations (blocks / relates_to / duplicates)
+// overlay as dashed, colour-coded connectors. Clicking any node opens the same
+// drawer the board uses. Mirrors the iOS FlowGraphView.
+
+const GRAPH = {
+  NODE_W: 200,
+  NODE_H: 76,
+  PARENT_GAP: 30,   // vertical gap from a node to its children area
+  CHILD_V_GAP: 14,  // vertical gap between stacked child blocks in a column
+  INNER_GAP: 18,    // horizontal gap between child columns within a cluster
+  CLUSTER_PAD: 16,  // padding inside a cluster's tinted box
+  CLUSTER_GAP: 22,  // gap between clusters in a row
+  ROW_GAP: 26,      // gap between rows of clusters
+  PAD: 24,
+  MIN_SCALE: 0.4,
+  MAX_SCALE: 2.2,
+};
+
+const RELATION_STYLE = {
+  blocks:       { color: 'var(--red)',     dashed: true, directional: true,  label: 'Blocks' },
+  relates_to:   { color: 'var(--blue)',    dashed: true, directional: false, label: 'Relates to' },
+  duplicates:   { color: 'var(--magenta)', dashed: true, directional: true,  label: 'Duplicates' },
+};
+
+async function renderGraph() {
+  if (!state.currentWorkspace) return renderEmpty();
+  const root = document.getElementById('board');
+  root.classList.remove('swim', 'board-empty-wrap');
+  root.classList.add('graph-host');
+  root.style.display = 'block';
+
+  // Fetch tickets + their relations once per graph open; zooming reuses this.
+  if (!state.graphData) {
+    root.innerHTML = '<div class="graph-loading">Loading graph…</div>';
+    try {
+      const tickets = await api('/api/tickets');
+      const edges = await loadGraphRelations(tickets);
+      state.graphData = { tickets, edges };
+    } catch (err) {
+      toast(err.message);
+      state.graphData = { tickets: [], edges: [] };
+    }
+  }
+  drawGraph();
+}
+
+async function loadGraphRelations(tickets) {
+  // No bulk endpoint — fan out one request per ticket (browsers cap real
+  // concurrency per origin) and dedupe the hub's bidirectional storage.
+  const relByTicket = new Map();
+  await Promise.all(
+    tickets.map(async (t) => {
+      try {
+        const rels = await api(`/api/tickets/${encodeURIComponent(t.id)}/relations`);
+        if (rels && rels.length) relByTicket.set(t.id, rels);
+      } catch { /* best-effort: a failed ticket just contributes no edges */ }
+    })
+  );
+  return dedupeRelationEdges(relByTicket);
+}
+
+function dedupeRelationEdges(relByTicket) {
+  const seen = new Set();
+  const edges = [];
+  for (const [from, rels] of relByTicket) {
+    for (const r of rels) {
+      const to = r.to_ticket_id;
+      if (!to || from === to) continue;
+      if (r.type === 'blocked_by' || r.type === 'duplicate_of') continue; // inverse half
+      if (r.type === 'relates_to') {
+        const key = 'rel|' + [from, to].sort().join('|');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        edges.push({ from, to, type: 'relates_to' });
+      } else if (r.type === 'blocks' || r.type === 'duplicates') {
+        const key = `${from}|${to}|${r.type}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        edges.push({ from, to, type: r.type });
+      }
+    }
+  }
+  return edges;
+}
+
+/**
+ * Layout of epic clusters — ports iOS FlowGraphLayout.
+ *
+ * Each root (epic or parentless ticket) plus its descendants becomes a compact
+ * cluster laid out recursively: a node sits on top with its children fanned in a
+ * grid of 1–3 columns beneath it (more columns on wider screens / bigger epics),
+ * each child a sub-block of the same shape. Collapsed nodes hide their children.
+ * Clusters then flow left-to-right and wrap into rows to fit `availableWidth`.
+ */
+function computeGraphLayout(tickets, availableWidth, collapsed) {
+  const { NODE_W, NODE_H, PARENT_GAP, CHILD_V_GAP, INNER_GAP, CLUSTER_PAD, CLUSTER_GAP, ROW_GAP, PAD } = GRAPH;
+  const avail = Math.max((availableWidth || 0) - PAD * 2, NODE_W);
+  const byId = new Map(tickets.map((t) => [t.id, t]));
+
+  const childrenOf = new Map();
+  for (const t of tickets) {
+    if (t.parent_id && byId.has(t.parent_id)) {
+      if (!childrenOf.has(t.parent_id)) childrenOf.set(t.parent_id, []);
+      childrenOf.get(t.parent_id).push(t);
+    }
+  }
+  const rank = (t) => (t.type === 'epic' ? 0 : t.type === 'story' ? 1 : 2);
+  const order = (a, b) =>
+    rank(a) - rank(b) ||
+    String(a.created_at).localeCompare(String(b.created_at)) ||
+    a.id.localeCompare(b.id);
+  for (const arr of childrenOf.values()) arr.sort(order);
+
+  // How many columns to fan a node's children into.
+  const childCols = (n) => {
+    const byWidth = avail >= 1100 ? 3 : avail >= 680 ? 2 : 1;
+    const byCount = n > 12 ? 3 : n > 6 ? 2 : 1;
+    return Math.max(1, Math.min(byWidth, byCount));
+  };
+
+  // Recursively lay a node + its (visible) descendants out in block-local
+  // coordinates. `lx/ly` are node centres relative to the block's top-left.
+  const visited = new Set();
+  const swallow = (node) => {
+    visited.add(node.id);
+    for (const k of childrenOf.get(node.id) || []) swallow(k);
+  };
+  function layoutBlock(node) {
+    visited.add(node.id);
+    const kids = (childrenOf.get(node.id) || []).filter((k) => byId.has(k.id));
+    if (!kids.length || collapsed.has(node.id)) {
+      // Collapsed: mark the hidden descendants visited so the cycle-recovery
+      // pass below doesn't resurrect them as their own root clusters.
+      for (const k of kids) swallow(k);
+      return {
+        nodes: [{ ticket: node, lx: NODE_W / 2, ly: NODE_H / 2, childCount: kids.length }],
+        w: NODE_W,
+        h: NODE_H,
+      };
+    }
+    const blocks = kids.map(layoutBlock);
+    const cols = childCols(blocks.length);
+    const colW = Math.max(NODE_W, ...blocks.map((b) => b.w));
+    const colH = new Array(cols).fill(0);
+    const placed = [];
+    for (const b of blocks) {
+      let j = 0;
+      for (let k = 1; k < cols; k++) if (colH[k] < colH[j]) j = k;
+      placed.push({ b, col: j, yoff: colH[j] });
+      colH[j] += b.h + CHILD_V_GAP;
+    }
+    const childrenW = cols * colW + (cols - 1) * INNER_GAP;
+    const childrenH = Math.max(...colH) - CHILD_V_GAP;
+    const blockW = Math.max(NODE_W, childrenW);
+    const childrenX0 = (blockW - childrenW) / 2;
+    const childrenY0 = NODE_H + PARENT_GAP;
+    const nodes = [{ ticket: node, lx: blockW / 2, ly: NODE_H / 2, childCount: kids.length }];
+    for (const p of placed) {
+      const bx = childrenX0 + p.col * (colW + INNER_GAP) + (colW - p.b.w) / 2;
+      const by = childrenY0 + p.yoff;
+      for (const cn of p.b.nodes) nodes.push({ ...cn, lx: bx + cn.lx, ly: by + cn.ly });
+    }
+    return { nodes, w: blockW, h: childrenY0 + childrenH };
+  }
+
+  const roots = tickets
+    .filter((t) => !t.parent_id || !byId.has(t.parent_id))
+    .sort(order);
+  const clusters = roots.map(layoutBlock);
+  // Pathological parent-id cycles: anything still unplaced becomes its own root.
+  for (const t of tickets) if (!visited.has(t.id)) clusters.push(layoutBlock(t));
+
+  // Flow clusters left-to-right, wrapping into rows that fit the viewport.
+  const positions = new Map();
+  const nodes = [];
+  const clusterRects = [];
+  let curX = PAD;
+  let rowY = PAD;
+  let rowMaxH = 0;
+  let maxRight = PAD;
+  for (const c of clusters) {
+    const boxW = c.w + CLUSTER_PAD * 2;
+    const boxH = c.h + CLUSTER_PAD * 2;
+    if (curX > PAD && curX + boxW > PAD + avail) {
+      rowY += rowMaxH + ROW_GAP;
+      curX = PAD;
+      rowMaxH = 0;
+    }
+    const ox = curX + CLUSTER_PAD;
+    const oy = rowY + CLUSTER_PAD;
+    clusterRects.push({ x: curX, y: rowY, w: boxW, h: boxH, ticket: c.nodes[0].ticket });
+    for (const n of c.nodes) {
+      const x = ox + n.lx;
+      const y = oy + n.ly;
+      positions.set(n.ticket.id, { x, y });
+      nodes.push({ ticket: n.ticket, x, y, childCount: n.childCount });
+    }
+    curX += boxW + CLUSTER_GAP;
+    rowMaxH = Math.max(rowMaxH, boxH);
+    maxRight = Math.max(maxRight, curX - CLUSTER_GAP);
+  }
+
+  const parentEdges = [];
+  for (const n of nodes) {
+    for (const k of childrenOf.get(n.ticket.id) || []) {
+      if (positions.has(k.id)) parentEdges.push({ from: n.ticket.id, to: k.id });
+    }
+  }
+
+  return {
+    positions,
+    nodes,
+    parentEdges,
+    clusterRects,
+    width: maxRight + PAD,
+    height: rowY + rowMaxH + PAD,
+  };
+}
+
+function drawGraph() {
+  const root = document.getElementById('board');
+  const { tickets, edges } = state.graphData;
+
+  if (!tickets.length) {
+    root.innerHTML = '';
+    renderBoardEmptyState(root, { variant: 'empty' });
+    return;
+  }
+
+  const availW = root.clientWidth || window.innerWidth || 1200;
+  const layout = computeGraphLayout(tickets, availW, state.graphCollapsed);
+  const relEdges = edges.filter(
+    (e) => layout.positions.has(e.from) && layout.positions.has(e.to)
+  );
+  const s = state.graphScale;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'graph-wrap';
+
+  const sizer = document.createElement('div');
+  sizer.className = 'graph-sizer';
+  sizer.style.width = `${layout.width * s}px`;
+  sizer.style.height = `${layout.height * s}px`;
+
+  const canvas = document.createElement('div');
+  canvas.className = 'graph-canvas';
+  canvas.style.width = `${layout.width}px`;
+  canvas.style.height = `${layout.height}px`;
+  canvas.style.transform = `scale(${s})`;
+
+  // Painted back-to-front: cluster tints, then edges, then node cards.
+  canvas.insertAdjacentHTML('afterbegin', buildGraphEdgesSVG(layout, relEdges));
+  canvas.insertAdjacentHTML('afterbegin', layout.clusterRects.map(buildClusterBg).join(''));
+  for (const node of layout.nodes) canvas.appendChild(buildGraphNode(node));
+
+  sizer.appendChild(canvas);
+  wrap.appendChild(sizer);
+
+  root.innerHTML = '';
+  root.appendChild(wrap);
+  // Controls live OUTSIDE the scroll container so they stay pinned as a single
+  // floating overlay instead of drifting with the diagram.
+  root.appendChild(buildGraphControls(layout, relEdges));
+
+  wireGraphHighlight(wrap, layout, relEdges);
+}
+
+function buildGraphControls(layout, relEdges) {
+  const overlay = document.createElement('div');
+  overlay.className = 'graph-overlay';
+  overlay.appendChild(buildGraphZoom());
+  overlay.appendChild(buildGraphLegend(layout, relEdges));
+  return overlay;
+}
+
+/** Deterministic 0–359 hue from a ticket id, so each epic keeps its tint. */
+function graphHue(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
+function buildClusterBg(rect) {
+  const t = rect.ticket;
+  if (t.type !== 'epic') return ''; // only epic umbrellas get a tint
+  const hue = graphHue(t.id);
+  return (
+    `<div class="graph-cluster" style="left:${rect.x}px;top:${rect.y}px;` +
+    `width:${rect.w}px;height:${rect.h}px;` +
+    `background:hsla(${hue},60%,55%,0.07);border-color:hsla(${hue},60%,62%,0.32)"></div>`
+  );
+}
+
+function buildGraphEdgesSVG(layout, relEdges) {
+  const { NODE_H } = GRAPH;
+  const pos = layout.positions;
+  let paths = '';
+
+  // Epic → ticket hierarchy: smooth vertical S-curves fanning to each child.
+  for (const e of layout.parentEdges) {
+    const p = pos.get(e.from);
+    const c = pos.get(e.to);
+    if (!p || !c) continue;
+    const sx = p.x, sy = p.y + NODE_H / 2;
+    const ex = c.x, ey = c.y - NODE_H / 2;
+    const my = (sy + ey) / 2;
+    paths += `<path d="M ${sx} ${sy} C ${sx} ${my} ${ex} ${my} ${ex} ${ey}" class="graph-edge graph-edge-parent" fill="none" data-a="${e.from}" data-b="${e.to}"/>`;
+  }
+
+  // Cross-ticket relations: curved, dashed, colour-coded; grouped with their
+  // arrowhead so highlighting toggles both together.
+  for (const e of relEdges) {
+    const a = pos.get(e.from);
+    const b = pos.get(e.to);
+    if (!a || !b) continue;
+    const st = RELATION_STYLE[e.type] || RELATION_STYLE.relates_to;
+    const { cx, cy } = graphArc(a, b);
+    let g = `<path d="M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}" fill="none" stroke="${st.color}" stroke-width="1.6" stroke-dasharray="6 4"/>`;
+    if (st.directional) g += graphArrowHead(cx, cy, b, st.color);
+    paths += `<g class="graph-edge graph-edge-rel" data-a="${e.from}" data-b="${e.to}">${g}</g>`;
+  }
+
+  return `<svg class="graph-edges" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}">${paths}</svg>`;
+}
+
+/** Control point for a gently bowed quadratic between two node centres. */
+function graphArc(a, b) {
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.max(Math.hypot(dx, dy), 1);
+  const bow = Math.min(Math.max(len * 0.12, 18), 70);
+  return { cx: mx + (-dy / len) * bow, cy: my + (dx / len) * bow };
+}
+
+/** Arrowhead pointing at `b`, oriented along the curve's exit tangent. */
+function graphArrowHead(cx, cy, b, color) {
+  const dx = b.x - cx, dy = b.y - cy;
+  const len = Math.max(Math.hypot(dx, dy), 0.0001);
+  const ux = dx / len, uy = dy / len;
+  const inset = GRAPH.NODE_H / 2 + 4;
+  const tx = b.x - ux * inset, ty = b.y - uy * inset;
+  const ang = Math.atan2(uy, ux);
+  const wing = 8, spread = Math.PI / 7;
+  const lx = tx - Math.cos(ang - spread) * wing, ly = ty - Math.sin(ang - spread) * wing;
+  const rx = tx - Math.cos(ang + spread) * wing, ry = ty - Math.sin(ang + spread) * wing;
+  return `<polyline points="${lx},${ly} ${tx},${ty} ${rx},${ry}" fill="none" stroke="${color}" stroke-width="1.8"/>`;
+}
+
+function buildGraphNode(node) {
+  const { NODE_W, NODE_H } = GRAPH;
+  const t = node.ticket;
+  const el = document.createElement('div');
+  el.className = `graph-node${t.type === 'epic' ? ' epic' : ''}`;
+  el.dataset.id = t.id;
+  el.style.left = `${node.x - NODE_W / 2}px`;
+  el.style.top = `${node.y - NODE_H / 2}px`;
+  el.style.width = `${NODE_W}px`;
+  el.style.height = `${NODE_H}px`;
+  if (t.type === 'epic') el.style.setProperty('--gh', graphHue(t.id));
+
+  const collapsible = node.childCount > 0;
+  const collapsed = state.graphCollapsed.has(t.id);
+  const chevron = collapsible
+    ? `<button class="gn-collapse" title="${collapsed ? 'Expand' : 'Collapse'} children">${collapsed ? '▸' : '▾'}</button>`
+    : '';
+  const count = collapsible && t.type === 'epic'
+    ? `<span class="gn-count">${node.childCount}</span>`
+    : '';
+  el.innerHTML = `
+    <div class="gn-head">
+      ${chevron}
+      <span class="badge ${t.type}">${t.type}</span>
+      <span class="gn-id">${escapeHtml(t.id)}</span>
+      ${count}
+      <span class="dot ${t.status}" title="${escapeHtml(t.status)}"></span>
+    </div>
+    <div class="gn-title">${escapeHtml(t.title)}</div>
+  `;
+  el.querySelector('.gn-collapse')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleGraphCollapse(t.id);
+  });
+  el.addEventListener('click', () => openDrawer(t.id));
+  return el;
+}
+
+function toggleGraphCollapse(id) {
+  if (state.graphCollapsed.has(id)) state.graphCollapsed.delete(id);
+  else state.graphCollapsed.add(id);
+  localStorage.setItem('scope.graphCollapsed', JSON.stringify([...state.graphCollapsed]));
+  drawGraph();
+}
+
+/** Dim everything except a hovered node and its direct connections. */
+function wireGraphHighlight(wrap, layout, relEdges) {
+  const adj = new Map();
+  const link = (a, b) => {
+    if (!adj.has(a)) adj.set(a, new Set());
+    adj.get(a).add(b);
+  };
+  for (const e of layout.parentEdges) { link(e.from, e.to); link(e.to, e.from); }
+  for (const e of relEdges) { link(e.from, e.to); link(e.to, e.from); }
+
+  const nodeEls = [...wrap.querySelectorAll('.graph-node')];
+  const edgeEls = [...wrap.querySelectorAll('.graph-edge')];
+  const byId = {};
+  for (const el of nodeEls) byId[el.dataset.id] = el;
+
+  const clear = () => {
+    wrap.classList.remove('highlighting');
+    for (const el of nodeEls) el.classList.remove('hl');
+    for (const el of edgeEls) el.classList.remove('hl');
+  };
+
+  for (const el of nodeEls) {
+    el.addEventListener('mouseenter', () => {
+      const id = el.dataset.id;
+      wrap.classList.add('highlighting');
+      el.classList.add('hl');
+      for (const nid of adj.get(id) || []) byId[nid]?.classList.add('hl');
+      for (const ed of edgeEls) {
+        if (ed.dataset.a === id || ed.dataset.b === id) ed.classList.add('hl');
+      }
+    });
+    el.addEventListener('mouseleave', clear);
+  }
+}
+
+function buildGraphLegend(layout, relEdges) {
+  const present = new Set(relEdges.map((e) => e.type));
+  const rows = [];
+  if (layout.parentEdges.length) {
+    rows.push('<div class="gl-row"><span class="gl-line parent"></span>Epic → ticket</div>');
+  }
+  for (const type of ['blocks', 'relates_to', 'duplicates']) {
+    if (!present.has(type)) continue;
+    const st = RELATION_STYLE[type];
+    rows.push(
+      `<div class="gl-row"><span class="gl-line dashed" style="color:${st.color}"></span>${st.label}</div>`
+    );
+  }
+  const legend = document.createElement('div');
+  legend.className = 'graph-legend';
+  legend.innerHTML = rows.join('') || '<div class="gl-row">No relationships yet</div>';
+  return legend;
+}
+
+function buildGraphZoom() {
+  const bar = document.createElement('div');
+  bar.className = 'graph-zoom';
+  bar.innerHTML = `
+    <button type="button" data-z="out" title="Zoom out">−</button>
+    <button type="button" data-z="reset" title="Reset zoom">⊙</button>
+    <button type="button" data-z="in" title="Zoom in">+</button>
+  `;
+  const setScale = (next) => {
+    state.graphScale = Math.min(GRAPH.MAX_SCALE, Math.max(GRAPH.MIN_SCALE, next));
+    drawGraph();
+  };
+  bar.querySelector('[data-z="out"]').addEventListener('click', () => setScale(state.graphScale - 0.2));
+  bar.querySelector('[data-z="reset"]').addEventListener('click', () => setScale(1));
+  bar.querySelector('[data-z="in"]').addEventListener('click', () => setScale(state.graphScale + 0.2));
+  return bar;
 }
 
 /* ------------- history view ------------- */

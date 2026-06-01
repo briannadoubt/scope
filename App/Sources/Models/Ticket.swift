@@ -72,6 +72,76 @@ struct Ticket: Identifiable, Codable, Hashable {
     }
 }
 
+// MARK: - Relations
+
+/// The cross-ticket relation kinds the hub stores. Every relation is persisted
+/// in both directions (e.g. `A blocks B` ⇒ `B blocked_by A`), so the inverse
+/// halves below exist purely so a single ticket's relation list is complete.
+enum RelationType: String, Codable, Hashable, CaseIterable {
+    case blocks
+    case blocked_by
+    case relates_to
+    case duplicates
+    case duplicate_of
+}
+
+/// One relation as returned by `GET /api/tickets/:id/relations`: the *other*
+/// ticket and how this ticket relates to it.
+struct TicketRelation: Codable, Hashable {
+    let type: RelationType
+    let toTicketId: String
+    let title: String?
+    let status: TicketStatus?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case toTicketId = "to_ticket_id"
+        case title
+        case status
+        // `ticket_type` is also returned but unused here — extra keys are ignored.
+    }
+}
+
+/// A single directed edge between two tickets, canonicalised for drawing.
+///
+/// Because the hub stores both directions of every relation, the same logical
+/// link surfaces twice when we fetch each ticket's relations. `dedupe` keeps
+/// only the "forward" half of directional links and collapses the symmetric
+/// `relates_to` pair so each link is drawn exactly once.
+struct RelationEdge: Identifiable, Hashable {
+    let from: String
+    let to: String
+    let type: RelationType
+
+    var id: String { "\(from)|\(to)|\(type.rawValue)" }
+
+    static func dedupe(from relationsByTicket: [String: [TicketRelation]]) -> [RelationEdge] {
+        var seen = Set<String>()
+        var edges: [RelationEdge] = []
+        for (fromId, relations) in relationsByTicket {
+            for relation in relations {
+                let toId = relation.toTicketId
+                guard fromId != toId else { continue }
+                switch relation.type {
+                case .blocked_by, .duplicate_of:
+                    // Inverse half — its forward twin is emitted from `toId`.
+                    continue
+                case .relates_to:
+                    // Symmetric: dedupe on the unordered pair.
+                    let key = "rel|" + [fromId, toId].sorted().joined(separator: "|")
+                    guard seen.insert(key).inserted else { continue }
+                    edges.append(RelationEdge(from: fromId, to: toId, type: .relates_to))
+                case .blocks, .duplicates:
+                    let key = "\(fromId)|\(toId)|\(relation.type.rawValue)"
+                    guard seen.insert(key).inserted else { continue }
+                    edges.append(RelationEdge(from: fromId, to: toId, type: relation.type))
+                }
+            }
+        }
+        return edges
+    }
+}
+
 struct CreateTicket: Encodable {
     var title: String
     var type: TicketType

@@ -173,6 +173,94 @@ export function listTickets(db, { type, status, parentId, assignee } = {}) {
   return db.prepare(sql).all(...params).map(hydrateTicket);
 }
 
+/** Default / maximum result counts for search. */
+export const SEARCH_DEFAULT_LIMIT = 50;
+const SEARCH_MAX_LIMIT = 200;
+
+/**
+ * Clamp a caller-supplied limit into [1, SEARCH_MAX_LIMIT]. Absent/garbage
+ * values fall back to the default; an explicit 0 or negative clamps up to 1
+ * (so the documented "1-200" range holds and the falsy-zero trap is avoided).
+ * Tolerates Express handing us an array for a repeated `?limit=` query param.
+ */
+function clampSearchLimit(limit) {
+  const raw = Array.isArray(limit) ? limit[0] : limit;
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return SEARCH_DEFAULT_LIMIT;
+  return Math.max(1, Math.min(SEARCH_MAX_LIMIT, Math.floor(num)));
+}
+
+/**
+ * Turn a free-text query into a safe FTS5 MATCH expression.
+ *
+ * We deliberately ignore FTS5's own operator syntax (AND/OR/NEAR/quotes/`-`):
+ * the input is split into tokens, each becomes a prefix term (`auth*`), and
+ * they're joined with implicit AND so every token must match. Stripping to
+ * `[\p{L}0-9]+` (Unicode letters + ASCII digits) means the query can never
+ * inject FTS operators, and — crucially — it mirrors what the `unicode61`
+ * tokenizer actually indexes: non-ASCII numerics/symbols (٧, ½, ², ⅷ) that the
+ * tokenizer drops are excluded here too, so they can't turn into a no-match
+ * term that silently zeroes out the whole AND. Returns null when there's
+ * nothing searchable.
+ */
+function buildFtsMatch(query) {
+  const tokens = String(query ?? '').toLowerCase().match(/[\p{L}0-9]+/gu);
+  if (!tokens || tokens.length === 0) return null;
+  return tokens.map((t) => `${t}*`).join(' ');
+}
+
+/**
+ * If the raw query is an exact ticket key ("SCP-7", case-insensitive) or a
+ * bare ticket number ("7"), return that ticket so callers can float it to the
+ * top. Without this, prefix matching makes "SCP-7"/"7" also return SCP-70,
+ * SCP-71, … and the exact ticket can be buried — bad for the "jump to a
+ * ticket by number" use case. Returns null when the query isn't an exact ref
+ * or no such ticket exists.
+ */
+function exactTicketRef(db, raw) {
+  const q = String(raw ?? '').trim();
+  let row = null;
+  if (/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(q)) {
+    row = db.prepare('SELECT * FROM tickets WHERE id = ? COLLATE NOCASE').get(q);
+  } else if (/^\d+$/.test(q)) {
+    row = db.prepare('SELECT * FROM tickets WHERE number = ?').get(Number(q));
+  }
+  return row ? hydrateTicket(row) : null;
+}
+
+/**
+ * Full-text search across every ticket field — id/key, number, title,
+ * description, assignee, labels, branch, pr_url — and comment bodies, ranked
+ * by relevance (FTS5 bm25, best match first). An exact key/number match is
+ * floated to the top. Returns hydrated ticket rows in the same shape as
+ * listTickets(). An empty / token-less query returns [].
+ */
+export function searchTickets(db, query, { limit } = {}) {
+  const match = buildFtsMatch(query);
+  if (!match) return [];
+  const n = clampSearchLimit(limit);
+  const rows = db
+    .prepare(
+      `SELECT t.*, bm25(tickets_fts) AS _score
+       FROM tickets_fts
+       JOIN tickets t ON t.id = tickets_fts.ticket_id
+       WHERE tickets_fts MATCH ?
+       ORDER BY _score ASC, t.number ASC
+       LIMIT ?`
+    )
+    .all(match, n);
+  let results = rows.map(({ _score, ...row }) => hydrateTicket(row));
+
+  // Float an exact key/number hit to the front (deduped), so typing a full
+  // ticket ref lands on that ticket even when prefix siblings rank higher.
+  const exact = exactTicketRef(db, query);
+  if (exact) {
+    results = [exact, ...results.filter((t) => t.id !== exact.id)];
+    if (results.length > n) results = results.slice(0, n);
+  }
+  return results;
+}
+
 export function updateTicket(db, id, fields, who = null) {
   const ticket = getTicket(db, id);
   if (!ticket) throw new Error(`Ticket not found: ${id}`);
