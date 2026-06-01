@@ -3,10 +3,23 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppStore.self) private var store
 
+    /// DEBUG launch hook: jump straight to the graph (see `ScopeApp`).
+    private static var forcedGraphView: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["UITEST_VIEW"] == "graph"
+        #else
+        return false
+        #endif
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             if store.client == nil {
                 ConnectionView()
+            } else if Self.forcedGraphView {
+                // DEBUG launch hook (UITEST_VIEW=graph): jump straight to the
+                // graph full-screen so headless tooling can screenshot it.
+                NavigationStack { FlowGraphView() }
             } else {
                 MainTabView()
             }
@@ -32,6 +45,16 @@ private struct MainTabView: View {
             Tab("Board", systemImage: "square.3.layers.3d") {
                 NavigationStack {
                     BoardView()
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                workspaceMenu
+                            }
+                        }
+                }
+            }
+            Tab("Graph", systemImage: "point.3.connected.trianglepath.dotted") {
+                NavigationStack {
+                    FlowGraphView()
                         .toolbar {
                             ToolbarItem(placement: .topBarLeading) {
                                 workspaceMenu
