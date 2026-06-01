@@ -15,6 +15,7 @@ struct FlowGraphView: View {
     @State private var selectedTicket: Ticket? = nil
     @State private var layout: FlowGraphLayout = .empty
     @State private var relationEdges: [RelationEdge] = []
+    @State private var eventStream: EventStream?
     /// The ticket-id set the current `relationEdges` were fetched for, so we
     /// only re-fan-out the relation requests when the graph's membership
     /// actually changes — not on every status tweak coming over SSE.
@@ -65,14 +66,26 @@ struct FlowGraphView: View {
         }
         .task(id: workspace?.id) {
             guard workspace != nil else { return }
+            // Drop the relation cache for the new workspace: it's keyed by
+            // ticket-id set, and two workspaces can share ids (each numbers from
+            // 1), which would otherwise reuse the previous workspace's edges.
+            loadedRelationIds = []
+            relationEdges = []
             if store.tickets.isEmpty { await store.loadTickets() }
             rebuildLayout()
             await loadRelations()
+            startEventStream()
         }
         .onChange(of: store.tickets) { _, _ in
             rebuildLayout()
             Task { await loadRelations() }
         }
+        .onChange(of: store.relationsVersion) { _, _ in
+            // relation.added/removed don't change the ticket list, so force a
+            // re-fetch past the id-set guard to refresh the drawn connectors.
+            Task { await loadRelations(force: true) }
+        }
+        .onDisappear { eventStream?.disconnect() }
     }
 
     // MARK: Content state
@@ -289,18 +302,58 @@ struct FlowGraphView: View {
         rebuildLayout()
     }
 
-    private func loadRelations() async {
+    /// Re-fetch the relation overlay. By default this is skipped when the graph
+    /// membership (ticket-id set) is unchanged — a status-only SSE update moves
+    /// nothing relation-relevant. Pass `force: true` for relation.added/removed
+    /// events, where the id set is identical but the edges genuinely changed.
+    private func loadRelations(force: Bool = false) async {
         let ids = Set(store.tickets.map(\.id))
-        // Only re-fan-out when the graph's membership actually changes. We set
-        // `loadedRelationIds` after every attempt, so an unchanged id set means
-        // a status-only update came over SSE — nothing relation-relevant moved.
-        guard ids != loadedRelationIds, !ids.isEmpty else { return }
+        guard !ids.isEmpty else {
+            relationEdges = []
+            loadedRelationIds = []
+            return
+        }
+        guard force || ids != loadedRelationIds else { return }
         let edges = await store.loadRelationEdges(for: store.tickets.map(\.id))
         // Drop any edge whose endpoints aren't both currently placed.
         relationEdges = edges.filter {
             layout.positions[$0.from] != nil && layout.positions[$0.to] != nil
         }
         loadedRelationIds = ids
+    }
+
+    // MARK: - Event stream
+
+    /// The Graph tab carries its own SSE stream (the Board tab disconnects its
+    /// own on disappear), so the diagram stays live: ticket events update the
+    /// shared store (driving a layout rebuild + relation reload), and relation
+    /// events bump `relationsVersion` to force a relation re-fetch.
+    private func startEventStream() {
+        guard let client = store.client else { return }
+        eventStream?.disconnect()
+
+        let stream = EventStream(baseURL: client.baseURL)
+        let storeRef = store
+        stream.onEvent = { event in
+            switch event {
+            case .ticketCreated(let ticket):
+                if !storeRef.tickets.contains(where: { $0.id == ticket.id }) {
+                    storeRef.tickets.append(ticket)
+                }
+            case .ticketUpdated(let ticket):
+                if let idx = storeRef.tickets.firstIndex(where: { $0.id == ticket.id }) {
+                    storeRef.tickets[idx] = ticket
+                } else {
+                    storeRef.tickets.append(ticket)
+                }
+            case .ticketDeleted(let ticketId):
+                storeRef.tickets.removeAll { $0.id == ticketId }
+            case .relationsChanged:
+                storeRef.relationsVersion &+= 1
+            }
+        }
+        eventStream = stream
+        stream.connect(workspaceId: store.selectedWorkspace?.id)
     }
 }
 
