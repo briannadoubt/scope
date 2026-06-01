@@ -201,6 +201,8 @@ struct BoardView: View {
                 }
             case .ticketDeleted(let ticketId):
                 storeRef.tickets.removeAll { $0.id == ticketId }
+            case .relationsChanged:
+                break // the board doesn't draw relations
             }
         }
         eventStream = stream

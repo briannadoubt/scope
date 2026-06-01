@@ -21,6 +21,11 @@ final class AppStore {
     var isLoading: Bool = false
     var error: String? = nil
 
+    /// Bumped whenever the hub reports a relation add/remove over SSE. Relation
+    /// changes don't alter the ticket list, so views that draw relations (the
+    /// flow graph) observe this to know when to re-fetch edges.
+    var relationsVersion: Int = 0
+
     // MARK: - Connectivity (SCP-93)
     //
     // The monitor is started lazily on first connect — there's no point
