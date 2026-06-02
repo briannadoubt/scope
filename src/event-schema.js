@@ -30,6 +30,7 @@ export const EVENT_FORMAT_VERSION = 1;
 export const EVENT_KINDS = Object.freeze([
   'workspace.init',
   'workspace.set',
+  'workspace.rekey',
   'ticket.create',
   'ticket.set_field',
   'ticket.delete',
@@ -116,6 +117,11 @@ function validatePayload(kind, p) {
       for (const k of present) if (!isStr(p[k])) fail(`workspace.set.${k} must be a string`);
       break;
     }
+
+    case 'workspace.rekey':
+      // Reprefix ALL tickets to a new key (display id KEY-N -> TO-N) at replay.
+      if (!isKeyPrefix(p.to)) fail('workspace.rekey.to must be 2-10 uppercase alnum');
+      break;
 
     case 'ticket.create':
       // ticketId is the ULID identity (SCP-110); number/keyPrefix are the

@@ -1,8 +1,9 @@
-import { nowIso, nextTicketId, recordHistory, getWorkspace, bumpMeta } from './db.js';
+import { nowIso, nextTicketId, recordHistory, getWorkspace, bumpMeta, setMeta } from './db.js';
 import { emitChange } from './events.js';
 import { ulid } from './ulid.js';
 import { makeEvent } from './event-schema.js';
-import { appendEvent, eventsDirForDb } from './event-store.js';
+import { appendEvent, eventsDirForDb, readAllEvents } from './event-store.js';
+import { replayInto } from './replay.js';
 import {
   TICKET_TYPES,
   STATUSES,
@@ -203,6 +204,31 @@ export function updateWorkspace(db, fields = {}, who = null) {
   emit(db, 'workspace.set', changed, who);
   emitChange({ type: 'workspace.updated', id: 1 });
   return updated;
+}
+
+/**
+ * Rekey the workspace: change the key AND reprefix every existing ticket's
+ * display id (KEY-N -> NEWKEY-N) (SCP-118). Unlike `updateWorkspace({key})`
+ * (which only affects future tickets), this rewrites the whole board.
+ *
+ * Emits a `workspace.rekey` event, then rebuilds the cache from the log so the
+ * reprefixed ids are materialized consistently (parents, relations, comments
+ * all follow, since they reference tickets by ULID in the log).
+ *
+ * @returns {{ key: string, reprefixed: number }}
+ */
+export function rekeyWorkspace(db, newKey, { actor = null } = {}) {
+  if (pendingEvents) throw new Error('rekey cannot run inside a batch');
+  if (!/^[A-Z][A-Z0-9]{1,9}$/.test(newKey))
+    throw new Error(`Invalid key "${newKey}" — use 2-10 uppercase letters/digits, e.g. "SCP".`);
+  const count = db.prepare('SELECT COUNT(*) AS n FROM tickets').get().n;
+  emit(db, 'workspace.rekey', { to: newKey }, actor);
+  // Rebuild from the (now rekey-containing) log; replay reprefixes all ids.
+  const events = readAllEvents(eventsDirForDb(db));
+  replayInto(db, events);
+  setMeta(db, 'applied_event_count', events.length);
+  emitChange({ type: 'workspace.updated', id: 1 });
+  return { key: newKey, reprefixed: count };
 }
 
 /* ---------------- tickets ---------------- */

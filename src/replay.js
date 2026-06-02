@@ -67,6 +67,18 @@ export function replayInto(db, events) {
   const ordered = events.slice().sort(compareEvents);
   const { assignments, renumbered } = resolveDisplayNumbers(ordered);
 
+  // A workspace.rekey reprefixes ALL tickets to a new key (SCP-118). The last
+  // rekey in canonical order wins; override every assignment's display prefix so
+  // the human id becomes TO-<number>.
+  let rekeyTo = null;
+  for (const e of ordered) if (e.kind === 'workspace.rekey') rekeyTo = e.payload.to;
+  if (rekeyTo) {
+    for (const a of assignments.values()) {
+      a.keyPrefix = rekeyTo;
+      a.humanId = `${rekeyTo}-${a.number}`;
+    }
+  }
+
   // uid -> human KEY-N id (the value the tickets table keys on). Translates the
   // ULID references in events back into the DB's human ids.
   const human = new Map();
@@ -88,6 +100,8 @@ export function replayInto(db, events) {
       applied += applyEvent(db, e, human, assignments);
       if (e.kind === 'workspace.init' || e.kind === 'workspace.set') {
         if (typeof e.payload.key === 'string') wsKey = e.payload.key;
+      } else if (e.kind === 'workspace.rekey') {
+        wsKey = e.payload.to; // the workspace key follows the rekey
       }
     }
 

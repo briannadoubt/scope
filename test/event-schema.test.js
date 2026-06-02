@@ -115,6 +115,7 @@ test('compareEvents is a deterministic total order: ts, then ulid id', () => {
 });
 
 test('EVENT_KINDS is the closed set the validator switches on', () => {
-  assert.equal(EVENT_KINDS.length, 8);
+  assert.equal(EVENT_KINDS.length, 9);
   assert.ok(EVENT_KINDS.includes('ticket.set_field'));
+  assert.ok(EVENT_KINDS.includes('workspace.rekey'));
 });

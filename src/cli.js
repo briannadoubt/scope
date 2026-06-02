@@ -29,6 +29,7 @@ import {
   setWorkspace,
   listWorkspaces,
   updateWorkspace,
+  rekeyWorkspace,
   applyBatch,
   createTicket,
   getTicket,
@@ -946,6 +947,22 @@ export function buildProgram() {
       try {
         const updated = updateWorkspace(db, fields);
         out(cmd, updated, (u) => chalk.green('✓') + ` Updated ${chalk.bold(u.key)}`);
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  workspace
+    .command('rekey <newKey>')
+    .description('Change the workspace key AND reprefix every existing ticket (KEY-N → NEWKEY-N).')
+    .option('--by <author>')
+    .action((newKey, opts, cmd) => {
+      const { db } = openOrDie();
+      try {
+        const r = rekeyWorkspace(db, newKey.toUpperCase(), { actor: opts.by });
+        out(cmd, r, (r) =>
+          chalk.green('✓') + ` Rekeyed to ${chalk.bold(r.key)} — reprefixed ${r.reprefixed} tickets`
+        );
       } catch (e) {
         fail(e.message);
       }
