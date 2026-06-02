@@ -29,6 +29,7 @@ import {
   setWorkspace,
   listWorkspaces,
   updateWorkspace,
+  applyBatch,
   createTicket,
   getTicket,
   listTickets,
@@ -141,6 +142,17 @@ function stdinPrompt(question) {
   });
 }
 
+/** Read all of stdin to a string (for `scope batch` piped JSON). */
+function readStdin() {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (c) => (data += c));
+    process.stdin.on('end', () => resolve(data));
+    process.stdin.on('error', reject);
+  });
+}
+
 async function maybeOfferCaTrust() {
   if (process.platform !== 'darwin') return;
   if (!process.stdin.isTTY) return;
@@ -174,6 +186,16 @@ function parseLabels(s) {
     .split(',')
     .map((x) => x.trim())
     .filter(Boolean);
+}
+
+/** Split a comma-separated list of ticket ids (e.g. "SCP-1,SCP-2") into a clean array. */
+function splitIds(s) {
+  const list = String(s)
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (!list.length) fail('No ticket id given.');
+  return list;
 }
 
 /** Where each tool's skill file would be installed. */
@@ -527,8 +549,8 @@ export function buildProgram() {
     });
 
   ticket
-    .command('edit <id>')
-    .description('Edit fields on a ticket.')
+    .command('edit <ids>')
+    .description('Edit fields on a ticket. Pass a comma-separated list of ids to edit several atomically.')
     .option('--title <text>')
     .option('-d, --description <text>')
     .option('--description-file <path>')
@@ -541,10 +563,9 @@ export function buildProgram() {
     .option('--assignee <name>')
     .option('--labels <csv>')
     .option('--by <author>', 'attribute the change in history')
-    .action((id, opts, cmd) => {
+    .action((ids, opts, cmd) => {
       const { db } = openOrDie();
-      const t = getTicket(db, id);
-      if (!t) fail(`Ticket not found: ${id}`);
+      const list = splitIds(ids);
       const fields = {};
       if (opts.title) fields.title = opts.title;
       const body = readBodyFromOpts(opts);
@@ -559,8 +580,15 @@ export function buildProgram() {
       if (opts.assignee !== undefined) fields.assignee = opts.assignee;
       if (opts.labels !== undefined) fields.labels = parseLabels(opts.labels);
       try {
-        const updated = updateTicket(db, t.id, fields, opts.by);
-        out(cmd, updated, (u) => chalk.green('✓') + ` Updated ${chalk.bold(u.id)}`);
+        if (list.length === 1) {
+          const t = getTicket(db, list[0]);
+          if (!t) fail(`Ticket not found: ${list[0]}`);
+          const updated = updateTicket(db, t.id, fields, opts.by);
+          out(cmd, updated, (u) => chalk.green('✓') + ` Updated ${chalk.bold(u.id)}`);
+          return;
+        }
+        const r = applyBatch(db, list.map((id) => ({ op: 'update', id, fields })), { actor: opts.by });
+        out(cmd, { updated: list }, () => chalk.green('✓') + ` Updated ${r.applied} tickets: ${list.join(', ')}`);
       } catch (e) {
         fail(e.message);
       }
@@ -588,16 +616,24 @@ export function buildProgram() {
   /* ---------- status / branch / pr shortcuts ---------- */
 
   program
-    .command('status <id> <status>')
-    .description(`Set a ticket's status. (${SCHEMA_STATUSES.join('|')})`)
+    .command('status <ids> <status>')
+    .description(
+      `Set a ticket's status. (${SCHEMA_STATUSES.join('|')}) ` +
+        'Pass a comma-separated list of ids to move several atomically.'
+    )
     .option('--by <author>')
-    .action((id, status, opts, cmd) => {
+    .action((ids, status, opts, cmd) => {
       const { db } = openOrDie();
+      const list = splitIds(ids);
       try {
-        const t = updateTicket(db, id, { status }, opts.by);
-        out(cmd, t, (t) =>
-          chalk.green('✓') +
-          ` ${chalk.bold(t.id)} → ${colorStatus(t.status)}`
+        if (list.length === 1) {
+          const t = updateTicket(db, list[0], { status }, opts.by);
+          out(cmd, t, (t) => chalk.green('✓') + ` ${chalk.bold(t.id)} → ${colorStatus(t.status)}`);
+          return;
+        }
+        const r = applyBatch(db, list.map((id) => ({ op: 'status', id, status })), { actor: opts.by });
+        out(cmd, { updated: list, status }, () =>
+          chalk.green('✓') + ` ${r.applied} tickets → ${colorStatus(status)}: ${list.join(', ')}`
         );
       } catch (e) {
         fail(e.message);
@@ -804,6 +840,42 @@ export function buildProgram() {
           { key: 'new_value', header: 'TO', width: 30 },
         ])
       );
+    });
+
+  /* ---------- batch ---------- */
+
+  program
+    .command('batch')
+    .description(
+      'Apply many operations atomically (all succeed or none). Reads a JSON ' +
+        'array of ops from --file or stdin. This is the supported way to do ' +
+        'bulk/compound edits — never edit scope.db directly.'
+    )
+    .option('-f, --file <path>', 'read ops JSON from a file (default: stdin)')
+    .option('--by <author>', 'default actor for ops that omit "by"')
+    .action(async (opts, cmd) => {
+      const { db } = openOrDie();
+      let raw;
+      if (opts.file) {
+        try { raw = readFileSync(opts.file, 'utf8'); }
+        catch (e) { fail(`Could not read --file: ${e.message}`); }
+      } else {
+        raw = await readStdin();
+        if (!raw.trim()) fail('No ops given. Pass --file <path> or pipe a JSON array on stdin.');
+      }
+      let ops;
+      try { ops = JSON.parse(raw); }
+      catch (e) { fail(`Ops must be valid JSON: ${e.message}`); }
+      if (!Array.isArray(ops)) fail('Ops JSON must be an array of {op, ...} objects.');
+      try {
+        const result = applyBatch(db, ops, { actor: opts.by });
+        out(cmd, result, (r) =>
+          chalk.green('✓') + ` Applied ${r.applied} ops atomically` +
+          (Object.keys(r.refs).length ? `\n${chalk.gray('  refs: ' + JSON.stringify(r.refs))}` : '')
+        );
+      } catch (e) {
+        fail(`Batch failed (nothing was applied): ${e.message}`);
+      }
     });
 
   /* ---------- board / ui ---------- */

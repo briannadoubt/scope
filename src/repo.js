@@ -17,15 +17,27 @@ import {
 /** Normalize an actor handle; every event must record a non-empty actor. */
 const actorOf = (a) => (a && String(a).trim()) || 'unknown';
 
+// When a batch is in flight (applyBatch), emitted events are buffered here and
+// flushed to disk only after the DB transaction commits — so a batch is atomic
+// across both the cache and the log (all events land, or none do).
+let pendingEvents = null;
+
 /**
  * Append one operation event to the on-disk log for this db's workspace. This
  * is the single chokepoint: every mutation below emits through here, so the
- * event log is a complete record of state changes (the future source of truth,
- * SCP-106). Today it runs alongside the SQLite writes (dual-write); SCP-109/111
- * flip the db to be a projection of this log.
+ * event log is a complete record of state changes (the source of truth,
+ * SCP-106). Runs alongside the SQLite writes (dual-write).
+ *
+ * Inside applyBatch the event is buffered (not written) so the whole batch can
+ * be flushed atomically after the transaction commits.
  */
 function emit(db, kind, payload, actor) {
-  const evt = appendEvent(eventsDirForDb(db), makeEvent(kind, payload, { actor: actorOf(actor) }));
+  const evt = makeEvent(kind, payload, { actor: actorOf(actor) });
+  if (pendingEvents) {
+    pendingEvents.push(evt);
+    return evt;
+  }
+  appendEvent(eventsDirForDb(db), evt);
   // Keep the cache's applied-count in step with the log so a subsequent open
   // doesn't think the db is stale and rebuild it (SCP-111).
   bumpMeta(db, 'applied_event_count', 1);
@@ -35,6 +47,107 @@ function emit(db, kind, payload, actor) {
 /** Look up a ticket's stable ULID identity by its KEY-N id. */
 function uidFor(db, id) {
   return db.prepare('SELECT uid FROM tickets WHERE id = ?').get(id)?.uid ?? null;
+}
+
+/* ---------------- batch (atomic multi-op, SCP-116) ---------------- */
+
+/**
+ * Apply a list of operations atomically: they all succeed and their events are
+ * written, or nothing changes (DB rolled back, no events written). This is the
+ * supported way for an agent to do bulk/compound edits — there is never a reason
+ * to touch scope.db directly.
+ *
+ * Each op is `{ op, ... }`:
+ *   - { op: 'create', type, title, ..., ref? }   → createTicket; `ref` names the
+ *       new ticket so later ops can reference it as "$ref" (e.g. parent).
+ *   - { op: 'update', id, fields }               → updateTicket
+ *   - { op: 'status', id, status }               → updateTicket status only
+ *   - { op: 'delete', id }                        → deleteTicket
+ *   - { op: 'comment', id, body, author? }        → addComment
+ *   - { op: 'link', from, type, to }              → addRelation
+ *   - { op: 'unlink', from, type, to }            → removeRelation
+ *   - { op: 'workspace', fields }                 → updateWorkspace
+ * Any `id`/`from`/`to`/`parent` value of the form "$name" is resolved to the id
+ * of the ticket created earlier in the same batch under `ref: 'name'`.
+ *
+ * @returns {{ applied: number, results: Array, refs: object }}
+ */
+export function applyBatch(db, ops, { actor = null } = {}) {
+  if (!Array.isArray(ops)) throw new Error('batch ops must be an array');
+  if (pendingEvents) throw new Error('applyBatch cannot be nested');
+
+  const refs = Object.create(null);
+  const deref = (v) =>
+    typeof v === 'string' && v.startsWith('$') ? resolveRef(refs, v.slice(1)) : v;
+
+  pendingEvents = [];
+  try {
+    const results = db.transaction(() => {
+      const out = [];
+      ops.forEach((op, i) => {
+        out.push(dispatchOp(db, op, i, actor, refs, deref));
+      });
+      return out;
+    })();
+    // Transaction committed — now publish the buffered events.
+    const dir = eventsDirForDb(db);
+    for (const evt of pendingEvents) appendEvent(dir, evt);
+    if (pendingEvents.length) bumpMeta(db, 'applied_event_count', pendingEvents.length);
+    return { applied: ops.length, results, refs: { ...refs } };
+  } finally {
+    // On error the DB transaction has already rolled back; dropping the buffer
+    // means no events were written. Either way, clear batch state.
+    pendingEvents = null;
+  }
+}
+
+function resolveRef(refs, name) {
+  if (!(name in refs)) throw new Error(`batch references unknown ref "$${name}"`);
+  return refs[name];
+}
+
+function dispatchOp(db, op, i, actor, refs, deref) {
+  if (!op || typeof op !== 'object' || typeof op.op !== 'string')
+    throw new Error(`batch op #${i} must be an object with an "op" field`);
+  const who = op.by || actor;
+  switch (op.op) {
+    case 'create': {
+      const t = createTicket(db, {
+        type: op.type,
+        title: op.title,
+        description: op.description,
+        status: op.status,
+        priority: op.priority,
+        parent: op.parent != null ? deref(op.parent) : undefined,
+        branch: op.branch,
+        prUrl: op.prUrl,
+        assignee: op.assignee,
+        labels: op.labels,
+        actor: who,
+      });
+      if (op.ref) refs[op.ref] = t.id;
+      return { op: 'create', id: t.id, ref: op.ref ?? null };
+    }
+    case 'update':
+      return { op: 'update', id: deref(op.id), ticket: updateTicket(db, deref(op.id), op.fields ?? {}, who).id };
+    case 'status':
+      return { op: 'status', id: deref(op.id), ticket: updateTicket(db, deref(op.id), { status: op.status }, who).id };
+    case 'delete':
+      return { op: 'delete', id: deref(op.id), deleted: deleteTicket(db, deref(op.id), who) };
+    case 'comment':
+      return { op: 'comment', id: deref(op.id), comment: addComment(db, deref(op.id), op.body, who) };
+    case 'link':
+      addRelation(db, deref(op.from), deref(op.to), op.type, who);
+      return { op: 'link', from: deref(op.from), to: deref(op.to), type: op.type };
+    case 'unlink':
+      removeRelation(db, deref(op.from), deref(op.to), op.type, who);
+      return { op: 'unlink', from: deref(op.from), to: deref(op.to), type: op.type };
+    case 'workspace':
+      updateWorkspace(db, op.fields ?? {}, who);
+      return { op: 'workspace', fields: op.fields ?? {} };
+    default:
+      throw new Error(`batch op #${i}: unknown op "${op.op}"`);
+  }
 }
 
 /* ---------------- workspace ---------------- */
