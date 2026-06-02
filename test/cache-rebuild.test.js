@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createTempScope } from './helpers.js';
 import { openDb, ensureScopeGitignore, getMeta } from '../src/db.js';
 import { syncFromLog, countEventFiles } from '../src/replay.js';
+import { ensureEventLog } from '../src/backfill.js';
 import { createTicket, updateTicket, listTickets } from '../src/repo.js';
 
 test('syncFromLog rebuilds the cache when scope.db is deleted but the log remains', () => {
@@ -13,6 +14,7 @@ test('syncFromLog rebuilds the cache when scope.db is deleted but the log remain
   try {
     const t = createTicket(db, { type: 'story', title: 'Survivor', actor: 'bri' });
     updateTicket(db, t.id, { status: 'done' }, 'bri');
+    ensureEventLog(db, scopeDir); // make the log authoritative (writes workspace.init)
     const dbPath = db.name;
     db.close();
 
@@ -40,7 +42,7 @@ test('syncFromLog is a no-op when the live writer kept the count in step', () =>
   const { scopeDir, db, cleanup } = createTempScope();
   try {
     createTicket(db, { type: 'story', title: 'A' });
-    // emit() bumped applied_event_count to match the file count.
+    ensureEventLog(db, scopeDir); // authoritative log; applied_event_count == file count
     assert.equal(Number(getMeta(db, 'applied_event_count')), countEventFiles(scopeDir));
     const r = syncFromLog(db, scopeDir);
     assert.equal(r.rebuilt, false);
@@ -57,6 +59,7 @@ test('syncFromLog rebuilds when the on-disk log is ahead (simulated peer/pull)',
   try {
     const t = createTicket(A.db, { type: 'story', title: 'FromPeer', actor: 'peer' });
     updateTicket(A.db, t.id, { status: 'in_progress' }, 'peer');
+    ensureEventLog(A.db, A.scopeDir); // A's log becomes authoritative (has workspace.init)
 
     // Copy A's event files into B's events dir (what `git pull` would deliver).
     const aEvents = join(A.scopeDir, 'events');

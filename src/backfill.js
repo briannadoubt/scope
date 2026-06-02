@@ -18,30 +18,30 @@
 
 import { getWorkspace, setMeta } from './db.js';
 import { makeEvent } from './event-schema.js';
-import { appendEvent, eventsDir } from './event-store.js';
-import { existsSync, readdirSync } from 'node:fs';
+import { appendEvent, eventsDir, logHasInit } from './event-store.js';
+import { rmSync } from 'node:fs';
 import { ulid } from './ulid.js';
 import { COLUMN_TO_FIELD, RELATION_INVERSE } from './enums.js';
 
 // Columns that appear in ticket_history (all map to an event field).
 const HISTORY_COLUMNS = Object.keys(COLUMN_TO_FIELD);
 
-/** True if a usable event log already exists in `scopeDir`. */
-export function hasEventLog(scopeDir) {
-  const dir = eventsDir(scopeDir);
-  if (!existsSync(dir)) return false;
-  return readdirSync(dir).some((f) => f.endsWith('.json') && !f.startsWith('.'));
-}
-
 /**
- * If `scopeDir` has DB rows but no event log, synthesize one. Safe to call on
- * every open — returns immediately when a log already exists or the DB is empty
- * of tickets and untouched.
+ * Ensure the event log is the authoritative source of truth for `scopeDir`.
+ *
+ * Authority is signalled by a `workspace.init` event in the log (see
+ * logHasInit). If the log is already authoritative, this is a no-op. Otherwise
+ * the DB is still the source of truth (a pre-event-sourcing upgrade, or a stray
+ * partial log), so we bootstrap a *complete* log from the DB.
+ *
+ * This is the safety boundary that prevents data loss: syncFromLog only ever
+ * rebuilds the cache from an authoritative log, and the only way a log becomes
+ * authoritative is a complete backfill from the DB (or a fresh init).
  *
  * @returns {{ skipped: boolean, written?: number, reason?: string }}
  */
 export function ensureEventLog(db, scopeDir) {
-  if (hasEventLog(scopeDir)) return { skipped: true, reason: 'log exists' };
+  if (logHasInit(eventsDir(scopeDir))) return { skipped: true, reason: 'log is authoritative' };
   return backfillEvents(db, scopeDir);
 }
 
@@ -145,7 +145,12 @@ export function backfillEvents(db, scopeDir, { actor = 'migration' } = {}) {
     add('relation.add', { fromId: fromUid, toId: toUid, type: r.type }, r.created_at);
   }
 
-  // All events validated during construction; now write them.
+  // All events validated during construction (makeEvent throws on bad input);
+  // now publish the log atomically-ish. Clear any stray partial events first —
+  // the DB is the source of truth here, so a complete backfill replaces, rather
+  // than appends to, whatever incomplete events were lying around. This is what
+  // makes the log authoritative (it now contains workspace.init).
+  rmSync(dir, { recursive: true, force: true });
   for (const e of events) appendEvent(dir, e);
   // The db already reflects these events (they were synthesized from it), so
   // record the count — a later open won't needlessly rebuild (SCP-111).

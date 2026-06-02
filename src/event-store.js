@@ -64,6 +64,28 @@ export function appendEvent(dir, event) {
  * @param {boolean} [opts.tolerant=false] - skip unreadable/invalid files
  *        instead of throwing (useful for diagnostics; replay should be strict).
  */
+/**
+ * Is the log at `dir` authoritative — i.e. has it been fully initialized as the
+ * source of truth? Signalled by the presence of a `workspace.init` event, which
+ * a complete backfill (SCP-113) always writes first. This signal lives in the
+ * log itself, so it survives deletion of the scope.db cache and travels with the
+ * events via git/sync. A merely *partial* log (e.g. stray set_field events
+ * appended before a backfill ran) is NOT authoritative — which is what stops
+ * syncFromLog from rebuilding the db out of incomplete data (SCP-111).
+ */
+export function logHasInit(dir) {
+  if (!existsSync(dir)) return false;
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith('.json') || name.startsWith('.')) continue;
+    try {
+      if (JSON.parse(readFileSync(join(dir, name), 'utf8'))?.kind === 'workspace.init') return true;
+    } catch {
+      /* ignore unreadable file */
+    }
+  }
+  return false;
+}
+
 export function readAllEvents(dir, { tolerant = false } = {}) {
   if (!existsSync(dir)) return [];
   const events = [];

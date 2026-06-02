@@ -14,7 +14,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { nowIso, openDb, defaultScopeDir, findScopeDir, getMeta, setMeta } from './db.js';
 import { compareEvents } from './event-schema.js';
 import { resolveDisplayNumbers, nextNumberSeed } from './identity.js';
-import { readAllEvents, eventsDir } from './event-store.js';
+import { readAllEvents, eventsDir, logHasInit } from './event-store.js';
 import { COLUMN_TO_FIELD, RELATION_INVERSE } from './enums.js';
 
 /** Count event files in a .scope dir (cheap staleness signal; log is append-only). */
@@ -32,10 +32,16 @@ export function countEventFiles(scopeDir) {
  * or another process) — so replay. The common case (live writer kept the count
  * in step) is a no-op.
  *
+ * SAFETY: only rebuilds from an *authoritative* log (one containing
+ * workspace.init — see logHasInit). A partial/non-authoritative log never
+ * triggers a rebuild, so a stray set of events can't wipe a populated cache.
+ * ensureEventLog() must run first to make the log authoritative.
+ *
  * @returns {{ rebuilt: boolean, count: number }}
  */
 export function syncFromLog(db, scopeDir) {
   const diskCount = countEventFiles(scopeDir);
+  if (!logHasInit(eventsDir(scopeDir))) return { rebuilt: false, count: diskCount };
   const applied = Number(getMeta(db, 'applied_event_count')) || 0;
   if (diskCount === applied) return { rebuilt: false, count: diskCount };
   replayInto(db, readAllEvents(eventsDir(scopeDir)));
