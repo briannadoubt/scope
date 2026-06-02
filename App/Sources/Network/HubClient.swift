@@ -171,18 +171,22 @@ final class HubClient {
 
     // MARK: - URL building
 
-    private func url(for path: String) -> URL {
+    private func url(for path: String, query: [URLQueryItem] = []) -> URL {
         var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+        var items = components.queryItems ?? []
+        items.append(contentsOf: query)
         if let wsId = workspaceId {
-            var items = components.queryItems ?? []
             items.append(URLQueryItem(name: "workspace", value: wsId))
-            components.queryItems = items
         }
+        // `appendingPathComponent` percent-encodes "?" into the path, so query
+        // strings must be passed via `query:` (not baked into `path`) to land
+        // as real query items here.
+        components.queryItems = items.isEmpty ? nil : items
         return components.url!
     }
 
-    private func request(method: String, path: String, body: Data?) -> URLRequest {
-        var req = URLRequest(url: url(for: path))
+    private func request(method: String, path: String, query: [URLQueryItem] = [], body: Data?) -> URLRequest {
+        var req = URLRequest(url: url(for: path, query: query))
         req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token {
@@ -209,8 +213,8 @@ final class HubClient {
 
     // MARK: - Generic HTTP verbs
 
-    func get<T: Decodable>(_ path: String) async throws -> T {
-        let req = request(method: "GET", path: path, body: nil)
+    func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
+        let req = request(method: "GET", path: path, query: query, body: nil)
         let data = try await execute(req)
         return try Self.decoder.decode(T.self, from: data)
     }

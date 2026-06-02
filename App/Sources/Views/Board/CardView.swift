@@ -15,23 +15,7 @@ struct CardView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             // MARK: Badges
-            HStack(spacing: 6) {
-                // Priority badge
-                Label(ticket.priority.displayName, systemImage: ticket.priority.systemImage)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(ticket.priority.foregroundColor)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(ticket.priority.backgroundColor, in: Capsule())
-
-                // Type badge
-                Label(ticket.type.displayName, systemImage: ticket.type.systemImage)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(.quaternary, in: Capsule())
-            }
+            TicketBadges(ticket: ticket)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -41,9 +25,35 @@ struct CardView: View {
     }
 }
 
+// MARK: - TicketBadges
+
+/// Priority + type capsule badges. Shared by the board card and the search
+/// results row so the two never drift in styling.
+struct TicketBadges: View {
+    let ticket: Ticket
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Label(ticket.priority.displayName, systemImage: ticket.priority.systemImage)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(ticket.priority.foregroundColor)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(ticket.priority.backgroundColor, in: Capsule())
+
+            Label(ticket.type.displayName, systemImage: ticket.type.systemImage)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.quaternary, in: Capsule())
+        }
+    }
+}
+
 // MARK: - TicketPriority display helpers
 
-private extension TicketPriority {
+extension TicketPriority {
     var displayName: String {
         switch self {
         case .low:    "Low"
@@ -83,7 +93,7 @@ private extension TicketPriority {
 
 // MARK: - TicketType display helpers
 
-private extension TicketType {
+extension TicketType {
     var displayName: String {
         switch self {
         case .story: "Story"

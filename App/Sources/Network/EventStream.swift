@@ -6,6 +6,10 @@ enum SSEEvent {
     case ticketUpdated(Ticket)
     case ticketCreated(Ticket)
     case ticketDeleted(String)
+    /// A cross-ticket relation was added or removed. Carries no payload — the
+    /// hub emits `relation.added`/`relation.removed` without touching the
+    /// ticket list, so listeners (the flow graph) just re-fetch relations.
+    case relationsChanged
 }
 
 // MARK: - EventStream
@@ -146,6 +150,9 @@ final class EventStream {
         case "ticket.deleted":
             guard let ticketId = raw["ticketId"] as? String else { return }
             onEvent?(.ticketDeleted(ticketId))
+
+        case "relation.added", "relation.removed":
+            onEvent?(.relationsChanged)
 
         default:
             break

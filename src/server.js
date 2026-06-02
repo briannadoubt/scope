@@ -24,6 +24,7 @@ import {
   createTicket,
   getTicket,
   listTickets,
+  searchTickets,
   updateTicket,
   deleteTicket,
   addRelation,
@@ -352,6 +353,13 @@ export async function startServer({
     const filter = { type, status, assignee };
     if (parent !== undefined) filter.parentId = parent === 'none' ? null : parent;
     res.json(listTickets(w.db, filter));
+  }));
+
+  // Full-text search. MUST be declared before `/api/tickets/:id` so the
+  // literal "search" segment isn't captured as an :id.
+  app.get('/api/tickets/search', ws((req, res, w) => {
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    res.json(searchTickets(w.db, q, { limit: req.query.limit }));
   }));
 
   app.get('/api/tickets/:id', ws((req, res, w) => {

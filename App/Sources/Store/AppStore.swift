@@ -21,6 +21,11 @@ final class AppStore {
     var isLoading: Bool = false
     var error: String? = nil
 
+    /// Bumped whenever the hub reports a relation add/remove over SSE. Relation
+    /// changes don't alter the ticket list, so views that draw relations (the
+    /// flow graph) observe this to know when to re-fetch edges.
+    var relationsVersion: Int = 0
+
     // MARK: - Connectivity (SCP-93)
     //
     // The monitor is started lazily on first connect — there's no point
@@ -91,6 +96,28 @@ final class AppStore {
         }
     }
 
+    /// Full-text search across every ticket field and comment bodies, ranked
+    /// by relevance on the hub (FTS5). Returns [] for an empty query. A genuine
+    /// failure (offline, auth, 5xx) surfaces via `error` so it's not mistaken
+    /// for "no matches"; a cancelled request (the debounce superseding this one
+    /// on the next keystroke) is silent. The workspace is injected by
+    /// `HubClient.url(for:)`.
+    func search(_ query: String) async -> [Ticket] {
+        guard let client else { return [] }
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return [] }
+        do {
+            return try await client.get("/api/tickets/search", query: [URLQueryItem(name: "q", value: q)])
+        } catch is CancellationError {
+            return []
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return []
+        } catch {
+            self.error = error.localizedDescription
+            return []
+        }
+    }
+
     func updateTicket(_ id: String, update: TicketUpdate) async throws {
         guard let client else { return }
         // Fail-fast on offline so the user sees the real reason instead of
@@ -119,6 +146,32 @@ final class AppStore {
         guard isOnline else { throw HubClientError.offline }
         try await client.delete("/api/tickets/\(id)")
         tickets.removeAll { $0.id == id }
+    }
+
+    // MARK: - Relations (SCP — flow graph)
+
+    /// Fetches cross-ticket relations for the given ticket ids concurrently and
+    /// returns a deduped set of directed edges for the flow graph.
+    ///
+    /// There's no bulk relations endpoint, so this fans out one request per
+    /// ticket. It's best-effort: a ticket whose request fails simply contributes
+    /// no edges rather than failing the whole load.
+    func loadRelationEdges(for ids: [String]) async -> [RelationEdge] {
+        guard let client else { return [] }
+        var relationsByTicket: [String: [TicketRelation]] = [:]
+        await withTaskGroup(of: (String, [TicketRelation]).self) { group in
+            for id in ids {
+                group.addTask {
+                    let relations: [TicketRelation] =
+                        (try? await client.get("/api/tickets/\(id)/relations")) ?? []
+                    return (id, relations)
+                }
+            }
+            for await (id, relations) in group {
+                if !relations.isEmpty { relationsByTicket[id] = relations }
+            }
+        }
+        return RelationEdge.dedupe(from: relationsByTicket)
     }
 
     func loadHistory(before: String? = nil) async throws -> HistoryResponse {

@@ -95,6 +95,11 @@ export function openDb(scopeDir) {
   // the constraint checker.
   migrate(db, scopeDir);
   db.pragma('foreign_keys = ON');
+  // Full-text search index lives outside the versioned schema: it's a pure
+  // derivative of tickets + comments, kept in sync by triggers and rebuilt
+  // from scratch whenever it's missing/empty. Orthogonal to migrations, so we
+  // (re)establish it on every open regardless of which migration branch ran.
+  ensureSearchIndex(db);
   return db;
 }
 
@@ -173,6 +178,138 @@ const CREATE_AUX_TABLES = `
   );
   CREATE INDEX IF NOT EXISTS idx_history_ticket ON ticket_history(ticket_id);
 `;
+
+/* ---------- Full-text search (FTS5) ---------- */
+
+// A single contentful FTS5 table with one row per ticket. Comment bodies are
+// folded into the `comments` column (concatenated) so a ticket matches on its
+// discussion too. `ticket_id` holds the human key (e.g. "SCP-7") and is the
+// join key back to `tickets` — it's left searchable so "SCP-7" finds SCP-7.
+//
+// It's a plain (non-external-content) FTS5 table, so ordinary INSERT/UPDATE/
+// DELETE in the sync triggers Just Work.
+const CREATE_SEARCH_TABLE = `
+  CREATE VIRTUAL TABLE IF NOT EXISTS tickets_fts USING fts5(
+    ticket_id,
+    number,
+    title,
+    description,
+    assignee,
+    labels,
+    branch,
+    pr_url,
+    comments,
+    tokenize = 'unicode61 remove_diacritics 2'
+  );
+`;
+
+// Triggers keep the index in lockstep with every write path (CLI, server,
+// direct SQL), so we never have to remember to reindex by hand. They are
+// DROPped and recreated on every `openDb` (see ensureSearchIndex) so a change
+// to a trigger body here actually reaches databases created by an older build
+// — the `IF NOT EXISTS` form alone would silently keep a stale definition.
+const DROP_SEARCH_TRIGGERS = `
+  DROP TRIGGER IF EXISTS tickets_fts_ai;
+  DROP TRIGGER IF EXISTS tickets_fts_au;
+  DROP TRIGGER IF EXISTS tickets_fts_ad;
+  DROP TRIGGER IF EXISTS comments_fts_ai;
+  DROP TRIGGER IF EXISTS comments_fts_au;
+  DROP TRIGGER IF EXISTS comments_fts_ad;
+`;
+
+const CREATE_SEARCH_TRIGGERS = `
+  CREATE TRIGGER tickets_fts_ai AFTER INSERT ON tickets BEGIN
+    INSERT INTO tickets_fts
+      (ticket_id, number, title, description, assignee, labels, branch, pr_url, comments)
+    VALUES
+      (NEW.id, NEW.number, NEW.title, COALESCE(NEW.description,''),
+       COALESCE(NEW.assignee,''), COALESCE(NEW.labels,''),
+       COALESCE(NEW.branch,''), COALESCE(NEW.pr_url,''), '');
+  END;
+
+  -- Only fires when an indexed text column actually changes, so routine
+  -- status/priority/parent/updated_at edits (the bulk of board churn) don't
+  -- pay to re-tokenize the whole searchable row. \`IS NOT\` is NULL-safe.
+  CREATE TRIGGER tickets_fts_au AFTER UPDATE ON tickets
+  WHEN NEW.number      IS NOT OLD.number
+    OR NEW.title       IS NOT OLD.title
+    OR NEW.description IS NOT OLD.description
+    OR NEW.assignee    IS NOT OLD.assignee
+    OR NEW.labels      IS NOT OLD.labels
+    OR NEW.branch      IS NOT OLD.branch
+    OR NEW.pr_url      IS NOT OLD.pr_url
+  BEGIN
+    UPDATE tickets_fts SET
+      number      = NEW.number,
+      title       = NEW.title,
+      description = COALESCE(NEW.description,''),
+      assignee    = COALESCE(NEW.assignee,''),
+      labels      = COALESCE(NEW.labels,''),
+      branch      = COALESCE(NEW.branch,''),
+      pr_url      = COALESCE(NEW.pr_url,'')
+    WHERE ticket_id = NEW.id;
+  END;
+
+  CREATE TRIGGER tickets_fts_ad AFTER DELETE ON tickets BEGIN
+    DELETE FROM tickets_fts WHERE ticket_id = OLD.id;
+  END;
+
+  CREATE TRIGGER comments_fts_ai AFTER INSERT ON ticket_comments BEGIN
+    UPDATE tickets_fts SET comments = COALESCE(
+      (SELECT group_concat(COALESCE(author,'') || ' ' || body, ' ')
+         FROM ticket_comments WHERE ticket_id = NEW.ticket_id), '')
+    WHERE ticket_id = NEW.ticket_id;
+  END;
+
+  CREATE TRIGGER comments_fts_au AFTER UPDATE ON ticket_comments BEGIN
+    UPDATE tickets_fts SET comments = COALESCE(
+      (SELECT group_concat(COALESCE(author,'') || ' ' || body, ' ')
+         FROM ticket_comments WHERE ticket_id = NEW.ticket_id), '')
+    WHERE ticket_id = NEW.ticket_id;
+  END;
+
+  CREATE TRIGGER comments_fts_ad AFTER DELETE ON ticket_comments BEGIN
+    UPDATE tickets_fts SET comments = COALESCE(
+      (SELECT group_concat(COALESCE(author,'') || ' ' || body, ' ')
+         FROM ticket_comments WHERE ticket_id = OLD.ticket_id), '')
+    WHERE ticket_id = OLD.ticket_id;
+  END;
+`;
+
+const POPULATE_SEARCH = `
+  INSERT INTO tickets_fts
+    (ticket_id, number, title, description, assignee, labels, branch, pr_url, comments)
+  SELECT
+    t.id, t.number, t.title, COALESCE(t.description,''),
+    COALESCE(t.assignee,''), COALESCE(t.labels,''),
+    COALESCE(t.branch,''), COALESCE(t.pr_url,''),
+    COALESCE((SELECT group_concat(COALESCE(c.author,'') || ' ' || c.body, ' ')
+                FROM ticket_comments c WHERE c.ticket_id = t.id), '')
+  FROM tickets t;
+`;
+
+/**
+ * Ensure the FTS5 search index + sync triggers exist and are current, and
+ * (re)build the index whenever it's out of step with `tickets`.
+ *
+ * Triggers are dropped+recreated every call so a definition change here lands
+ * on older databases. The index is rebuilt whenever its row count doesn't
+ * match the ticket count — covering first-open-after-upgrade (empty index),
+ * AND a partially-populated/stale index (e.g. rows added while triggers were
+ * transiently absent), which the old empty-only check would never repair.
+ * Steady state is two COUNTs and six cheap DDL statements — fine per openDb.
+ */
+export function ensureSearchIndex(db) {
+  db.exec(CREATE_SEARCH_TABLE);
+  db.exec(DROP_SEARCH_TRIGGERS);
+  db.exec(CREATE_SEARCH_TRIGGERS);
+  const ftsCount = db.prepare('SELECT count(*) AS n FROM tickets_fts').get().n;
+  const ticketCount = db.prepare('SELECT count(*) AS n FROM tickets').get().n;
+  if (ftsCount !== ticketCount) {
+    db.exec('DELETE FROM tickets_fts');
+    if (ticketCount > 0) db.exec(POPULATE_SEARCH);
+  }
+}
 
 const CURRENT_SCHEMA_VERSION = '4';
 

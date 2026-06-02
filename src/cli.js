@@ -34,6 +34,7 @@ import {
   createTicket,
   getTicket,
   listTickets,
+  searchTickets,
   updateTicket,
   deleteTicket,
   addRelation,
@@ -522,6 +523,29 @@ export function buildProgram() {
           { key: 'branch', header: 'BRANCH', width: 24 },
           { key: 'pr', header: 'PR', width: 30 },
         ])
+      );
+    });
+
+  ticket
+    .command('search <query...>')
+    .alias('find')
+    .description('Full-text search tickets across all fields and comments.')
+    .option('-n, --limit <count>', 'max results (1-200)', '50')
+    .action((queryWords, opts, cmd) => {
+      const { db } = openOrDie();
+      const query = queryWords.join(' ');
+      const tickets = searchTickets(db, query, { limit: Number(opts.limit) });
+      out(cmd, tickets, (tickets) =>
+        tickets.length
+          ? table(tickets.map(ticketRow), [
+              { key: 'id', header: 'ID' },
+              { key: 'type', header: 'TYPE' },
+              { key: 'title', header: 'TITLE', width: 50 },
+              { key: 'status', header: 'STATUS' },
+              { key: 'priority', header: 'PRI' },
+              { key: 'parent', header: 'EPIC' },
+            ])
+          : chalk.dim(`No tickets match "${query}".`)
       );
     });
 
