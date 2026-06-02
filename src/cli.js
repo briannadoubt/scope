@@ -21,6 +21,7 @@ import {
   SCOPE_DIR_NAME,
   DB_FILE_NAME,
 } from './db.js';
+import { ensureEventLog } from './backfill.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -71,7 +72,9 @@ function openOrDie() {
     );
     process.exit(1);
   }
-  return { db: openDb(dir), scopeDir: dir };
+  const db = openDb(dir);
+  ensureEventLog(db, dir);
+  return { db, scopeDir: dir };
 }
 
 function out(cmd, data, formatter) {

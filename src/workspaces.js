@@ -9,6 +9,7 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { openDb } from './db.js';
+import { ensureEventLog } from './backfill.js';
 import { emitChange } from './events.js';
 
 /* Hub-level registry of all attached workspaces. Survives hub restarts so the
@@ -122,6 +123,7 @@ export class WorkspaceManager {
     }
 
     const db = openDb(abs);
+    ensureEventLog(db, abs);
     let lastDataVersion = readDataVersion(db);
     // Cursor state for synthesizing rich events from cross-process writes.
     // We track the highest seen ticket_history.id and ticket_comments.id so
