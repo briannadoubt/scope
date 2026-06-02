@@ -110,15 +110,14 @@ current scale (~100s of tickets).
 
 ## Event kinds
 
-Identity note: events reference tickets by **`ticketId`** and comments by
-**`commentId`**. For the log to be peer-independent these identities must be
-stable and collision-free across replicas. The current `KEY-N` ticket id and
-the autoincrement integer comment id both depend on local DB state and *can*
-collide between two offline peers. Resolving that — most likely minting a ULID
-as the internal identity and treating `KEY-N` as a display number assigned at
-projection time — is **SCP-110's** job. This spec just fixes the field names and
-shapes; wherever it says `ticketId`/`commentId`, read "the stable identity SCP-110
-settles on".
+Identity note (settled by SCP-110, see
+[adr/0001-decentralized-ticket-identity.md](adr/0001-decentralized-ticket-identity.md)):
+events reference tickets by **`ticketId`**, which is a **ULID** — the ticket's
+permanent, collision-free identity, minted locally with no coordination. The
+human-facing `KEY-N` is *not* identity; it is a display attribute carried on
+`ticket.create` as `number` + `keyPrefix` and de-collided deterministically at
+replay (`src/identity.js#resolveDisplayNumbers`). Comment ids (`commentId`) are
+likewise ULIDs. `parentId`, `fromId`, `toId` all reference tickets by ULID.
 
 ### `workspace.init`
 Emitted once when a workspace is created. Payload:
@@ -136,19 +135,24 @@ Any subset of the mutable workspace fields. Payload (all optional, ≥1 present)
 Mirrors `createTicket()` in `repo.js`. Payload:
 ```jsonc
 {
-  "ticketId": "SCP-42",
+  "ticketId": "01JZ9F2K7QABCD3EFGH4JKMN5", // ULID identity (permanent)
+  "number": 42,                   // locally-allocated display number (de-collided at replay)
+  "keyPrefix": "SCP",             // captured at create; key changes never renumber existing tickets
   "ticketType": "story",          // epic | story | bug
   "title": "OAuth login",
   "description": "",
   "status": "backlog",            // backlog|todo|in_progress|in_review|done|cancelled
   "priority": "medium",           // low|medium|high|urgent
-  "parentId": "SCP-1",            // or null
+  "parentId": "01JZ9F2K6...",     // parent ULID, or null
   "branch": null,
   "prUrl": null,
   "assignee": null,
   "labels": []
 }
 ```
+The human id is `${keyPrefix}-${resolvedNumber}` (e.g. `SCP-42`), where
+`resolvedNumber` comes from the deterministic resolver — see
+[adr/0001](adr/0001-decentralized-ticket-identity.md).
 
 ### `ticket.set_field`
 **One event per field changed.** Mirrors each field write inside

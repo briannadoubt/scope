@@ -34,13 +34,15 @@ test('makeEvent builds a valid envelope with all required fields', () => {
   const e = makeEvent(
     'ticket.create',
     {
-      ticketId: 'SCP-42',
+      ticketId: '01JZ9F2K7QABCD3EFGH4JKMN5',
+      number: 42,
+      keyPrefix: 'SCP',
       ticketType: 'story',
       title: 'OAuth login',
       description: '',
       status: 'backlog',
       priority: 'medium',
-      parentId: 'SCP-1',
+      parentId: '01JZ9F2K6PARENT00000000000',
       branch: null,
       prUrl: null,
       assignee: null,

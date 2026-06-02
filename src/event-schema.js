@@ -158,6 +158,8 @@ function fail(msg) {
 const isStr = (v) => typeof v === 'string';
 const isNonEmptyStr = (v) => typeof v === 'string' && v.length > 0;
 const isNullableStr = (v) => v === null || typeof v === 'string';
+// Same shape updateWorkspace enforces for a workspace key.
+const isKeyPrefix = (v) => typeof v === 'string' && /^[A-Z][A-Z0-9]{1,9}$/.test(v);
 
 /**
  * Throw EventValidationError if `evt` violates the spec. Used by the writer
@@ -197,7 +199,12 @@ function validatePayload(kind, p) {
     }
 
     case 'ticket.create':
+      // ticketId is the ULID identity (SCP-110); number/keyPrefix are the
+      // display attributes the replay-time resolver de-collides.
       if (!isNonEmptyStr(p.ticketId)) fail('ticket.create.ticketId required');
+      if (!Number.isInteger(p.number) || p.number < 1)
+        fail('ticket.create.number must be a positive integer');
+      if (!isKeyPrefix(p.keyPrefix)) fail('ticket.create.keyPrefix must be 2-10 uppercase alnum');
       oneOf('ticket.create.ticketType', p.ticketType, SCHEMA_TICKET_TYPES);
       if (!isNonEmptyStr(p.title)) fail('ticket.create.title required');
       oneOf('ticket.create.status', p.status, SCHEMA_STATUSES);
