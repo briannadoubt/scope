@@ -1,0 +1,283 @@
+/**
+ * Event log format — the executable form of docs/event-log-format.md (SCP-107).
+ *
+ * This module defines Scope's append-only operation log: the envelope, the
+ * closed set of event kinds, a dependency-free ULID generator, a builder that
+ * produces validated events, a validator that rejects anything the spec
+ * forbids, and the canonical total order used by replay (SCP-109) and conflict
+ * resolution (SCP-110).
+ *
+ * Enum values are imported from repo.js so the event format and the SQLite
+ * CHECK constraints can never drift apart.
+ */
+
+import { randomBytes } from 'node:crypto';
+import {
+  SCHEMA_STATUSES,
+  SCHEMA_PRIORITIES,
+  SCHEMA_TICKET_TYPES,
+  SCHEMA_RELATION_TYPES,
+} from './repo.js';
+
+/** Current event-envelope version. Bump only on a breaking format change. */
+export const EVENT_FORMAT_VERSION = 1;
+
+/** The closed set of legal `kind` values. */
+export const EVENT_KINDS = Object.freeze([
+  'workspace.init',
+  'workspace.set',
+  'ticket.create',
+  'ticket.set_field',
+  'ticket.delete',
+  'comment.add',
+  'relation.add',
+  'relation.remove',
+]);
+
+/** Fields a `ticket.set_field` event is allowed to target. */
+export const TICKET_FIELDS = Object.freeze([
+  'title',
+  'description',
+  'status',
+  'priority',
+  'parentId',
+  'branch',
+  'prUrl',
+  'assignee',
+  'labels',
+]);
+
+/* ----------------------------- ULID ----------------------------- */
+
+// Crockford base32 (no I, L, O, U). 10 chars encode a 48-bit ms timestamp,
+// 16 chars encode 80 bits of randomness — 26 chars total, the standard ULID.
+const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+let lastMs = -1;
+let lastRandom = null;
+
+/**
+ * Mint a ULID — a 26-char, lexicographically time-sortable, globally-unique id
+ * with no external dependency. Monotonic within a process: if two ulids are
+ * minted in the same millisecond the random component is incremented so they
+ * still sort in creation order.
+ *
+ * @param {number} [ms] - epoch milliseconds (defaults to now). Injectable for tests.
+ * @returns {string}
+ */
+export function ulid(ms = Date.now()) {
+  const time = encodeTime(ms);
+  let rand;
+  if (ms === lastMs && lastRandom) {
+    rand = incrementRandom(lastRandom);
+  } else {
+    rand = randomBytes(10); // 80 bits
+  }
+  lastMs = ms;
+  lastRandom = rand;
+  return time + encodeRandom(rand);
+}
+
+function encodeTime(ms) {
+  let out = '';
+  let n = ms;
+  for (let i = 0; i < 10; i++) {
+    out = CROCKFORD[n % 32] + out;
+    n = Math.floor(n / 32);
+  }
+  return out;
+}
+
+function encodeRandom(bytes) {
+  // 10 bytes (80 bits) -> 16 base32 chars (80 bits). Stream the bits out MSB-first.
+  let bits = 0;
+  let value = 0;
+  let out = '';
+  for (const b of bytes) {
+    value = (value << 8) | b;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      out += CROCKFORD[(value >>> bits) & 31];
+    }
+  }
+  if (bits > 0) out += CROCKFORD[(value << (5 - bits)) & 31];
+  return out.slice(0, 16);
+}
+
+function incrementRandom(bytes) {
+  const next = Buffer.from(bytes);
+  for (let i = next.length - 1; i >= 0; i--) {
+    if (next[i] === 0xff) {
+      next[i] = 0;
+    } else {
+      next[i] += 1;
+      return next;
+    }
+  }
+  // Overflow (astronomically unlikely): fall back to fresh randomness.
+  return randomBytes(10);
+}
+
+/* --------------------------- builder --------------------------- */
+
+/**
+ * Build a validated event envelope.
+ *
+ * @param {string} kind - one of EVENT_KINDS
+ * @param {object} payload - kind-specific payload (see docs/event-log-format.md)
+ * @param {object} opts
+ * @param {string} opts.actor - required; who caused the change
+ * @param {string} [opts.ts] - ISO timestamp; defaults to now
+ * @param {number} [opts.ms] - epoch ms for the ULID; defaults to Date.parse(ts) or now
+ * @returns {object} the event
+ */
+export function makeEvent(kind, payload, { actor, ts, ms } = {}) {
+  const when = ts || new Date().toISOString();
+  const millis = Number.isFinite(ms) ? ms : Date.parse(when);
+  const evt = {
+    v: EVENT_FORMAT_VERSION,
+    id: ulid(Number.isFinite(millis) ? millis : undefined),
+    ts: when,
+    actor,
+    kind,
+    payload,
+  };
+  validateEvent(evt);
+  return evt;
+}
+
+/* -------------------------- validation -------------------------- */
+
+class EventValidationError extends Error {}
+
+function fail(msg) {
+  throw new EventValidationError(`Invalid event: ${msg}`);
+}
+
+const isStr = (v) => typeof v === 'string';
+const isNonEmptyStr = (v) => typeof v === 'string' && v.length > 0;
+const isNullableStr = (v) => v === null || typeof v === 'string';
+
+/**
+ * Throw EventValidationError if `evt` violates the spec. Used by the writer
+ * (reject bad writes, SCP-108) and the reader (reject corrupt files, SCP-109).
+ */
+export function validateEvent(evt) {
+  if (!evt || typeof evt !== 'object') fail('not an object');
+  if (evt.v !== EVENT_FORMAT_VERSION)
+    fail(`unsupported version ${JSON.stringify(evt.v)} (expected ${EVENT_FORMAT_VERSION})`);
+  if (!isNonEmptyStr(evt.id)) fail('missing id');
+  if (!isNonEmptyStr(evt.ts) || Number.isNaN(Date.parse(evt.ts)))
+    fail(`bad ts ${JSON.stringify(evt.ts)}`);
+  if (!isNonEmptyStr(evt.actor)) fail('missing actor (every event must record who)');
+  if (!EVENT_KINDS.includes(evt.kind)) fail(`unknown kind ${JSON.stringify(evt.kind)}`);
+  if (!evt.payload || typeof evt.payload !== 'object') fail('missing payload');
+  validatePayload(evt.kind, evt.payload);
+  return evt;
+}
+
+function oneOf(label, value, allowed) {
+  if (!allowed.includes(value)) fail(`${label} must be one of ${allowed.join('|')}, got ${JSON.stringify(value)}`);
+}
+
+function validatePayload(kind, p) {
+  switch (kind) {
+    case 'workspace.init':
+      if (!isNonEmptyStr(p.key)) fail('workspace.init.key required');
+      if (!isNonEmptyStr(p.name)) fail('workspace.init.name required');
+      break;
+
+    case 'workspace.set': {
+      const keys = ['key', 'name', 'description', 'overview'];
+      const present = keys.filter((k) => k in p);
+      if (!present.length) fail('workspace.set needs at least one field');
+      for (const k of present) if (!isStr(p[k])) fail(`workspace.set.${k} must be a string`);
+      break;
+    }
+
+    case 'ticket.create':
+      if (!isNonEmptyStr(p.ticketId)) fail('ticket.create.ticketId required');
+      oneOf('ticket.create.ticketType', p.ticketType, SCHEMA_TICKET_TYPES);
+      if (!isNonEmptyStr(p.title)) fail('ticket.create.title required');
+      oneOf('ticket.create.status', p.status, SCHEMA_STATUSES);
+      oneOf('ticket.create.priority', p.priority, SCHEMA_PRIORITIES);
+      if (!isNullableStr(p.parentId)) fail('ticket.create.parentId must be string|null');
+      if (!Array.isArray(p.labels)) fail('ticket.create.labels must be an array');
+      break;
+
+    case 'ticket.set_field':
+      if (!isNonEmptyStr(p.ticketId)) fail('ticket.set_field.ticketId required');
+      oneOf('ticket.set_field.field', p.field, TICKET_FIELDS);
+      validateFieldValue(p.field, p.value);
+      break;
+
+    case 'ticket.delete':
+      if (!isNonEmptyStr(p.ticketId)) fail('ticket.delete.ticketId required');
+      break;
+
+    case 'comment.add':
+      if (!isNonEmptyStr(p.ticketId)) fail('comment.add.ticketId required');
+      if (!isNonEmptyStr(p.commentId)) fail('comment.add.commentId required');
+      if (!isStr(p.body)) fail('comment.add.body must be a string');
+      if (!isNullableStr(p.author)) fail('comment.add.author must be string|null');
+      break;
+
+    case 'relation.add':
+    case 'relation.remove':
+      if (!isNonEmptyStr(p.fromId)) fail(`${kind}.fromId required`);
+      if (!isNonEmptyStr(p.toId)) fail(`${kind}.toId required`);
+      if (p.fromId === p.toId) fail(`${kind} cannot relate a ticket to itself`);
+      oneOf(`${kind}.type`, p.type, SCHEMA_RELATION_TYPES);
+      break;
+
+    default:
+      fail(`no payload validator for kind ${kind}`);
+  }
+}
+
+function validateFieldValue(field, value) {
+  switch (field) {
+    case 'status':
+      oneOf('status', value, SCHEMA_STATUSES);
+      break;
+    case 'priority':
+      oneOf('priority', value, SCHEMA_PRIORITIES);
+      break;
+    case 'labels':
+      if (!Array.isArray(value)) fail('labels value must be an array');
+      break;
+    case 'title':
+      if (!isNonEmptyStr(value)) fail('title value must be a non-empty string');
+      break;
+    case 'description':
+      if (!isStr(value)) fail('description value must be a string');
+      break;
+    // parentId, branch, prUrl, assignee are all nullable strings
+    case 'parentId':
+    case 'branch':
+    case 'prUrl':
+    case 'assignee':
+      if (!isNullableStr(value)) fail(`${field} value must be string|null`);
+      break;
+    default:
+      fail(`unknown field ${field}`);
+  }
+}
+
+/* ------------------------ canonical order ------------------------ */
+
+/**
+ * Canonical total order over events. Primary: wall-clock `ts` (most recent
+ * intent wins). Tiebreaks: `actor`, then the globally-unique `id`. Every peer
+ * computes the identical order from the same event set, which is what makes
+ * replay deterministic (SCP-109) and LWW well-defined (SCP-110).
+ */
+export function compareEvents(a, b) {
+  if (a.ts !== b.ts) return a.ts < b.ts ? -1 : 1;
+  if (a.actor !== b.actor) return a.actor < b.actor ? -1 : 1;
+  if (a.id !== b.id) return a.id < b.id ? -1 : 1;
+  return 0;
+}
+
+export { EventValidationError };
