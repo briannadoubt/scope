@@ -3,6 +3,8 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 
+import { ulid } from './ulid.js';
+
 export const SCOPE_DIR_NAME = '.scope';
 export const DB_FILE_NAME = 'scope.db';
 
@@ -85,6 +87,7 @@ const CREATE_WORKSPACE = `
 const CREATE_TICKETS = `
   CREATE TABLE IF NOT EXISTS tickets (
     id TEXT PRIMARY KEY,
+    uid TEXT,
     number INTEGER NOT NULL,
     type TEXT NOT NULL CHECK(type IN ('epic','story','bug')),
     title TEXT NOT NULL,
@@ -105,6 +108,7 @@ const CREATE_TICKETS = `
   CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
   CREATE INDEX IF NOT EXISTS idx_tickets_parent ON tickets(parent_id);
   CREATE INDEX IF NOT EXISTS idx_tickets_type ON tickets(type);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_uid ON tickets(uid);
 `;
 
 const CREATE_AUX_TABLES = `
@@ -141,7 +145,7 @@ const CREATE_AUX_TABLES = `
   CREATE INDEX IF NOT EXISTS idx_history_ticket ON ticket_history(ticket_id);
 `;
 
-const CURRENT_SCHEMA_VERSION = '3';
+const CURRENT_SCHEMA_VERSION = '4';
 
 function tableExists(db, name) {
   const row = db
@@ -220,6 +224,25 @@ function rebuildAuxTables(db) {
       );
     }
   }
+}
+
+/**
+ * v3 → v4: give every ticket a stable ULID identity (`uid`) for the
+ * event-sourced store (SCP-108/110). Idempotent — a no-op once the column and
+ * index exist. Existing rows are backfilled with fresh ULIDs in created_at
+ * order; new tickets get their uid from createTicket().
+ *
+ * MUST be called with foreign_keys = OFF (it runs during migrate()).
+ */
+function ensureUidColumn(db) {
+  const cols = db.prepare('PRAGMA table_info(tickets)').all();
+  if (!cols.some((c) => c.name === 'uid')) {
+    db.exec('ALTER TABLE tickets ADD COLUMN uid TEXT');
+    const rows = db.prepare('SELECT id FROM tickets ORDER BY created_at ASC, id ASC').all();
+    const upd = db.prepare('UPDATE tickets SET uid = ? WHERE id = ?');
+    for (const r of rows) upd.run(ulid(), r.id);
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_uid ON tickets(uid)');
 }
 
 /**
@@ -380,6 +403,9 @@ function migrate(db, scopeDir) {
       // Rebuild aux tables so their FKs point at the new `tickets` table.
       rebuildAuxTables(db);
 
+      // v4: stable ULID identity for every ticket.
+      ensureUidColumn(db);
+
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
@@ -397,14 +423,17 @@ function migrate(db, scopeDir) {
     return;
   }
 
-  // ── v2 → v3 (FK repair for buggy intermediate migration) ────────────────
-  // v2 had a known issue: aux table FKs pointed at `tickets_v1` (the renamed
-  // intermediate) which was then dropped, leaving dangling FK references.
-  // Symptom: inserts/deletes on ticket_relations / ticket_comments /
-  // ticket_history fail with `no such table: main.tickets_v1`.
+  // ── Upgrade an existing workspace DB to the current version ──────────────
+  // Two independent steps, each idempotent and applied as needed:
+  //   • v2→v3: aux-table FK repair. v2 had a known issue where aux table FKs
+  //     pointed at `tickets_v1` (the renamed intermediate) which was then
+  //     dropped, leaving dangling FK references. Only needed for pre-v3 DBs.
+  //   • v3→v4: stable ULID `uid` on every ticket (SCP-108/110).
   if (hasWorkspace && version !== CURRENT_SCHEMA_VERSION) {
+    const v = Number(version) || 0;
     const tx = db.transaction(() => {
-      rebuildAuxTables(db);
+      if (v < 3) rebuildAuxTables(db);
+      ensureUidColumn(db);
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
@@ -415,7 +444,7 @@ function migrate(db, scopeDir) {
     const issues = db.prepare('PRAGMA foreign_key_check').all();
     if (issues.length) {
       throw new Error(
-        `v2→v3 FK repair left violations: ${JSON.stringify(issues)}`
+        `migration to v${CURRENT_SCHEMA_VERSION} left FK violations: ${JSON.stringify(issues)}`
       );
     }
     return;
@@ -426,6 +455,7 @@ function migrate(db, scopeDir) {
   db.exec(CREATE_WORKSPACE);
   db.exec(CREATE_TICKETS);
   db.exec(CREATE_AUX_TABLES);
+  ensureUidColumn(db);
   const existing = db.prepare('SELECT id FROM workspace WHERE id = 1').get();
   if (!existing) {
     const now = nowIso();

@@ -1,5 +1,37 @@
 import { nowIso, nextTicketId, recordHistory, getWorkspace } from './db.js';
 import { emitChange } from './events.js';
+import { ulid } from './ulid.js';
+import { makeEvent } from './event-schema.js';
+import { appendEvent, eventsDirForDb } from './event-store.js';
+import {
+  TICKET_TYPES,
+  STATUSES,
+  PRIORITIES,
+  RELATION_TYPES,
+  RELATION_INVERSE,
+  COLUMN_TO_FIELD,
+} from './enums.js';
+
+/* ---------------- event emission (SCP-108) ---------------- */
+
+/** Normalize an actor handle; every event must record a non-empty actor. */
+const actorOf = (a) => (a && String(a).trim()) || 'unknown';
+
+/**
+ * Append one operation event to the on-disk log for this db's workspace. This
+ * is the single chokepoint: every mutation below emits through here, so the
+ * event log is a complete record of state changes (the future source of truth,
+ * SCP-106). Today it runs alongside the SQLite writes (dual-write); SCP-109/111
+ * flip the db to be a projection of this log.
+ */
+function emit(db, kind, payload, actor) {
+  return appendEvent(eventsDirForDb(db), makeEvent(kind, payload, { actor: actorOf(actor) }));
+}
+
+/** Look up a ticket's stable ULID identity by its KEY-N id. */
+function uidFor(db, id) {
+  return db.prepare('SELECT uid FROM tickets WHERE id = ?').get(id)?.uid ?? null;
+}
 
 /* ---------------- workspace ---------------- */
 
@@ -28,11 +60,12 @@ export function listWorkspaces(db) {
   }
 }
 
-export function updateWorkspace(db, fields = {}) {
+export function updateWorkspace(db, fields = {}, who = null) {
   const ws = getWorkspace(db);
   const allowed = ['key', 'name', 'description', 'overview'];
   const updates = [];
   const values = [];
+  const changed = {};
   for (const k of allowed) {
     if (k in fields) {
       if (k === 'key' && !/^[A-Z][A-Z0-9]{1,9}$/.test(fields[k])) {
@@ -42,6 +75,7 @@ export function updateWorkspace(db, fields = {}) {
       }
       updates.push(`${k} = ?`);
       values.push(fields[k]);
+      changed[k] = fields[k];
     }
   }
   if (!updates.length) return ws;
@@ -49,15 +83,12 @@ export function updateWorkspace(db, fields = {}) {
   values.push(nowIso());
   db.prepare(`UPDATE workspace SET ${updates.join(', ')} WHERE id = 1`).run(...values);
   const updated = getWorkspace(db);
+  emit(db, 'workspace.set', changed, who);
   emitChange({ type: 'workspace.updated', id: 1 });
   return updated;
 }
 
 /* ---------------- tickets ---------------- */
-
-const TICKET_TYPES = new Set(['epic', 'story', 'bug']);
-const STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'cancelled'];
-const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
 export function createTicket(
   db,
@@ -72,14 +103,16 @@ export function createTicket(
     prUrl,
     assignee,
     labels = [],
+    actor,
   }
 ) {
-  if (!TICKET_TYPES.has(type)) throw new Error(`Invalid type "${type}". Use epic|story|bug.`);
+  if (!TICKET_TYPES.includes(type)) throw new Error(`Invalid type "${type}". Use epic|story|bug.`);
   if (!STATUSES.includes(status)) throw new Error(`Invalid status "${status}".`);
   if (!PRIORITIES.includes(priority)) throw new Error(`Invalid priority "${priority}".`);
   if (!title || !title.trim()) throw new Error('Ticket title is required.');
 
   let parentId = null;
+  let parentUid = null;
   if (parent) {
     const parentTicket = getTicket(db, parent);
     if (!parentTicket) throw new Error(`Parent ticket not found: ${parent}`);
@@ -87,17 +120,20 @@ export function createTicket(
       throw new Error(`Parent must be an epic, got "${parentTicket.type}" (${parentTicket.id}).`);
     if (type === 'epic') throw new Error('Epics cannot have an epic parent.');
     parentId = parentTicket.id;
+    parentUid = parentTicket.uid;
   }
 
   const { id, number } = nextTicketId(db);
+  const uid = ulid();
   const now = nowIso();
   db.prepare(
     `INSERT INTO tickets
-       (id, number, type, title, description, status, priority,
+       (id, uid, number, type, title, description, status, priority,
         parent_id, branch, pr_url, assignee, labels, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
+    uid,
     number,
     type,
     title,
@@ -113,6 +149,26 @@ export function createTicket(
     now
   );
   const created = getTicket(db, id);
+  emit(
+    db,
+    'ticket.create',
+    {
+      ticketId: uid,
+      number,
+      keyPrefix: getWorkspace(db).key,
+      ticketType: type,
+      title,
+      description,
+      status,
+      priority,
+      parentId: parentUid,
+      branch: branch ?? null,
+      prUrl: prUrl ?? null,
+      assignee: assignee ?? null,
+      labels: labels ?? [],
+    },
+    actor
+  );
   emitChange({
     type: 'ticket.created',
     id,
@@ -210,6 +266,10 @@ export function updateTicket(db, id, fields, who = null) {
   // ticket.updated event per field after the row is rewritten — same shape
   // the fs-watch fallback produces from ticket_history rows.
   const fieldChanges = [];
+  // Collect ticket.set_field event payloads (one per changed column), translated
+  // from DB columns to event field names / ULID references. Emitted after the
+  // row write succeeds.
+  const setFieldEvents = [];
   for (const k of allowed) {
     if (k in fields) {
       const v = k === 'labels' ? JSON.stringify(fields[k] ?? []) : fields[k];
@@ -219,6 +279,13 @@ export function updateTicket(db, id, fields, who = null) {
       const historyId = recordHistory(db, ticket.id, k, oldRaw, v, who);
       if (historyId != null) {
         fieldChanges.push({ field: k, old: oldRaw, new: v, historyId });
+        // Event value is the natural JSON type: array for labels, the parent's
+        // ULID (not KEY-N) for parent_id, the raw value otherwise.
+        let value;
+        if (k === 'labels') value = fields[k] ?? [];
+        else if (k === 'parent_id') value = fields.parent_id ? uidFor(db, fields.parent_id) : null;
+        else value = fields[k];
+        setFieldEvents.push({ field: COLUMN_TO_FIELD[k], value });
       }
     }
   }
@@ -227,6 +294,9 @@ export function updateTicket(db, id, fields, who = null) {
   values.push(nowIso());
   values.push(ticket.id);
   db.prepare(`UPDATE tickets SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  for (const e of setFieldEvents) {
+    emit(db, 'ticket.set_field', { ticketId: ticket.uid, field: e.field, value: e.value }, who);
+  }
   const after = getTicket(db, ticket.id);
   // One toast-shaped event per field. If nothing actually changed value-wise
   // (recordHistory is a no-op for same-as-current), emit a single bare
@@ -250,26 +320,18 @@ export function updateTicket(db, id, fields, who = null) {
   return after;
 }
 
-export function deleteTicket(db, id) {
+export function deleteTicket(db, id, who = null) {
   const t = getTicket(db, id);
   if (!t) return false;
   db.prepare('DELETE FROM tickets WHERE id = ?').run(t.id);
+  emit(db, 'ticket.delete', { ticketId: t.uid }, who);
   emitChange({ type: 'ticket.deleted', id: t.id, title: t.title });
   return true;
 }
 
 /* ---------------- relations ---------------- */
 
-const RELATION_TYPES = ['blocks', 'blocked_by', 'relates_to', 'duplicates', 'duplicate_of'];
-const INVERSE = {
-  blocks: 'blocked_by',
-  blocked_by: 'blocks',
-  relates_to: 'relates_to',
-  duplicates: 'duplicate_of',
-  duplicate_of: 'duplicates',
-};
-
-export function addRelation(db, fromId, toId, type) {
+export function addRelation(db, fromId, toId, type, who = null) {
   if (!RELATION_TYPES.includes(type))
     throw new Error(`Invalid relation type "${type}". One of: ${RELATION_TYPES.join(', ')}`);
   if (fromId === toId) throw new Error('Cannot relate a ticket to itself.');
@@ -284,24 +346,31 @@ export function addRelation(db, fromId, toId, type) {
   );
   const tx = db.transaction(() => {
     stmt.run(from.id, to.id, type, now);
-    stmt.run(to.id, from.id, INVERSE[type], now);
+    stmt.run(to.id, from.id, RELATION_INVERSE[type], now);
   });
   tx();
+  // Emit the single user intent; replay materializes the inverse (SCP-110).
+  emit(db, 'relation.add', { fromId: from.uid, toId: to.uid, type }, who);
   emitChange({ type: 'relation.added', from: from.id, to: to.id, relType: type });
   return listRelations(db, from.id);
 }
 
-export function removeRelation(db, fromId, toId, type) {
+export function removeRelation(db, fromId, toId, type, who = null) {
   if (!RELATION_TYPES.includes(type)) throw new Error(`Invalid relation type "${type}".`);
+  const fromUid = uidFor(db, fromId);
+  const toUid = uidFor(db, toId);
   const tx = db.transaction(() => {
     db.prepare(
       `DELETE FROM ticket_relations WHERE from_ticket_id = ? AND to_ticket_id = ? AND type = ?`
     ).run(fromId, toId, type);
     db.prepare(
       `DELETE FROM ticket_relations WHERE from_ticket_id = ? AND to_ticket_id = ? AND type = ?`
-    ).run(toId, fromId, INVERSE[type]);
+    ).run(toId, fromId, RELATION_INVERSE[type]);
   });
   tx();
+  if (fromUid && toUid) {
+    emit(db, 'relation.remove', { fromId: fromUid, toId: toUid, type }, who);
+  }
   emitChange({ type: 'relation.removed', from: fromId, to: toId, relType: type });
 }
 
@@ -329,6 +398,7 @@ export function addComment(db, ticketId, body, author = null) {
     )
     .run(t.id, author, body, nowIso());
   const commentId = Number(res.lastInsertRowid);
+  emit(db, 'comment.add', { ticketId: t.uid, commentId: ulid(), author: author ?? null, body }, author);
   emitChange({
     type: 'comment.added',
     id: t.id,
@@ -429,8 +499,9 @@ export function epicProgress(db, epicId) {
 }
 
 /* ---------------- constants ---------------- */
-
+// Re-exported from the canonical enums module for back-compat with callers that
+// import SCHEMA_* from repo.js.
 export const SCHEMA_STATUSES = STATUSES;
 export const SCHEMA_PRIORITIES = PRIORITIES;
 export const SCHEMA_RELATION_TYPES = RELATION_TYPES;
-export const SCHEMA_TICKET_TYPES = [...TICKET_TYPES];
+export const SCHEMA_TICKET_TYPES = TICKET_TYPES;
