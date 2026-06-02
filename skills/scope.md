@@ -91,11 +91,49 @@ scope comment MA-2 "Token expiry was 5min; bumped to 1h" --by you
 scope link add MA-2 blocked_by MA-7
 ```
 
+## Bulk & structural changes — never edit scope.db directly
+
+`scope.db` is a **rebuildable cache** of the event log. Editing it with `sqlite3`
+writes no event, so your change is silently lost the next time the cache is
+rebuilt (and corrupts merges). Every mutation has a command — use them:
+
+```bash
+# rename the project / edit metadata
+scope workspace set --name "New Name" --description "..."
+
+# change the key AND reprefix every ticket (MA-1 → APP-1, ...). This is the
+# ONLY correct way to change a key; `set --key` only affects future tickets.
+scope workspace rekey APP
+
+# reparent / move a ticket between epics (or clear with "none")
+scope ticket edit MA-7 --parent MA-1
+
+# bulk: same change to several tickets, applied atomically
+scope status MA-2,MA-3,MA-4 done --by you
+scope ticket edit MA-2,MA-3 --priority high
+
+# batch: many heterogeneous ops as ONE atomic transaction (all or nothing).
+# "$ref" lets one op reference a ticket created earlier in the same batch.
+echo '[
+  {"op":"create","ref":"epic","type":"epic","title":"Billing"},
+  {"op":"create","type":"story","title":"Invoices","parent":"$epic"},
+  {"op":"create","type":"story","title":"Refunds","parent":"$epic"},
+  {"op":"status","id":"MA-9","status":"done"},
+  {"op":"link","from":"$epic","type":"blocked_by","to":"MA-12"}
+]' | scope batch --by you
+```
+
+Batch ops: `create` (with optional `ref`), `update {id,fields}`, `status
+{id,status}`, `delete {id}`, `comment {id,body}`, `link`/`unlink {from,type,to}`,
+`workspace {fields}`. If any op fails, nothing is applied. If a command for what
+you need seems missing, ask for it to be added — do not fall back to SQL.
+
 ## Guardrails
 
-- **Don't change a workspace's key without an explicit human request.**
-  Ticket IDs are immutable — once tickets exist with a prefix, changing the
-  key leaves them stranded under the old one. Adding tickets, comments, and
+- **Don't change a workspace's key without an explicit human request.** When
+  asked, use `scope workspace rekey <KEY>` — it reprefixes every ticket
+  atomically (via the log). Avoid `set --key`, which only affects future tickets
+  and strands existing ones under the old prefix. Adding tickets, comments, and
   statuses to an existing workspace is always fine.
 - **Don't delete tickets** to "clean up." Set status to `cancelled` so history
   is preserved and the audit log makes sense.

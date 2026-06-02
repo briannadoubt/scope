@@ -232,11 +232,13 @@ for the format and conflict semantics.
 |---|---|
 | `scope init [--key KEY --name NAME]` | Create `.scope/` in the current directory. Prompts on a TTY if flags are omitted. |
 | `scope workspace show` | Print the current workspace (key, name, description, overview). |
-| `scope workspace set [--key KEY] [--name NAME] [--description ...] [--overview ...]` | Edit workspace metadata. |
+| `scope workspace set [--key KEY] [--name NAME] [--description ...] [--overview ...]` | Edit workspace metadata. `--key` only affects future tickets. |
+| `scope workspace rekey <KEY>` | Change the key **and reprefix every existing ticket** (`MA-1` → `APP-1`). The correct way to rename a key. |
 | `scope workspace add / list / remove` | Manage which workspaces the running hub knows about. |
 | `scope ticket create <title> -t <type> [--parent <epic>]` | New ticket in the current workspace. |
-| `scope ticket list / show / edit / delete` | Manage tickets. |
-| `scope status <id> <status> [--by <name>]` | Move a ticket. |
+| `scope ticket list / show / edit / delete` | Manage tickets. `edit` accepts a comma-separated id list (atomic). |
+| `scope status <ids> <status> [--by <name>]` | Move a ticket. `ids` may be comma-separated to move several atomically. |
+| `scope batch [-f ops.json]` | Apply many ops as one atomic transaction (or pipe the JSON array on stdin). Supports `$ref` to reference a ticket created earlier in the batch. The supported path for bulk/compound edits — never edit `scope.db` directly. |
 | `scope branch <id> [<name>] [--in-progress]` | Get/set branch, optionally flip status. |
 | `scope pr <id> [<url>] [--in-review\|--merged]` | Get/set PR, optionally flip status. |
 | `scope link add <from> <type> <to>` | Relate two tickets. |

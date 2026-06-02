@@ -96,12 +96,39 @@ scope comment MA-2 "Token expiry was 5min; bumped to 1h" --by you
 scope link add MA-2 blocked_by MA-7
 ```
 
+## Bulk & structural changes — never edit scope.db directly
+
+`scope.db` is a **rebuildable cache** of the event log. Editing it with `sqlite3`
+writes no event, so the change is silently lost on the next cache rebuild (and
+corrupts merges). Every mutation has a command — use them:
+
+```bash
+scope workspace set --name "New Name"        # rename / edit metadata
+scope workspace rekey APP                     # change key + reprefix ALL tickets (MA-1 → APP-1)
+scope ticket edit MA-7 --parent MA-1          # reparent (or "none" to clear)
+scope status MA-2,MA-3 done --by you          # bulk, atomic
+scope ticket edit MA-2,MA-3 --priority high   # bulk, atomic
+
+# many heterogeneous ops as ONE atomic transaction (all-or-nothing).
+# "$ref" references a ticket created earlier in the same batch.
+echo '[
+  {"op":"create","ref":"e","type":"epic","title":"Billing"},
+  {"op":"create","type":"story","title":"Invoices","parent":"$e"},
+  {"op":"status","id":"MA-9","status":"done"}
+]' | scope batch --by you
+```
+
+Batch ops: `create` (optional `ref`), `update {id,fields}`, `status {id,status}`,
+`delete {id}`, `comment {id,body}`, `link`/`unlink {from,type,to}`, `workspace
+{fields}`. If a command for what you need seems missing, ask for it to be added —
+never fall back to SQL.
+
 ## Guardrails
 
-- **Don't change a workspace's key without an explicit human request.**
-  Ticket IDs are immutable — once tickets exist with a prefix, changing the
-  key leaves them stranded under the old one. Adding tickets, comments, and
-  statuses to an existing workspace is always fine.
+- **Don't change a workspace's key without an explicit human request.** When
+  asked, use `scope workspace rekey <KEY>` (reprefixes every ticket atomically
+  via the log); avoid `set --key`, which strands existing tickets under the old
+  prefix. Adding tickets, comments, and statuses is always fine.
 - **Don't delete tickets** to "clean up." Set status to `cancelled` so history
   is preserved and the audit log makes sense.
 - **Keep titles human-readable.** A title is what shows up on the kanban card
