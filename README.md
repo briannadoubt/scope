@@ -184,6 +184,48 @@ Ticket IDs are immutable — once a ticket is created, its prefix is baked into
 its ID. Changing the workspace key after the fact leaves old tickets with the
 old prefix.
 
+## Collaboration — deploy nothing, just `git pull`
+
+Scope is event-sourced. The source of truth is an **append-only log** under
+`.scope/events/` — one JSON file per change, named by a time-sortable ULID.
+`scope.db` is a **cache** rebuilt from that log on demand; it is gitignored (via
+`.scope/.gitignore`, written by `scope init`) and must never be committed.
+
+Because the log is append-only and every file name is globally unique, two
+people (or agents) working in parallel **never write the same file**. Merging is
+just the *union* of each side's event files — exactly what `git pull` does for a
+directory of new files. There is no binary SQLite merge, so there is nothing to
+corrupt:
+
+```bash
+# commit the log (NOT the cache)
+git add .scope/events && git commit -m "scope: plan auth work"
+git pull          # brings in teammates' event files
+# next `scope` command rebuilds scope.db from the merged log — automatically
+scope board
+```
+
+Conflicts resolve deterministically without coordination:
+
+- **Concurrent field edits** → last-writer-wins by timestamp (ULID breaks ties).
+- **New tickets / comments / relations** → grow-only union; both survive.
+- **Ticket numbers** (`SCP-42`) are display values de-collided at replay — the
+  earliest creator keeps the number; a colliding offline create is bumped.
+
+This works over **any** dumb file sync — git, iCloud Drive, Dropbox, Syncthing —
+because all any of them has to do is deliver new files. No server to deploy.
+
+When you *do* want sub-second live updates, run `scope serve`: the hub brokers
+changes over SSE/mTLS on a machine or LAN. That's an optimization on top of the
+same log — the log remains the source of truth, so going offline and syncing
+later loses nothing. (Real-time across the open internet with zero
+infrastructure is the one thing that's out of scope — that always needs a
+meeting point.)
+
+See [docs/event-log-format.md](docs/event-log-format.md) and
+[docs/adr/0001-decentralized-ticket-identity.md](docs/adr/0001-decentralized-ticket-identity.md)
+for the format and conflict semantics.
+
 ## Command reference
 
 | Command | What it does |

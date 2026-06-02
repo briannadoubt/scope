@@ -144,6 +144,19 @@ picks its own port (4322, 4323, ...) and forwards to the shared hub on 4321.
 }
 ```
 
+## Collaboration (deploy-free)
+
+Scope is event-sourced: the source of truth is the append-only log in
+`.scope/events/` (one ULID-named JSON file per change). `scope.db` is a
+gitignored cache rebuilt from the log automatically. To collaborate, **commit
+and `git pull` the `.scope/events/` directory** — merges are a pure union of new
+files, so there's nothing to conflict on and no server to deploy. The next
+`scope` command rebuilds the cache from the merged log. Concurrent edits resolve
+last-writer-wins by timestamp; new tickets/comments/relations union; ticket
+numbers are de-collided deterministically at replay. Any file sync works (git,
+iCloud, Dropbox, Syncthing). Run `scope serve` only when you want sub-second
+live updates on a machine/LAN — it's an optimization over the same log.
+
 ## Useful follow-ups
 
 - `scope --json epic list` to see epic progress at a glance.
