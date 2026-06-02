@@ -195,13 +195,18 @@ function validateFieldValue(field, value) {
 
 /**
  * Canonical total order over events. Primary: wall-clock `ts` (most recent
- * intent wins). Tiebreaks: `actor`, then the globally-unique `id`. Every peer
- * computes the identical order from the same event set, which is what makes
- * replay deterministic (SCP-109) and LWW well-defined (SCP-110).
+ * intent wins). Tiebreak: the globally-unique ULID `id`, which is monotonic
+ * within a process — so two events a peer produced in the same millisecond
+ * still sort in creation order. `id` alone is a complete total order after
+ * `ts` (it is unique), so no further tiebreak is needed; `actor` is
+ * deliberately NOT used, because tiebreaking on actor name would reorder
+ * same-millisecond events by different actors away from the order they actually
+ * happened. Every peer computes the identical order from the same event set,
+ * which is what makes replay deterministic (SCP-109) and LWW well-defined
+ * (SCP-110).
  */
 export function compareEvents(a, b) {
   if (a.ts !== b.ts) return a.ts < b.ts ? -1 : 1;
-  if (a.actor !== b.actor) return a.actor < b.actor ? -1 : 1;
   if (a.id !== b.id) return a.id < b.id ? -1 : 1;
   return 0;
 }

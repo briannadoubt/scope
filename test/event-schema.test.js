@@ -103,14 +103,15 @@ test('validateEvent rejects malformed events', () => {
 
 /* ---------------- canonical order ---------------- */
 
-test('compareEvents is a deterministic total order: ts, then actor, then id', () => {
+test('compareEvents is a deterministic total order: ts, then ulid id', () => {
   const x = { ts: '2026-01-01T00:00:00.000Z', actor: 'b', id: '2' };
   const y = { ts: '2026-01-01T00:00:00.000Z', actor: 'a', id: '9' };
   const z = { ts: '2026-01-02T00:00:00.000Z', actor: 'a', id: '1' };
-  // y before x (same ts, actor 'a' < 'b'); z last (later ts)
-  assert.deepEqual([x, y, z].sort(compareEvents).map((e) => e.id), ['9', '2', '1']);
+  // Same ts -> id decides (creation order), NOT actor: x(id 2) before y(id 9).
+  // z is last (later ts).
+  assert.deepEqual([x, y, z].sort(compareEvents).map((e) => e.id), ['2', '9', '1']);
   // shuffling the input yields the same order
-  assert.deepEqual([z, x, y].sort(compareEvents).map((e) => e.id), ['9', '2', '1']);
+  assert.deepEqual([z, y, x].sort(compareEvents).map((e) => e.id), ['2', '9', '1']);
 });
 
 test('EVENT_KINDS is the closed set the validator switches on', () => {

@@ -47,7 +47,7 @@ The human-facing `SCP-42` becomes a *display* attribute, not identity:
   keep their prefix" guardrail).
 - The human id is derived: `humanId = ${keyPrefix}-${resolvedNumber}`.
 - **Resolution at replay** (deterministic, identical on every peer): process all
-  `ticket.create` events in canonical order (`compareEvents`: ts → actor → id).
+  `ticket.create` events in canonical order (`compareEvents`: ts → ULID id).
   Track used numbers. For each create:
   - if its requested `number` is free, it keeps it;
   - otherwise it is bumped to `max(usedNumbers) + 1`.
@@ -87,7 +87,7 @@ canonical order":
 - **Scalar fields** (`status`, `title`, `priority`, `parentId`, `branch`,
   `prUrl`, `assignee`): **last-writer-wins** by canonical order. Replaying
   `ticket.set_field` in `compareEvents` order means the event with the newest
-  `ts` (then `actor`, then `id`) is applied last and therefore wins. No special
+  `ts` (ties broken by ULID `id`) is applied last and therefore wins. No special
   case — LWW is just "apply in order."
 - **`labels`**: treated as a scalar (whole-array LWW) for now. A future story
   could model add/remove label as set operations; out of scope here.

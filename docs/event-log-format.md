@@ -62,14 +62,17 @@ every peer computes identically from the same set of events:
 
 ```
 compareEvents(a, b) = byTimestamp(a.ts, b.ts)   // primary: wall-clock
-                   ?? byActor(a.actor, b.actor)  // tiebreak: lexicographic actor
-                   ?? byId(a.id, b.id)            // final tiebreak: ULID (globally unique)
+                   ?? byId(a.id, b.id)            // tiebreak: ULID (unique + monotonic)
 ```
 
-`ts` first means "the most recent intent wins". `actor` then `id` make the
-order *deterministic* even when two events share a timestamp — without that,
-two peers could replay the same log into different states. `id` is globally
-unique, so the comparator never returns "equal" for distinct events.
+`ts` first means "the most recent intent wins". The ULID `id` breaks ties: it is
+globally unique (so the comparator never returns "equal" for distinct events)
+*and* monotonic within a process (so two events a peer produced in the same
+millisecond still sort in the order they happened). `actor` is deliberately
+**not** part of the order — tiebreaking on actor name would reorder
+same-millisecond events by different actors away from their real sequence (e.g.
+two comments posted in the same instant). Because `id` alone is a complete total
+order after `ts`, nothing more is needed.
 
 > Clock skew is a known limitation, not a bug to solve here: a peer with a fast
 > clock can make its edits "win". That is the accepted cost of zero
