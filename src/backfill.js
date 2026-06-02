@@ -16,7 +16,7 @@
  * open via ensureEventLog().
  */
 
-import { getWorkspace } from './db.js';
+import { getWorkspace, setMeta } from './db.js';
 import { makeEvent } from './event-schema.js';
 import { appendEvent, eventsDir } from './event-store.js';
 import { existsSync, readdirSync } from 'node:fs';
@@ -147,6 +147,9 @@ export function backfillEvents(db, scopeDir, { actor = 'migration' } = {}) {
 
   // All events validated during construction; now write them.
   for (const e of events) appendEvent(dir, e);
+  // The db already reflects these events (they were synthesized from it), so
+  // record the count — a later open won't needlessly rebuild (SCP-111).
+  setMeta(db, 'applied_event_count', events.length);
   return { skipped: false, written: events.length };
 }
 

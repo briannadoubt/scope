@@ -18,10 +18,12 @@ import {
   openDb,
   findScopeDir,
   defaultScopeDir,
+  ensureScopeGitignore,
   SCOPE_DIR_NAME,
   DB_FILE_NAME,
 } from './db.js';
 import { ensureEventLog } from './backfill.js';
+import { syncFromLog } from './replay.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -73,7 +75,9 @@ function openOrDie() {
     process.exit(1);
   }
   const db = openDb(dir);
+  ensureScopeGitignore(dir); // existing workspaces get the ignore rules on first use
   ensureEventLog(db, dir);
+  syncFromLog(db, dir); // rebuild the cache if the log is ahead (e.g. after a pull)
   return { db, scopeDir: dir };
 }
 
@@ -211,6 +215,7 @@ export function buildProgram() {
         process.exit(0);
       }
       mkdirSync(dir, { recursive: true });
+      ensureScopeGitignore(dir);
       const db = openDb(dir);
 
       // Prompt for key/name if interactive and not provided.

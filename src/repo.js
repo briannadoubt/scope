@@ -1,4 +1,4 @@
-import { nowIso, nextTicketId, recordHistory, getWorkspace } from './db.js';
+import { nowIso, nextTicketId, recordHistory, getWorkspace, bumpMeta } from './db.js';
 import { emitChange } from './events.js';
 import { ulid } from './ulid.js';
 import { makeEvent } from './event-schema.js';
@@ -25,7 +25,11 @@ const actorOf = (a) => (a && String(a).trim()) || 'unknown';
  * flip the db to be a projection of this log.
  */
 function emit(db, kind, payload, actor) {
-  return appendEvent(eventsDirForDb(db), makeEvent(kind, payload, { actor: actorOf(actor) }));
+  const evt = appendEvent(eventsDirForDb(db), makeEvent(kind, payload, { actor: actorOf(actor) }));
+  // Keep the cache's applied-count in step with the log so a subsequent open
+  // doesn't think the db is stale and rebuild it (SCP-111).
+  bumpMeta(db, 'applied_event_count', 1);
+  return evt;
 }
 
 /** Look up a ticket's stable ULID identity by its KEY-N id. */

@@ -9,11 +9,39 @@
  * to the tables (raw SQL) so it never re-emits events — no feedback loop.
  */
 
-import { nowIso, openDb, defaultScopeDir, findScopeDir } from './db.js';
+import { existsSync, readdirSync } from 'node:fs';
+
+import { nowIso, openDb, defaultScopeDir, findScopeDir, getMeta, setMeta } from './db.js';
 import { compareEvents } from './event-schema.js';
 import { resolveDisplayNumbers, nextNumberSeed } from './identity.js';
 import { readAllEvents, eventsDir } from './event-store.js';
 import { COLUMN_TO_FIELD, RELATION_INVERSE } from './enums.js';
+
+/** Count event files in a .scope dir (cheap staleness signal; log is append-only). */
+export function countEventFiles(scopeDir) {
+  const dir = eventsDir(scopeDir);
+  if (!existsSync(dir)) return 0;
+  return readdirSync(dir).filter((f) => f.endsWith('.json') && !f.startsWith('.')).length;
+}
+
+/**
+ * Rebuild the db from the log iff it is out of step (SCP-111). The db is a
+ * cache: the on-disk event count is the source of truth for "how much should be
+ * applied". Because the log is append-only, a mismatch between the file count
+ * and the db's `applied_event_count` means new events arrived (e.g. a git pull
+ * or another process) — so replay. The common case (live writer kept the count
+ * in step) is a no-op.
+ *
+ * @returns {{ rebuilt: boolean, count: number }}
+ */
+export function syncFromLog(db, scopeDir) {
+  const diskCount = countEventFiles(scopeDir);
+  const applied = Number(getMeta(db, 'applied_event_count')) || 0;
+  if (diskCount === applied) return { rebuilt: false, count: diskCount };
+  replayInto(db, readAllEvents(eventsDir(scopeDir)));
+  setMeta(db, 'applied_event_count', diskCount);
+  return { rebuilt: true, count: diskCount };
+}
 
 // event field name -> DB column (inverse of COLUMN_TO_FIELD)
 const FIELD_TO_COLUMN = Object.fromEntries(

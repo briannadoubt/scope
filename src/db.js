@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -7,6 +7,35 @@ import { ulid } from './ulid.js';
 
 export const SCOPE_DIR_NAME = '.scope';
 export const DB_FILE_NAME = 'scope.db';
+
+/**
+ * Contents of `.scope/.gitignore`. The event log (`events/`) is the source of
+ * truth and is meant to be committed/synced; `scope.db` (+ WAL/SHM) is a
+ * rebuildable cache that must never be committed — merging a binary SQLite file
+ * is what corrupts it (SCP-111).
+ */
+const SCOPE_GITIGNORE = `# Scope: commit the event log (events/), never the cache.
+# scope.db is rebuilt from events/ on demand — see docs/event-log-format.md.
+scope.db
+scope.db-wal
+scope.db-shm
+`;
+
+/**
+ * Ensure `.scope/.gitignore` exists so the SQLite cache can't be committed
+ * while the event log stays tracked. Idempotent; only writes when missing.
+ */
+export function ensureScopeGitignore(scopeDir) {
+  const path = join(scopeDir, '.gitignore');
+  if (!existsSync(path)) {
+    try {
+      mkdirSync(scopeDir, { recursive: true });
+      writeFileSync(path, SCOPE_GITIGNORE);
+    } catch {
+      /* best-effort */
+    }
+  }
+}
 
 /**
  * Walk up from `start` looking for a `.scope/` directory.
@@ -503,6 +532,26 @@ export const nextTicketId = (db) => {
   });
   return tx();
 };
+
+/* ---------- meta key/value helpers ---------- */
+
+export function getMeta(db, key) {
+  return db.prepare('SELECT value FROM meta WHERE key = ?').get(key)?.value ?? null;
+}
+
+export function setMeta(db, key, value) {
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).run(key, String(value));
+}
+
+/** Atomically increment an integer meta counter, returning the new value. */
+export function bumpMeta(db, key, by = 1) {
+  const next = (Number(getMeta(db, key)) || 0) + by;
+  setMeta(db, key, next);
+  return next;
+}
 
 export function recordHistory(db, ticketId, field, oldValue, newValue, who = null) {
   if (String(oldValue ?? '') === String(newValue ?? '')) return null;
