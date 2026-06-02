@@ -95,6 +95,31 @@ test('backfill preserves the audit trail (history walk via initial-state + set_f
   }
 });
 
+test('backfill reconciles a current value that history does not end on', () => {
+  // Mirrors a real board (One/RT-40): an older code path set status without
+  // recording history, so ticket_history ends at in_progress but the row is done.
+  const { scopeDir, db, cleanup } = createTempScope();
+  try {
+    const t = createTicket(db, { type: 'story', title: 'T' });
+    updateTicket(db, t.id, { status: 'in_progress' }, 'bri'); // logged to history
+    // Simulate a status change with NO history row (direct write).
+    db.prepare('UPDATE tickets SET status = ? WHERE id = ?').run('done', t.id);
+
+    rmSync(eventsDir(scopeDir), { recursive: true, force: true });
+    backfillEvents(db, scopeDir);
+
+    const fresh = createTempScope();
+    try {
+      replayInto(fresh.db, readAllEvents(eventsDir(scopeDir)));
+      assert.equal(listTickets(fresh.db)[0].status, 'done', 'replay reproduces the CURRENT value');
+    } finally {
+      fresh.cleanup();
+    }
+  } finally {
+    cleanup();
+  }
+});
+
 test('ensureEventLog backfills once, then is idempotent (authority = workspace.init)', () => {
   const { scopeDir, db, cleanup } = createTempScope();
   try {

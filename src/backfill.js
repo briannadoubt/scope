@@ -108,14 +108,32 @@ export function backfillEvents(db, scopeDir, { actor = 'migration' } = {}) {
       t.created_at
     );
 
+    // Walk the recorded history, tracking where each column lands.
+    const walked = {};
+    for (const col of HISTORY_COLUMNS) walked[col] = initial(col);
     for (const h of history) {
       if (!HISTORY_COLUMNS.includes(h.field)) continue;
+      walked[h.field] = h.new_value;
       add(
         'ticket.set_field',
         { ticketId: t.uid, field: COLUMN_TO_FIELD[h.field], value: fieldValue(h.field, h.new_value, uidById) },
         h.changed_at,
         h.changed_by
       );
+    }
+
+    // Reconcile: some DBs have a current value that history doesn't end on (an
+    // older code path changed a field without recording history). Emit a final
+    // set_field to the CURRENT value for any such column so replay always
+    // reproduces the live board, not a stale history tail.
+    for (const col of HISTORY_COLUMNS) {
+      if (normalizeCol(col, walked[col]) !== normalizeCol(col, t[col])) {
+        add(
+          'ticket.set_field',
+          { ticketId: t.uid, field: COLUMN_TO_FIELD[col], value: fieldValue(col, t[col], uidById) },
+          t.updated_at
+        );
+      }
     }
   }
 
@@ -161,6 +179,12 @@ export function backfillEvents(db, scopeDir, { actor = 'migration' } = {}) {
 function prefixOf(id, fallbackKey) {
   const prefix = String(id).split('-')[0];
   return /^[A-Z][A-Z0-9]{1,9}$/.test(prefix) ? prefix : fallbackKey;
+}
+
+/** Normalize a column value for equality comparison (history string vs row value). */
+function normalizeCol(col, val) {
+  if (col === 'labels') return JSON.stringify(parseLabels(val));
+  return val == null ? '' : String(val);
 }
 
 function toUid(uidById, keyN) {
