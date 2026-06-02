@@ -1,9 +1,42 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
+
+### Added
+
+- **Event-sourced storage (SCP-106).** The source of truth is now an
+  append-only log under `.scope/events/` — one ULID-named JSON file per change.
+  `scope.db` is a rebuildable cache projected from the log. Delete it any time;
+  the next command replays the log and rebuilds it.
+- **Deploy-free collaboration.** Because the log is append-only with globally
+  unique file names, merging is a pure union of files — `git pull` (or iCloud /
+  Dropbox / Syncthing) reconciles two divergent boards with no server and no
+  binary-SQLite merge. Conflicts resolve deterministically: scalar fields are
+  last-writer-wins by timestamp; tickets/comments/relations union; ticket
+  numbers are de-collided at replay (earliest creator keeps the number). See
+  `docs/event-log-format.md` and `docs/adr/0001-decentralized-ticket-identity.md`.
+- **`scope batch`** — apply many operations as one atomic transaction (JSON ops
+  via `--file` or stdin; all-or-nothing across both the cache and the log).
+  Supports `$ref` to reference a ticket created earlier in the same batch.
+- **`scope workspace rekey <KEY>`** — change the workspace key *and* reprefix
+  every existing ticket (`MA-1` → `APP-1`). `set --key` remains future-only.
+- **Comma-separated ids** on `scope status A,B,C <status>` and
+  `scope ticket edit A,B …`, applied atomically.
+- **`.scope/.gitignore`** written on `init` (and first open): commit the event
+  log, never the `scope.db` cache.
+
+### Changed
+
+- Schema v4: every ticket gets a stable ULID identity (`uid`) backfilled on
+  upgrade; existing boards auto-migrate and a complete event log is synthesized
+  from current rows + history on first open (no data loss).
 
 ### Fixed
 
+- **Cache rebuilds only from an *authoritative* log.** A log counts as the
+  source of truth only once it contains a `workspace.init` event, so a partial
+  or stray set of events can never trigger a rebuild that would wipe a populated
+  database.
 - **Web UI topbar no longer collapses labels before they actually collide.**
   The width-based `@media (max-width: 600px)` rule hid the Auto-scroll
   toggle label and the "New ticket" button label in one jump, even when the
