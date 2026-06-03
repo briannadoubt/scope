@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.1
+
+### Fixed
+
+- **Relationship graph now updates live as relations change (iOS).** The event
+  stream parses `relation.added` / `relation.removed` into a new
+  `.relationsChanged` SSE event (previously dropped), and `FlowGraphView`
+  carries its own stream so it stays connected after the Board tab disconnects
+  on disappear. Added/removed connectors used to draw stale until an unrelated
+  ticket change forced a reload; they now refresh immediately.
+- **Per-workspace graph relation cache (iOS).** `FlowGraphView` resets its
+  relation cache on workspace change, so two workspaces with overlapping ticket
+  ids can no longer reuse each other's edges.
+
 ## 0.7.0
 
 ### Added
