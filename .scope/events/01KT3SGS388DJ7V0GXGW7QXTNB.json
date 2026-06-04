@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KT3SGS388DJ7V0GXGW7QXTNB",
+  "ts": "2026-06-02T09:09:31.880Z",
+  "actor": "agent",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KT3RXNPGRFWQNYCFPQE5GW37",
+    "commentId": "01KT3SGS388DJ7V0GXGW7QXTNA",
+    "author": "agent",
+    "body": "Deferred as a stretch follow-up. The epic's acceptance (git-pull divergent changes → identical uncorrupted board, no SQLite shared) is met and tested by SCP-112 without this. LAN peer gossip (mDNS discovery + anti-entropy push over mTLS) is a sizable networking feature; the hub already provides LAN real-time today. Recommend tackling as its own focused effort."
+  }
+}

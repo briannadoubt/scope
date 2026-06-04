@@ -1,0 +1,26 @@
+{
+  "v": 1,
+  "id": "01KT0SXXM5C9KR4Y3K5BSG2K3N",
+  "ts": "2026-06-01T05:18:59.205Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W82",
+    "number": 104,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "iOS: HubClient is non-Sendable but shared across concurrent withTaskGroup tasks",
+    "description": "`AppStore.loadRelationEdges(for:)` (flow-graph relation fetch) captures the\n`HubClient` instance into `withTaskGroup` `group.addTask { … }` closures, which\nare `@Sendable` and run off the main actor — and fans out N of them\nconcurrently. `HubClient` is a plain `@Observable final class` (not `Sendable`,\nnot an actor), so this is a Swift-6 strict-concurrency violation and an actual\nconcurrent-use-of-one-client data race.\n\nSurfaced during the SCP-103 search review (out of scope there — this is the\nflow-graph code path).\n\nFix options:\n- Make `HubClient` `Sendable` (audit its mutable state — `workspaceId`, `token`,\n  `caFingerprint`, `isConnected` — and isolate/guard them), or\n- Convert it to an `actor`, or\n- Capture a sendable snapshot / serialize the requests instead of sharing the\n  instance across concurrent tasks.\n\nRepro: build with strict concurrency checking (Swift 6 language mode) — the\n`group.addTask` closures capturing `client` raise the diagnostic.\n",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": [
+      "ios",
+      "concurrency",
+      "tech-debt"
+    ]
+  }
+}

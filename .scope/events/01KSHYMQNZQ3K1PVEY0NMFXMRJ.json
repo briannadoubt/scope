@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHYMQNZQ3K1PVEY0NMFXMRJ",
+  "ts": "2026-05-26T10:52:44.607Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W70",
+    "number": 70,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Empty catch-all lanes still render in swimlane view",
+    "description": "When grouped by epic, the '(no epic)' or 'Random Bugs' lane appears even when it has 0 tickets — visible in the screenshot for SCP-50's verification. Root cause: buildLanes calls ensure() before checking whether the ticket's status is in BOARD_COLUMNS, so tickets with status='cancelled' create a lane but never get bucketed into it. Fix: only call ensure() after confirming the status is one of BOARD_COLUMNS, OR filter empty catch-all lanes out at the end of buildLanes.",
+    "status": "done",
+    "priority": "low",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

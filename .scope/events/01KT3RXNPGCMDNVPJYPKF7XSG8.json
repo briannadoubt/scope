@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3RXNPGCMDNVPJYPKF7XSG8",
+  "ts": "2026-06-02T08:59:05.808Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXNPGRFWQNYCFPQE5GW37",
+    "number": 114,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "(Stretch) LAN peer gossip over existing mTLS — no central host",
+    "description": "(Stretch) Keep LAN real-time without a central host: peers gossip events directly over the existing mTLS pairing.\n\n## Work\n- Reuse the CA / device-pairing / bearer-token machinery built for the iOS client. Paired peers on a LAN discover each other (mDNS) and push new event files as they're appended.\n- Layers on top of event-sourcing: gossip is a faster transport for the same append-only events; offline falls back to git/file-sync.\n\n## Acceptance\n- Two paired machines on a LAN see each other's changes within ~100ms with no central scope serve host. A later git pull of the same changes is a no-op.\n",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W84",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCDK30EK9EN967PJGY0E7Z",
+  "ts": "2026-05-27T18:51:13.888Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7H",
+    "number": 87,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Project + workspace picker",
+    "description": "Navigation or sheet for switching between workspaces (from /api/workspaces) and projects within a workspace (from /api/projects). Match the breadcrumb picker behaviour from the web topbar. Persist last selection.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

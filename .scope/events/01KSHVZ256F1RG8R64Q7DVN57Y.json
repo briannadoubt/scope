@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHVZ256F1RG8R64Q7DVN57Y",
+  "ts": "2026-05-26T10:05:57.286Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6X",
+    "number": 67,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Live toast column — SSE-driven, large screens only",
+    "description": "Floating column fixed to bottom-right of screen. Listens to the existing SSE change bus and renders a toast per event (ticket created/updated, status changed, comment added). Shows 3-4 toasts at a time in a scrollable column with a CSS opacity mask at the top edge. Appears only on screens ≥1280px wide (hidden via media query on compact). Each toast has: type icon, ticket id, brief description of the change, timestamp. On hover over the column, a circular 'open' icon button appears on each toast — clicking it opens the drawer for that ticket.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6R",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

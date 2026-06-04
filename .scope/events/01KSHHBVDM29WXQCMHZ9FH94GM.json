@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHHBVDM29WXQCMHZ9FH94GM",
+  "ts": "2026-05-26T07:00:42.036Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W67",
+    "number": 44,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Workspace + Project breadcrumb picker",
+    "description": "Merge the workspace `<select>`, the workspace `+` button, and the project `<select>` into a single breadcrumb trigger:\n\n  ◆ Scope › Scope CLI ▾\n\nClicking the trigger opens a 2-pane popover (Linear / Vercel style):\n- Left pane: list of attached workspaces. Active workspace highlighted. At the bottom: \"＋ Attach workspace…\" (replaces the standalone `+` button).\n- Right pane: projects in the hovered/selected workspace. Click a project to switch + close.\n\nNotes:\n- Replaces 3 bar controls with 1.\n- The `›` separator communicates hierarchy and removes the second `▾`.\n- Keyboard: arrow keys move within a pane, Tab moves between panes, Enter selects.\n- State: persist last-opened pane between sessions? Probably not — always open to workspaces.\n\nTouches: index.html (replace `#workspace-picker` + `#add-workspace` + `#project-picker` with a single `<button class=\"breadcrumb-trigger\">`), app.js (bindBreadcrumb, popover), style.css (popover + breadcrumb chip).",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W66",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

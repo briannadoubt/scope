@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3RXNFABSQZHGSK6WNG438S",
+  "ts": "2026-06-02T08:59:05.578Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXNF90XFWK4TKH7ZHW8RY",
+    "number": 112,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Validate deploy-free sync transports + document workflow",
+    "description": "Validate the deploy-free sync transports and document the collaboration workflow.\n\n## Work\n- Git: the primary path. .scope/events/ commits cleanly; git pull brings peers' event files; replay reconciles.\n- Dumb file sync: verify iCloud / Dropbox / Syncthing on .scope/events/ also converge.\n- Document \"collaborate via git pull, deploy nothing\" in README + agent skill.\n\n## Acceptance\n- Two clones, divergent edits, git pull both ways -> identical boards, no manual conflict resolution, no SQLite shared.\n",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W84",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "id": "01KT3RY1HYQ5A2AF4PQVD26X1C",
+  "ts": "2026-06-02T08:59:17.950Z",
+  "actor": "migration",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01KT3RXN7VST9KEZ1TB8Z7PYMR",
+    "field": "branch",
+    "value": "feat/identity-conflict-rules"
+  }
+}

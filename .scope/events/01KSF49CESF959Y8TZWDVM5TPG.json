@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF49CESF959Y8TZWDVM5TPG",
+  "ts": "2026-05-25T08:33:40.825Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W61",
+    "number": 38,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "scope skills CLI command",
+    "description": "scope skills install / path / list — runs the bundled skills/install.sh from the local install (brew or otherwise), no curl required. Honors SCOPE_SKILLS_DIR in install.sh for offline-from-bundled mode.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5N",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCD5907E9PM43PKJDNG0BE",
+  "ts": "2026-05-27T18:50:59.744Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7D",
+    "number": 83,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Authenticated URLSession with client cert",
+    "description": "Configure a URLSession that presents the mTLS client identity from the Keychain. Handle URLAuthenticationChallenge for both server trust (pinned CA fingerprint from Bonjour TXT) and client cert. Provide a shared HubClient with base URL + session that all views use.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

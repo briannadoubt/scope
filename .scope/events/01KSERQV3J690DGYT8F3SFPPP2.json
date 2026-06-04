@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQV3J690DGYT8F3SFPPP2",
+  "ts": "2026-05-25T05:11:51.666Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W53",
+    "number": 3,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "CLI surface",
+    "description": "",
+    "status": "done",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

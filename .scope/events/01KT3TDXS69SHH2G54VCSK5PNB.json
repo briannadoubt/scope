@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3TDXS69SHH2G54VCSK5PNB",
+  "ts": "2026-06-02T09:25:26.950Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3TDXS69SHH2G54VCSK5PNA",
+    "number": 117,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Multi-ID convenience on status and ticket edit",
+    "description": "Accept comma-separated ids (scope status A,B,C done; scope ticket edit A,B --status done), applied atomically via applyBatch.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KT3TDXHQWSJG407WEGKQQQSJ",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

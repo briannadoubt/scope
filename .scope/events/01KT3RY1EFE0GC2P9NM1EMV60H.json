@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "id": "01KT3RY1EFE0GC2P9NM1EMV60H",
+  "ts": "2026-06-02T08:59:17.839Z",
+  "actor": "migration",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01KT3RXN0NACEJZXFW11S6CNER",
+    "field": "branch",
+    "value": "feat/emit-events"
+  }
+}

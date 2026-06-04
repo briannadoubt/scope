@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHWQ3M4EQTJ09GEDE1G1VZA",
+  "ts": "2026-05-26T10:19:05.220Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6Y",
+    "number": 68,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Render mermaid diagrams in ticket descriptions",
+    "description": "When a ticket description contains a fenced code block tagged 'mermaid', render it as a diagram instead of showing source. Mermaid lib is lazy-loaded from CDN (cdn.jsdelivr.net) on demand — only when a description actually contains a mermaid fence. Offline fallback: show the source as a normal code block with a 'mermaid (offline)' note. Diagrams re-render when the description is edited (in the live preview).",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W65",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

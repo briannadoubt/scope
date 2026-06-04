@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHT0BNPVB6P4ZJVC05F98Q6",
+  "ts": "2026-05-26T09:31:42.646Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6K",
+    "number": 57,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Advertise mTLS capability + CA fingerprint in Bonjour TXT",
+    "description": "Once mTLS is live, update the _scope._tcp TXT record to advertise `auth=bearer,mtls` and include the CA SHA-256 fingerprint as `ca_fp=<hex>`. Native clients can use ca_fp to pin the CA when first discovering a Scope on the network (prevents a malicious LAN peer from spoofing scope.local).\n\nAcceptance:\n- `dns-sd -L scope _scope._tcp local` shows the new TXT keys\n- ca_fp matches `scope ca fingerprint`\n- SwiftUI client (future) can use ca_fp to validate the server's leaf before pairing\n\nDepends on the CA, HTTPS, and mTLS stories.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

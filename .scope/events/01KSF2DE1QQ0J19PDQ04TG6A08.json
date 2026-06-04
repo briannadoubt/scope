@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DE1QQ0J19PDQ04TG6A08",
+  "ts": "2026-05-25T08:00:56.375Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5F",
+    "number": 20,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Unified scope serve command",
+    "description": "scope serve hosts UI + MCP on one port. --no-ui / --no-mcp toggles. Multiple agents + a browser share one DB.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5C",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

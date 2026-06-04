@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQVGKVDVY692TNFWZFYFN",
+  "ts": "2026-05-25T05:11:52.083Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W58",
+    "number": 8,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Drag-and-drop status change",
+    "description": "",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W52",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

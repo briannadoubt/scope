@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DDNZGRMHQFW7XWBY7QNQ",
+  "ts": "2026-05-25T08:00:55.999Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5C",
+    "number": 17,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "MCP integration",
+    "description": "Expose every CLI operation as a Model Context Protocol tool so coding agents can plan and track work without shelling out.",
+    "status": "done",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

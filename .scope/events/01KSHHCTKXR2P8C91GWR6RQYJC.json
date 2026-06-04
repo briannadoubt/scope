@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHHCTKXR2P8C91GWR6RQYJC",
+  "ts": "2026-05-26T07:01:13.981Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6A",
+    "number": 47,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Topbar layout & design-language pass",
+    "description": "Once the control count is down to 5 (breadcrumb · view · status · overflow · primary), clean up the layout so the bar behaves predictably at any width.\n\nChanges:\n- Drop `display: contents` on `.topbar-left` / `.topbar-right`. Use proper two-flex-child layout: left group `flex: 1 1 auto; min-width: 0`, right group `flex: 0 0 auto`. `justify-content: space-between` then works without margin-left:auto tricks.\n- Remove `flex-wrap: wrap` and the row-gap. Bar is always one line.\n- Remove the four `@media` breakpoints that step picker widths. Not needed — the breadcrumb and view triggers are content-sized.\n- Triggers (breadcrumb, view, overflow `⋯`): unified ghost-button look with `▾` chevron where it opens something. Same height, padding, border-radius as buttons.\n- Brand: keep `◆` + \"scope\" wordmark visible at all widths (it's 5 chars). If absolutely needed, the wordmark can collapse below ~420px — but breadcrumb already shows the workspace name, so the wordmark can probably go entirely.\n- Verify in preview: resize from 1400px down to 520px and confirm no wrap, no horizontal scroll, no truncated labels, no height change.\n\nTouches: style.css (most of it), index.html (cleanup), maybe a small JS resize sanity check in preview.\n\nDepends on SCP-44, SCP-45, SCP-46 landing first.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W66",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

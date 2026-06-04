@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHER35821NJ5AZSNJK0FTMJ",
+  "ts": "2026-05-26T06:14:57.448Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W63",
+    "number": 40,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Animate programmatic card moves across columns",
+    "description": "When a card's status changes from a source other than the local drag-and-drop (another agent over MCP, CLI invocation, or SSE-driven realtime update), animate it flying from its old column to its new column instead of snapping. Should feel tactile and delightful — especially eye-catching on a secondary monitor where the board is just being watched. Considerations: use FLIP (First-Last-Invert-Play) or Web Animations API; respect prefers-reduced-motion; the animation should layer cleanly over normal drag interactions without making local drops feel laggy.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W65",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

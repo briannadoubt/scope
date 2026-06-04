@@ -1,0 +1,25 @@
+{
+  "v": 1,
+  "id": "01KT0SXXQQ9655FMZHA6M6GN4H",
+  "ts": "2026-06-01T05:18:59.319Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W83",
+    "number": 105,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "test: startTestServer().close() leaks the mgr.attach() fs.watch watcher",
+    "description": "`startTestServer().close()` in `test/helpers.js` calls `server.close()` and\n`scope.cleanup()` (which closes the db and removes the tmpdir) but never\n`mgr.detach()` / closes the `fs.watch` watcher that `mgr.attach()` created. The\nwatcher is left open on a now-deleted temp scope dir for every server-backed\ntest — a leaked file handle + live watcher per run.\n\nSurfaced during the SCP-103 search review (pre-existing teardown asymmetry in\nthe shared helper, not search-specific).\n\nFix: in `close()`, detach the workspace (or explicitly close the watcher) before\n`scope.cleanup()`.\n",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": [
+      "test",
+      "tech-debt"
+    ]
+  }
+}

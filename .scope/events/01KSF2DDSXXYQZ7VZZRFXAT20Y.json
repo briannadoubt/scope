@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DDSXXYQZ7VZZRFXAT20Y",
+  "ts": "2026-05-25T08:00:56.125Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5D",
+    "number": 18,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Stdio MCP server",
+    "description": "scope mcp subcommand starts an McpServer over StdioServerTransport. 23 tools registered with zod input schemas covering projects, tickets, epics, relations, comments, board.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5C",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

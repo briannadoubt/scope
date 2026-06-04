@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3TDY14XEWJD8611AVQXFSA",
+  "ts": "2026-06-02T09:25:27.204Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3TDY14XEWJD8611AVQXFS9",
+    "number": 119,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Document full mutation surface in skill + README",
+    "description": "List batch/rekey and all commands so agents never need raw SQL; note rekey as the proper way to change key.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KT3TDXHQWSJG407WEGKQQQSJ",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

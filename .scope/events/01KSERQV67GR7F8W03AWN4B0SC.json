@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQV67GR7F8W03AWN4B0SC",
+  "ts": "2026-05-25T05:11:51.751Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W54",
+    "number": 4,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Define schema & migrations",
+    "description": "",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W51",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

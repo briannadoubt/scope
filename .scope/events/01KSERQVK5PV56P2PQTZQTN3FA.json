@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQVK5PV56P2PQTZQTN3FA",
+  "ts": "2026-05-25T05:11:52.165Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W59",
+    "number": 9,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Project overview page",
+    "description": "",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W52",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

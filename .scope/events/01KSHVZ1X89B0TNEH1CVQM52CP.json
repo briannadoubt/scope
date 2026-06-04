@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHVZ1X89B0TNEH1CVQM52CP",
+  "ts": "2026-05-26T10:05:57.032Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6T",
+    "number": 64,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "History view UI",
+    "description": "Add state.view = 'history'. renderHistory() fetches /api/history and renders a reverse-chronological log list. Each row shows: ticket badge+id, field changed, old→new values, who changed it, relative timestamp. Linked from the overview screen and the overflow menu.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6R",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

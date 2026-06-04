@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHHCDVHMSA484AWDW072QTC",
+  "ts": "2026-05-26T07:01:00.913Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W69",
+    "number": 46,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Overflow menu: collapse refresh + Overview + New Project",
+    "description": "Move the three infrequent right-side controls behind a single `⋯` button:\n\n  ⋯  →  ↻ Refresh now\n        ☰ Project overview\n        ＋ New project\n\nResult: the right side of the bar is just `● ⋯ [＋ New ticket]`.\n\nNotes:\n- Live indicator (●) stays on the bar — it's status, not a control.\n- \"+ Ticket\" is the only primary CTA and the only `+` glyph on the bar.\n- Menu is a simple dropdown anchored to the `⋯` button. Same close behavior as the popovers (outside-click + Escape).\n- Each item keeps its existing handler (`#refresh-now`, `#show-overview`, `#new-project` click listeners) — wire them through the menu rather than directly.\n\nTouches: index.html, app.js (bindOverflowMenu), style.css (menu styles, shared with popover surfaces).",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W66",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

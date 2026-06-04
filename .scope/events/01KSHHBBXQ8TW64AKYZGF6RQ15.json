@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHHBBXQ8TW64AKYZGF6RQ15",
+  "ts": "2026-05-26T07:00:26.167Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W66",
+    "number": 43,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Header redesign: single-line, no-scroll toolbar",
+    "description": "Replace the current wrapping/shrinking topbar with a single-line toolbar that holds at any reasonable width without growing taller or scrolling horizontally. Reduce the number of visible controls — collapse related controls behind menus and popovers — rather than compacting what's there.\n\n## Goals\n- Header stays exactly one row at all widths down to ~520px.\n- No mid-word truncation on selects (e.g. \"Group by ep\").\n- One primary CTA (+ New ticket), one + glyph total on the bar.\n- Clear visual hierarchy: identity → scope → view controls → status → overflow → primary.\n\n## Target shape\n◆ Scope › Scope CLI ▾    [≡ View ▾]               ● ⋯  [＋ New ticket]\n\n## Out of scope\n- Command palette (⌘K)\n- Mobile-first redesign",
+    "status": "done",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

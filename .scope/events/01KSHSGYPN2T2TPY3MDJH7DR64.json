@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHSGYPN2T2TPY3MDJH7DR64",
+  "ts": "2026-05-26T09:23:17.845Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6D",
+    "number": 51,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "mTLS + pairing for native clients",
+    "description": "Phase 2 of the LAN security story. Phase 1 (bearer token + Host check + Bonjour) shipped — see src/auth.js and src/server.js. This epic covers the heavier crypto work needed once we build the SwiftUI app.\n\n## Scope\n\n- **Local CA**: generate on first run, persist private key + cert to ~/.scope-hub/ca/ with 0600 perms. Print fingerprint for out-of-band verification.\n- **HTTPS**: serve over TLS with a CA-signed leaf cert for scope.local + LAN IPs. Auto-renew before expiry.\n- **Pairing flow**: `scope pair` shows a short code (and optionally QR). New device (SwiftUI app or another browser) POSTs a CSR + code, server validates the code and returns a client cert signed by the CA. Codes are single-use, short-TTL.\n- **mTLS for native**: server requires client cert on connections from the SwiftUI app. Map cert CN/serial back to a device identity for audit.\n- **Browser path unchanged**: browser still uses bearer-token cookie under HTTPS. User imports the CA into Keychain once to clear the cert warning.\n- **Bonjour TXT update**: advertise `auth=mtls` once paired clients are supported, and include CA fingerprint so clients can pin.\n- **Port question**: HTTPS on a high port keeps the no-sudo property. Revisit pfctl 443→high redirect as a follow-up if URL ergonomics matter.\n\n## Out of scope (separate epics)\n\n- The SwiftUI app itself.\n- Per-host Bonjour instance naming so multiple Scopes coexist on a LAN — small follow-up.\n- pfctl/launchd port redirect for bare http://scope.local.\n\n## Implementation\n\nThe dependency graph has a single bottleneck (SCP-53, the CA) followed by a wide fanout. Critical path:\n\n```\n        ┌─► SCP-54 (HTTPS) ──┐         ┌─► SCP-57 (Bonjour TXT)\nSCP-53 ─┤                    ├─► SCP-56 (mTLS) ──┤\n        └─► SCP-55 (Pair) ───┘         │         └─► SCP-58 (Devices)\n                                       │\n                              SCP-59 (Browser UX, only needs 54)\n```\n\n**Sequencing rules:**\n\n1. **SCP-53 first, alone.** Everything depends on the CA existing — its key format, file layout, and fingerprint API are inputs to every other story. Land it and freeze the on-disk shape before fanning out.\n2. **SCP-54 and SCP-55 in parallel** once 53 is in. They touch disjoint surfaces (HTTPS = transport layer; Pair = CLI + a single POST handler). No shared files of consequence beyond importing the CA module.\n3. **SCP-59 (Browser UX) can also run in parallel with 55**, since it only needs 54. It's mostly docs + a `scope ca trust` subcommand — light, good story to hand to a parallel agent.\n4. **SCP-56 (mTLS enforcement) is the join point.** It needs both the TLS listener (54) and a population of paired devices to test against (55). Don't start until both are merged.\n5. **SCP-57 and SCP-58 fan out again after 56.** Bonjour TXT update is a one-line + flag flip; device management is a small CLI surface. Parallel-friendly.\n\n**Practical parallelism cap:** ~3 concurrent stories. After 53 lands you can run 54 + 55 + 59 simultaneously; after the join you can run 57 + 58. More agents than that just contend on the auth middleware and CA module.\n\n**Watch for shared edits:**\n\n- `src/auth.js` is touched by 54 (TLS context), 56 (client-cert verification), and 58 (CRL check). Stagger or pre-merge a skeleton.\n- `src/server.js` is touched by 54 (listener swap) and 57 (TXT record). Likely fine in parallel — different blocks.\n- `~/.scope-hub/` schema is set by 53, extended by 55 (devices.json) and 58 (revoked.json). Define the file layout in 53's PR even if some files are empty until later stories.\n\n**Testing strategy:** stories 53–56 each ship with their own integration tests; the full end-to-end (browser bookmark + native pair + revoke + reconnect) gets a smoke test in 58's PR, since it's the last story that closes the loop.\n\n## References\n\n- Phase 1: src/auth.js (token, Host check, loopback bypass), src/server.js (Bonjour advert, 0.0.0.0 bind).\n- TXT record currently says `auth=bearer`; flip to `auth=bearer,mtls` once this lands.\n",
+    "status": "done",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

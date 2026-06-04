@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHTQQ551J2VVEEA55R9NKMF",
+  "ts": "2026-05-26T09:44:28.069Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6Q",
+    "number": 61,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Header toggle for auto-scroll on remote moves",
+    "description": "Add a visible toggle in the topbar to enable/disable the auto-scroll behavior from SCP-52. On by default. Persisted to localStorage as scope.autoScroll. When off, ticket moves still animate (FLIP) and highlight (SCP-60), but the page does not scroll to follow the moved card.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W65",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

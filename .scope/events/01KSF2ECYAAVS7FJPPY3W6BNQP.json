@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2ECYAAVS7FJPPY3W6BNQP",
+  "ts": "2026-05-25T08:01:28.010Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5X",
+    "number": 34,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Auth on the HTTP MCP endpoint",
+    "description": "scope serve binds /mcp open. Fine for localhost; risky as soon as anyone exposes it. Add a shared-secret header (SCOPE_MCP_TOKEN) or basic auth.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

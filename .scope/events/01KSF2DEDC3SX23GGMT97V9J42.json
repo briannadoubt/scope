@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DEDC3SX23GGMT97V9J42",
+  "ts": "2026-05-25T08:00:56.748Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5J",
+    "number": 23,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Cross-process fs.watch with data_version dedupe",
+    "description": "Watch .scope/ for changes; read PRAGMA data_version to detect external writes vs. our own, then funnel into the same bus. Catches CLI/stdio-MCP writes from other processes.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5G",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

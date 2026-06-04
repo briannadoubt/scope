@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCDJW7P147XE8KB5Y7V99G",
+  "ts": "2026-05-27T18:51:13.671Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7F",
+    "number": 85,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Ticket detail view",
+    "description": "Full-screen sheet or navigation push showing all ticket fields: title, description (rendered Markdown + Mermaid), status, priority, type, assignee, labels, parent epic, relations, comments, and history. All fields inline-editable via PATCH /api/tickets/:id.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

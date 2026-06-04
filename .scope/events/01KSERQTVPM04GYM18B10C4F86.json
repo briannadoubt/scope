@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KSERQTVPM04GYM18B10C4F86",
+  "ts": "2026-05-25T05:11:51.414Z",
+  "actor": "migration",
+  "kind": "workspace.init",
+  "payload": {
+    "key": "SCP",
+    "name": "Scope CLI",
+    "description": "The kanban CLI itself",
+    "overview": "# Scope\n\nA local-first kanban for projects, epics, stories, and bugs — designed so coding\nagents can plan and track work without leaving the command line. Ships as a CLI,\na GitHub-Projects-style web UI, and a Model Context Protocol server.\n\n## What ships today\n\n- **CLI** — `scope init / project / ticket / epic / link / status / branch / pr / board`,\n  with `--json` output on every command for agent consumption.\n- **Web UI** (`scope ui`) — kanban columns, drag-and-drop status changes,\n  ticket drawer with inline edit, project overview view, epic filter.\n- **MCP server** — `scope mcp` (stdio) or via HTTP at `/mcp` when running\n  `scope serve`. Exposes 23 tools covering the full CLI surface.\n- **`scope serve`** — UI + HTTP MCP on one port. Multiple agents over HTTP and\n  a human in the browser all share one SQLite DB; writes from any source push\n  to every viewer via SSE.\n\n## Architecture\n\n- **Storage:** SQLite via better-sqlite3, in `.scope/scope.db`. WAL mode for\n  safe multi-process writes.\n- **CLI:** Node 20+ ES modules, commander for parsing.\n- **Server:** Express. Mounts the REST API, the MCP HTTP endpoint, and an SSE\n  `/events` channel.\n- **Realtime:** in-process EventEmitter bus emits on every mutation; a\n  `fs.watch` on `.scope/` plus a `PRAGMA data_version` check catches writes\n  from *other* processes (CLI, stdio MCP subprocesses) and feeds them into the\n  same bus. UI subscribes via EventSource.\n- **MCP:** `@modelcontextprotocol/sdk` with zod-typed tool inputs. HTTP mode\n  uses StreamableHTTPServerTransport in stateless per-request mode — many\n  agents can hit `/mcp` simultaneously, no session affinity needed.\n\n## Install\n\n```\nbrew install briannadoubt/tap/scope\n```\n\nReleases are tag-driven: `npm run release` bumps + tags + pushes; a GitHub\nActions workflow fetches the source tarball, computes its sha256, patches the\nformula, and pushes it to `briannadoubt/homebrew-tap`. Zero npm involvement.\n\n## Repo\n\nhttps://github.com/briannadoubt/scope\n"
+  }
+}

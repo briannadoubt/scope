@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHYQRD2QKQ9NDR8BA76NQZM",
+  "ts": "2026-05-26T10:54:23.650Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W72",
+    "number": 72,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Hide done tickets in orphan (no-epic) swimlanes",
+    "description": "In the swimlanes-by-epic view, the 'Random Bugs' and '(no epic)' catch-all lanes show every status including done. For orphaned items, done usually means 'closed for good, no further work needed' — keeping them around is noise. Hide done tickets in those catch-all lanes specifically; epic lanes are unaffected (the Show-Done-Epics toggle already controls those).",
+    "status": "done",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCDK6CYKWV33QCM9KQYAD1",
+  "ts": "2026-05-27T18:51:13.996Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7J",
+    "number": 88,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Project overview screen",
+    "description": "Summary card at the top of the board or as a dedicated screen. Shows project name, description (Markdown), epic list with progress bars (done/total child tickets). Matches the web overview modal.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2ECVHXZQJSGXDYQQN13YW",
+  "ts": "2026-05-25T08:01:27.921Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5W",
+    "number": 33,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "CI smoke workflow on PRs",
+    "description": "Only the release workflow runs in CI today. A pull-request workflow should npm ci, lint, and run the test suite so regressions don't reach a tag.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

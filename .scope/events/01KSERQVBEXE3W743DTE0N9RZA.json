@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQVBEXE3W743DTE0N9RZA",
+  "ts": "2026-05-25T05:11:51.918Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W56",
+    "number": 6,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Render kanban columns",
+    "description": "",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W52",
+    "branch": "feat/board",
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KSZTV1SWRCTBQ4HTHMVVKCJ8",
+  "ts": "2026-05-31T20:15:39.324Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W81",
+    "commentId": "01KT3SFZ9CXAWSXPZ8V5G2DB1F",
+    "author": "claude",
+    "body": "All 15 review findings fixed in one pass. Verified: npm test 90/90 green (added exact-key, non-ASCII, limit-clamp + array-limit cases); iOS sim build 0 errors/0 warnings; live CLI search smoke (exact 'SCP-96' leads, comment/description search OK). Shared TicketBadges view + merged priority CSS removed the badge duplication. Two out-of-scope items (graph loadRelationEdges Sendable, test watcher leak) left for separate tickets."
+  }
+}

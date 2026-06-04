@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3RXN48KF5PRFQH2XCKFME5",
+  "ts": "2026-06-02T08:59:05.224Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXN48CRMXJ81QRSZY045C",
+    "number": 109,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Deterministic replay: events → scope.db projection",
+    "description": "Build the deterministic projection: replay(events) -> scope.db.\n\n## Work\n- Sort events by (ts, ULID id) for a total, reproducible order across peers.\n- Fold each event into the materialized tables; rebuild FTS + ticket_history.\n- Run replay on cold start when the db is missing/stale, and after every sync that brings in new event files.\n\n## Acceptance\n- replay is pure and idempotent: same event set -> same db, regardless of file arrival order.\n- Round-trip: delete scope.db, replay, get an identical board.\n",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W84",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

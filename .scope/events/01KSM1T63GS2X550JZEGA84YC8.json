@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSM1T63GS2X550JZEGA84YC8",
+  "ts": "2026-05-27T06:26:37.808Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W75",
+    "number": 75,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Package Scope skills as a Codex plugin",
+    "description": "Create a GitHub-backed Codex plugin marketplace for briannadoubt and publish the Scope skill plugin into it.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

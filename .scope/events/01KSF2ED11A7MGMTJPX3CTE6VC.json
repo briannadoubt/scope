@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2ED11A7MGMTJPX3CTE6VC",
+  "ts": "2026-05-25T08:01:28.097Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5Y",
+    "number": 35,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Markdown rendering in ticket descriptions",
+    "description": "Descriptions are stored as markdown but rendered as plain text in the drawer. A tiny renderer (or marked.js) would make epic overviews much nicer.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

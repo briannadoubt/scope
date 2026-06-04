@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "id": "01KT0SZSH5NC5G5JFCYAEB5Q57",
+  "ts": "2026-06-01T05:20:00.549Z",
+  "actor": "migration",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W81",
+    "field": "prUrl",
+    "value": "https://github.com/briannadoubt/scope/pull/3"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSG4WSQP8Y2VWMMXQT5JJJMG",
+  "ts": "2026-05-25T18:03:31.446Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W62",
+    "number": 39,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Repo README",
+    "description": "Single README.md at the repo root with install (brew/npm/npx), quick start, MCP config snippets, swimlane mention, command reference, architecture, and release flow. Anchors all linkable from the github.com/briannadoubt/scope landing page.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

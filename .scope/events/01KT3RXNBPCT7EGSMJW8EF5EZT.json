@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3RXNBPCT7EGSMJW8EF5EZT",
+  "ts": "2026-06-02T08:59:05.462Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXNBPTNYYKYN9EQYA42QS",
+    "number": 111,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Demote scope.db to a rebuildable cache; events dir is record",
+    "description": "Demote scope.db to a disposable local cache and make .scope/events/ the unit of record.\n\n## Work\n- scope.db/-wal/-shm gitignored everywhere (ship .scope/.gitignore); guard against a tracked db.\n- Auto-rebuild the cache from events on startup when missing or when its applied count lags the event dir.\n- Document: \"the database is a cache; delete it anytime, it rebuilds from .scope/events/.\"\n\n## Acceptance\n- rm .scope/scope.db* followed by any scope command transparently rebuilds and shows the correct board.\n",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W84",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHYQHA42VKBQVVGS6NC99G4",
+  "ts": "2026-05-26T10:54:16.388Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W71",
+    "number": 71,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Show live activity feed on all viewport widths",
+    "description": "SCP-67 shipped the live feed with a hard min-width: 1280px gate (both in CSS and in pushLiveFeed's isLiveFeedEnabled check). On narrower screens the feed is invisible AND not populated — so on a laptop or split-screen the user sees nothing when an agent acts.\n\nChange: remove the 1280px gate; show the live feed on all viewports. Keep the bottom-right placement, max-6 stack, 6s auto-dismiss. On narrow viewports the column will overlap board content — that's acceptable because (a) the feed has pointer-events:none on its container, (b) it auto-dismisses fast, and (c) seeing remote activity is more important than the visual real estate cost.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6R",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

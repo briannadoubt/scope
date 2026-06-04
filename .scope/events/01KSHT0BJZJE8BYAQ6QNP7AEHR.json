@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHT0BJZJE8BYAQ6QNP7AEHR",
+  "ts": "2026-05-26T09:31:42.559Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6J",
+    "number": 56,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Require client certs from native clients (mTLS)",
+    "description": "Configure the HTTPS server to request (not require) client certs — `requestCert: true, rejectUnauthorized: false`. In the auth middleware, accept a valid client cert signed by the local CA as authentication (in addition to the existing bearer token for browsers). Map the cert serial to a paired device for audit logging.\n\nAcceptance:\n- Native request with a paired client cert: 200, no bearer token needed\n- Native request with an unknown cert: 401\n- Browser request without a cert: falls through to bearer-token path (unchanged)\n- Audit log includes device name on cert-authed requests\n\nDepends on the HTTPS and pairing stories.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

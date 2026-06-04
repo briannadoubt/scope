@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCDYSDHSZ80CWFZPRYEXAR",
+  "ts": "2026-05-27T18:51:25.869Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7P",
+    "number": 92,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Swipe gestures for status changes",
+    "description": "Swipe-left on a card to advance status, swipe-right to regress — mirrors drag-and-drop on the web. Show a destructive-style action label during the swipe. PATCH status on release. Animate the card into its new column.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

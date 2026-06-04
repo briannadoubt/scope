@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3TDXHRKSNM0PM5KJCTNJ4Y",
+  "ts": "2026-06-02T09:25:26.712Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3TDXHQWSJG407WEGKQQQSJ",
+    "number": 115,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Agent mutation surface: batch + rekey (no raw SQL)",
+    "description": "Close the gaps that tempt agents to edit scope.db directly. Add an atomic batch command (JSON ops + multi-ID convenience) and a clean workspace rekey that reprefixes all tickets. Document the full mutation surface in the skill so agents know every operation is available via CLI/events.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

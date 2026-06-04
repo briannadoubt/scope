@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2ED3REEA71J804DQJN0J7",
+  "ts": "2026-05-25T08:01:28.184Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5Z",
+    "number": 36,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Replace alert() with inline toasts",
+    "description": "API errors in the UI fall through to alert(). Move to a small toast component so failures don't block the page.",
+    "status": "done",
+    "priority": "low",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

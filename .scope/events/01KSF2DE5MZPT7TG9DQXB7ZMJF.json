@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DE5MZPT7TG9DQXB7ZMJF",
+  "ts": "2026-05-25T08:00:56.500Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5G",
+    "number": 21,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Realtime live updates (SSE)",
+    "description": "Push-based UI updates that cover writes from any process — the serve process, parallel CLI invocations, and stdio MCP subprocesses.",
+    "status": "done",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

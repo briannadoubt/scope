@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DES5057NADJRYRSVXMBV",
+  "ts": "2026-05-25T08:00:57.125Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5N",
+    "number": 26,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Distribution: Homebrew + tag-driven release",
+    "description": "Single-command release. Tag the repo, GitHub Actions does the rest. End users install via brew install briannadoubt/tap/scope.",
+    "status": "done",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

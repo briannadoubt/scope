@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHTDPA4FNVBM3KQVBHZ6K4N",
+  "ts": "2026-05-26T09:38:59.524Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6P",
+    "number": 60,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Highlight card after remote (SSE) move",
+    "description": "When a card's status changes via SSE (another agent/CLI/client), briefly highlight the card so the user notices the change. Don't highlight on local drag-and-drop since the user already initiated that. Implementation: add a 'just-moved' class to the moved card after scheduleRefresh re-renders; CSS fades a colored glow/outline in then out over ~2s.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W65",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

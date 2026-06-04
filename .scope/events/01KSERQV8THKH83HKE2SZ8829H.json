@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQV8THKH83HKE2SZ8829H",
+  "ts": "2026-05-25T05:11:51.834Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W55",
+    "number": 5,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Add ticket history table",
+    "description": "",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W51",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQTYAMK396HB5E157R7A4",
+  "ts": "2026-05-25T05:11:51.498Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W51",
+    "number": 1,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Persistence layer",
+    "description": "",
+    "status": "done",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCCR6JSYR8N33FM5Y6Q45W",
+  "ts": "2026-05-27T18:50:46.354Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "number": 80,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "iOS app",
+    "description": "Native SwiftUI app for iPhone/iPad. Discovers the hub via Bonjour, authenticates via mTLS pairing, and delivers full parity with the web UI — board, ticket detail, project overview, history, and live SSE updates.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCD55N3D1FCES2XSDBP6R2",
+  "ts": "2026-05-27T18:50:59.637Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7C",
+    "number": 82,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "mTLS pairing flow",
+    "description": "Generate an RSA keypair in the Secure Enclave (or software fallback). Show a code-entry screen that accepts the 6-digit code from 'scope pair' on the Mac. POST the CSR to /api/pair/complete on the HTTPS LAN server. Store the returned client cert + CA cert in the Keychain.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

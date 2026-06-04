@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3RXN7VJ0SZCEC2942MNX3D",
+  "ts": "2026-06-02T08:59:05.339Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXN7VST9KEZ1TB8Z7PYMR",
+    "number": 110,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Conflict-resolution rules (LWW scalars, union sets, tombstones, numbering)",
+    "description": "Write down and implement the conflict-resolution rules so concurrent edits converge deterministically.\n\n## Rules\n- Scalar fields: last-writer-wins by canonical order (ts, then ULID id).\n- Additive sets (tickets, comments): grow-only union.\n- Removals (relation.remove, ticket.delete): tombstone events; deletes are terminal.\n- Ticket numbering: identity = ULID; the human KEY-N is a display number de-collided at replay (earliest creator keeps it; latecomer bumped to max+1).\n\n## Acceptance\n- Documented merge-semantics (ADR) + property test: shuffled divergent event set projects to the same board.\n",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W84",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

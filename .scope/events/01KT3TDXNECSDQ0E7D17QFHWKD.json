@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3TDXNECSDQ0E7D17QFHWKD",
+  "ts": "2026-06-02T09:25:26.830Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3TDXNECSDQ0E7D17QFHWKC",
+    "number": 116,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Atomic batch: applyBatch + scope batch (JSON ops, $ref support)",
+    "description": "Buffer events during a single DB transaction; flush all-or-nothing. Ops mirror create/update/delete/link/unlink/comment/workspace. Support $ref so a batch can create an epic and its children in one atomic call.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KT3TDXHQWSJG407WEGKQQQSJ",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DE9HT975PAEQVJA73MRA",
+  "ts": "2026-05-25T08:00:56.625Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5H",
+    "number": 22,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "In-process event bus",
+    "description": "src/events.js: singleton EventEmitter; repo.js emits a 'change' event after every create/update/delete on projects, tickets, relations, comments.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5G",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSP2VNXZ9CYGRPH0HJ5N4HX3",
+  "ts": "2026-05-28T01:23:24.223Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7T",
+    "number": 96,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Schema migration: workspace owns key/name/description/overview",
+    "description": "Add columns key, name, description, overview to workspaces table. Backfill from first projects row per workspace_id. Migrate tickets.project_id → tickets.workspace_id. Keep projects table for back-compat read-only, drop in a later release. Migration runs on hub startup, idempotent.",
+    "status": "in_progress",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7S",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHT0BDNXB9ZMR7J90MHXA16",
+  "ts": "2026-05-26T09:31:42.389Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6G",
+    "number": 54,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Serve HTTPS with a CA-signed leaf cert",
+    "description": "Issue a leaf cert signed by the local CA covering: scope.local, localhost, 127.0.0.1, and current LAN IPv4/IPv6 addresses (SANs). Switch the express server from http.createServer to https.createServer using the leaf. Auto-reissue if the SAN set changes (LAN IP moved) or the cert is within 30 days of expiry.\n\nAcceptance:\n- https://scope.local:<port> serves the UI\n- Cert chains to the local CA; `openssl s_client` validates after trusting the CA\n- Leaf validity: 90 days, auto-reissued on startup if <30 days remain\n- LAN IP change between runs triggers a fresh leaf\n\nDepends on the CA story.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

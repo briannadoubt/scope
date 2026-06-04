@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DF5N8BY9N4WZVJREQ04Z",
+  "ts": "2026-05-25T08:00:57.525Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5R",
+    "number": 29,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "SSH deploy key for tap push",
+    "description": "Generated ed25519 keypair; pubkey registered as write-enabled deploy key on briannadoubt/homebrew-tap; privkey stored as HOMEBREW_TAP_DEPLOY_KEY secret on the scope repo. webfactory/ssh-agent loads it for the push step.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5N",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

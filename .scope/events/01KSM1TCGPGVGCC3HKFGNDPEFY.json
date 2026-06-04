@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSM1TCGPGVGCC3HKFGNDPEFY",
+  "ts": "2026-05-27T06:26:44.374Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W76",
+    "number": 76,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Bundle repo Scope skill",
+    "description": "Copy the repo's Scope SKILL.md into the plugin skills directory and adjust plugin presentation metadata.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W75",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSP2VP8XJMJZX9154R3BC8S5",
+  "ts": "2026-05-28T01:23:24.573Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7X",
+    "number": 99,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Web UI: remove project picker, board scopes to workspace",
+    "description": "Board header shows workspace key + name. Project selector removed from sidebar. Filters within the board still work (assignee, epic, type, etc). History view scopes to workspace. URL routing: /board?workspace=<id> replaces /board?project=<id>.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7S",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

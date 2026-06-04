@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2ECP08FR8SD71F00SAC6E",
+  "ts": "2026-05-25T08:01:27.744Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5T",
+    "number": 31,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Quality & next steps",
+    "description": "Where the rough edges live. Things that work but want hardening before more people start relying on this.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

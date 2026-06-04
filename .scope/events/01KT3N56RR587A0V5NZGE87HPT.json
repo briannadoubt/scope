@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3N56RR587A0V5NZGE87HPT",
+  "ts": "2026-06-02T07:53:18.360Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W84",
+    "number": 106,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Event-sourced storage: git-mergeable, deploy-free collaboration",
+    "description": "Make the append-only operation log the source of truth and treat scope.db as a rebuildable local cache, so divergent replicas merge by *union of events* instead of an impossible 3-way merge of binary SQLite pages.\n\n## Why\nToday the materialized snapshot (tickets/relations/comments rows) is the source of truth, and that is what any file-sync transport tries to merge. A snapshot is the current answer with the path discarded, so two divergent answers have no common ancestor to reconcile against — committing scope.db to git corrupts it on merge.\n\nWe already keep `ticket_history` (field, old_value, new_value, changed_by, changed_at): an event log in all but name. If we promote an append-only op stream to source-of-truth and rebuild the db by replaying it, then:\n- Appending is union-mergeable: merge = union of both peers' events, replayed in (changed_at, changed_by) order. Nothing to corrupt.\n- Transport becomes any dumb file sync — git pull, iCloud, Dropbox, Syncthing — with ZERO server to deploy.\n- Decentralized / local-first is preserved (every peer is a full offline replica; eventual consistency is the honest definition of decentralized).\n- LAN real-time is retained via the existing mTLS hub/pairing; peers can gossip events directly, still no central host.\n\n## Out of scope\nSub-second real-time across the open internet with zero infrastructure — that mathematically requires a meeting point and is not a goal here.\n\n## Acceptance\nA second clone can `git pull` a divergent set of ticket changes and end up with an identical, uncorrupted board after replay, with no SQLite file ever shared.\n",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

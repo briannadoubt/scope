@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCDYX4FAP4DKY4KBSXRMVB",
+  "ts": "2026-05-27T18:51:25.988Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7Q",
+    "number": 93,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Offline state + reconnection handling",
+    "description": "Use NWPathMonitor to detect network loss. Show a banner when disconnected (mirrors the web's live-dot indicator going grey). Queue no writes while offline — surface an error instead. Auto-reconnect SSE and refresh board state when network returns.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

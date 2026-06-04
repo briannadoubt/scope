@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSM1TCH0EHGH9AVTVP6JBXB2",
+  "ts": "2026-05-27T06:26:44.384Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W78",
+    "number": 78,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Validate Scope plugin",
+    "description": "Run plugin validation, register the GitHub marketplace locally, verify the plugin appears, and push the marketplace repo.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W75",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

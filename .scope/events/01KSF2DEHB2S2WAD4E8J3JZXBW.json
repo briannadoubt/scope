@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DEHB2S2WAD4E8J3JZXBW",
+  "ts": "2026-05-25T08:00:56.875Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5K",
+    "number": 24,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "SSE endpoint /events",
+    "description": "GET /events streams change events with text/event-stream + retry: 2000 + keepalive comments every 20s.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5G",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

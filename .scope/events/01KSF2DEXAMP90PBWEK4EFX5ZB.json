@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DEXAMP90PBWEK4EFX5ZB",
+  "ts": "2026-05-25T08:00:57.258Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5P",
+    "number": 27,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Homebrew formula",
+    "description": "Formula/scope.rb installs from the GitHub source tarball, pinned to node@22 LTS (better-sqlite3 prebuilts). Wrapper script invokes node@22 explicitly.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5N",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

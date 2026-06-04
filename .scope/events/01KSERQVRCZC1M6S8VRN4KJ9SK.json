@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQVRCZC1M6S8VRN4KJ9SK",
+  "ts": "2026-05-25T05:11:52.332Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5B",
+    "number": 11,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "ui command crashes when no projects exist",
+    "description": "",
+    "status": "done",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": "alice",
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCD5CCB84ZKWDCZXA7MRYK",
+  "ts": "2026-05-27T18:50:59.852Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7E",
+    "number": 84,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Kanban board view",
+    "description": "Horizontal scrolling column layout matching the web board. Columns for each status (backlog, todo, in_progress, in_review, done). Cards show title, ticket ID, priority pip, and type badge. Filter by epic. Toggle to show/hide done column.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

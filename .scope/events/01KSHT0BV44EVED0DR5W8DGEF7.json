@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHT0BV44EVED0DR5W8DGEF7",
+  "ts": "2026-05-26T09:31:42.820Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6N",
+    "number": 59,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Browser UX under HTTPS: CA trust + clear messaging",
+    "description": "Browser still uses bearer-token cookie auth (unchanged), but now over HTTPS with a CA the browser doesn't trust by default. On first `scope serve`, print clear instructions for trusting the CA in macOS Keychain (`security add-trusted-cert` invocation), or offer `scope ca trust` to do it for them (with sudo prompt). Otherwise every browser visit shows a red cert warning.\n\nAcceptance:\n- First-run output explains the cert warning the user will see\n- `scope ca trust` adds ~/.scope-hub/ca/ca.crt to the System keychain as a trusted root (asks for sudo)\n- `scope ca untrust` reverses it\n- README updated with the bookmark + trust flow\n\nDepends on the CA and HTTPS stories.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

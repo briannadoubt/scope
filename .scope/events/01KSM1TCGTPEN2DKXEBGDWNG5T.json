@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSM1TCGTPEN2DKXEBGDWNG5T",
+  "ts": "2026-05-27T06:26:44.378Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W77",
+    "number": 77,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Scaffold GitHub Scope plugin marketplace",
+    "description": "Create the codex-marketplace repo layout, plugin directory, manifest, and marketplace entry using the plugin-creator scaffold.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W75",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

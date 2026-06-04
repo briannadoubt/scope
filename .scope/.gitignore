@@ -1,0 +1,5 @@
+# Scope: commit the event log (events/), never the cache.
+# scope.db is rebuilt from events/ on demand — see docs/event-log-format.md.
+scope.db
+scope.db-wal
+scope.db-shm

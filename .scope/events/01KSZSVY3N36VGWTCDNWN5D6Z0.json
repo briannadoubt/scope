@@ -1,0 +1,26 @@
+{
+  "v": 1,
+  "id": "01KSZSVY3N36VGWTCDNWN5D6Z0",
+  "ts": "2026-05-31T19:58:39.733Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W81",
+    "number": 103,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Search feature: code-review cleanup (15 findings)",
+    "description": "Follow-up cleanup from the code review of the ticket-search feature (FTS5 backend + web palette + iOS `.searchable`). The feature works and the backend is well-tested; these are the review findings worth tracking. Each is small unless noted. File:line are approximate (search code may shift).\n\n## Correctness\n\n- [ ] **iOS — stale results on workspace switch.** `BoardView` keys search on `.task(id: searchText)`; switching workspace mid-search leaves the old workspace's results on screen. Fix: `.onChange(of: workspace?.id) { searchText = \"\" }` (also clear `searchResults`).\n- [ ] **Web — ⌘K/Ctrl-K wipes an open non-search modal.** `app.js` `bindSearchShortcuts` (~1744) only guards on `.search-palette`; pressing ⌘K over a half-filled New-ticket/Attach modal runs `openModal()` and discards it. Fix: also bail when any `.modal-backdrop` is open (the `/` shortcut already does).\n- [ ] **Backend — prefix bleed breaks exact key/number lookup.** `repo.js` `buildFtsMatch` turns every token into `tok*`, so `SCP-10`/`10` also returns SCP-100/101. Fix: detect a `KEY-N`/pure-number query and exact-match (or rank exact hits first). [needs a small design call]\n- [ ] **iOS — `AppStore.search` swallows every error into `[]`.** Offline/401/5xx are indistinguishable from \"no matches\" → misleading \"No Results\". Fix: surface the error (or at least an offline hint) like `updateTicket` does.\n- [ ] **Search results go stale vs live updates.** Web palette results and iOS `searchResults` are snapshots not wired to SSE/`EventStream`; deleted/edited tickets keep showing. Tapping a since-deleted one opens stale (iOS) or leaves the drawer on the prior ticket after a 404 (web `choose()` calls async `openDrawer` with no await/catch). Fix: re-query or reconcile against live events; await+catch in `choose`. [more than trivial]\n- [ ] **iOS — first-keystroke \"No Results\" flash.** `runSearch` sets `isSearching` after the 250 ms `Task.sleep`, so the empty-state shows during the debounce. Fix: set `isSearching = true` before the sleep (or gate the empty-state on \"a query has completed\").\n- [ ] **Backend — non-ASCII tokens silently match nothing.** `buildFtsMatch`'s `[\\p{L}\\p{N}]+` accepts `٧`, `½`, superscripts, etc., but the `unicode61` tokenizer drops them → empty results. Fix: align the token regex with the tokenizer (ASCII alnum) or switch tokenizer.\n- [ ] **iOS — slow stale response can overwrite newer (narrow).** Task cancellation doesn't serialize in-flight responses and `search()` eats the cancellation error. Fix: tag responses with the query and ignore mismatches.\n\n## Robustness / efficiency\n\n- [ ] **`tickets_fts_au` reindexes all text columns on every ticket UPDATE** (`db.js`), including status/priority-only edits. Fix: add a `WHEN` clause restricting to changes in indexed columns.\n- [ ] **Silent truncation at 50.** `searchTickets` defaults to 50 and both clients send no `limit`; >50 matches drop with no \"showing 50 of N\" / refine hint. Fix: return a has-more/total signal or show a footer when `results.length === limit`.\n- [ ] **`ensureSearchIndex` only backfills a fully-empty index** (`db.js`); a partial/stale index (triggers transiently absent) is never repaired. Fix: detect count mismatch vs `tickets`, or expose a `scope reindex`.\n- [ ] **Web `searchSeq`/`searchDebounce` are module-global**, never cleared on `closeModal`; a debounce queued just before close still fires `run()` (wasted request, render into a detached node). Fix: make them closure-local like `results`/`active`.\n\n## Cleanup / duplication\n\n- [ ] **`searchRowHtml` duplicates `renderCard`'s chip rendering and omits the PR chip** (`app.js`) — board shows a PR chip, search doesn't; changes must be made twice. Fix: share a chip/meta helper.\n- [ ] **iOS `SearchResultRow` duplicates `CardView`'s badge cluster; CSS `.search-pri` re-declares `.card-pri` colors** — re-theming drifts. Fix: extract a shared badge view / reuse the badge classes.\n- [ ] **`limit` edge handling**: `?limit=1&limit=2` → `NaN` → default 50; CLI `--limit 0` → 50 (falsy-zero), contradicting the documented \"1-200\". Note `test/search.test.js` enshrines the limit-0 quirk, so adjust that test if the coercion is fixed.\n\n---\n\nOut of scope for this ticket (belong to the graph/test work, not search):\n- `AppStore.loadRelationEdges` captures the non-Sendable `HubClient` into `withTaskGroup` `@Sendable` tasks — Swift-6 strict-concurrency violation.\n- `test/helpers.js` `startTestServer().close()` leaks the `mgr.attach()` `fs.watch` watcher (pre-existing teardown asymmetry).\n",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": [
+      "search",
+      "cleanup",
+      "tech-debt"
+    ]
+  }
+}

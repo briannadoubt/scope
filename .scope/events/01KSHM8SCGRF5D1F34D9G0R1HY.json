@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHM8SCGRF5D1F34D9G0R1HY",
+  "ts": "2026-05-26T07:51:27.376Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6B",
+    "number": 49,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Hub watchdog + runtime repair (\"self-healing hub\")",
+    "description": "Make the federated hub self-healing so the UI never goes blank for surviving sessions when the hub-owning process exits. Today every `scope ui/serve/mcp` registers with whichever process won the port bind. When that process dies, other registered workspaces still serve stdio MCP but lose UI access until a human reruns a command.\n\n## Design\n\nEvery long-lived scope process (the stdio MCP in `scope mcp`, the idling-on-attach process in `scope ui`/`scope serve`) starts a watchdog that:\n\n1. Polls the hub's `/api/meta` every ~10s.\n2. If three consecutive probes fail, calls `ensureHub({ scopeDir, label })` again. The existing race-safe logic means one of the surviving processes wins the bind and the rest re-attach.\n3. On successful re-bind, the new hub rehydrates `~/.scope-hub/workspaces.json` (already implemented), so the workspace switcher is repopulated automatically.\n\n## UI side\n\nThe refresh button in the web UI should also trigger the same logic from the client side: re-fetch `/api/meta`, and if it fails, surface \"Hub is down — waiting for re-election\" while the runtime repair on the server side promotes a replacement. When `/events` SSE reconnects, the UI seamlessly resumes.\n\n## Why this is high priority\n\nThis is the only failure mode that actually bites in normal multi-session use — and it's fixable without adding any install ceremony. After [[real-hub-daemon-launchd-systemd]], this watchdog logic becomes obsolete (or a fallback), but until then it closes the gap.",
+    "status": "done",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

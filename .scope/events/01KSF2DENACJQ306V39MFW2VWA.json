@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DENACJQ306V39MFW2VWA",
+  "ts": "2026-05-25T08:00:57.002Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5M",
+    "number": 25,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "UI EventSource client (replaces polling)",
+    "description": "Browser subscribes via EventSource; debounced refresh (80ms coalescing). Live indicator dot: green=connected, blue flash=tick, gray=paused, red=disconnected. Pauses while drawer/modal/input/drag active.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5G",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQV0YPN6E759ZQS3Q0ECV",
+  "ts": "2026-05-25T05:11:51.582Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W52",
+    "number": 2,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Web UI",
+    "description": "",
+    "status": "done",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

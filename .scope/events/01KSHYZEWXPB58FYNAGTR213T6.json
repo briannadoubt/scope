@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHYZEWXPB58FYNAGTR213T6",
+  "ts": "2026-05-26T10:58:36.061Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W73",
+    "number": 73,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Hub should emit rich SSE events for CLI-driven changes (fs-watch)",
+    "description": "Today the hub's fs-watch fallback (src/workspaces.js) emits a generic { type: 'external', source: 'fs-watch' } event whenever a sibling process (CLI subprocess) writes to the SQLite DB. The browser has no way to know what actually changed, so the live activity feed shows a useless 'external' toast.\n\nFix: the fs-watch handler should diff ticket_history since the previous data_version and emit one synthetic { type: 'ticket.updated' | 'ticket.created' | 'comment.added', id, field, old_value, new_value, changed_by, workspace } event per row, matching the shape of in-process emits from repo.js. Then the browser's pushLiveFeed renders proper rich toasts identically for HTTP-driven and CLI-driven activity.\n\nWorkaround currently in src/web/app.js: on 'external' event, the client fetches /api/history?limit=10 and replays rows it hasn't seen yet. That's a wasted round-trip per CLI change and misses comment.added (comments aren't in ticket_history). Remove the workaround once this lands.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6R",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

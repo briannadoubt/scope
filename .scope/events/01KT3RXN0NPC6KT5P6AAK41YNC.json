@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3RXN0NPC6KT5P6AAK41YNC",
+  "ts": "2026-06-02T08:59:05.109Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXN0NACEJZXFW11S6CNER",
+    "number": 108,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Emit events for every mutation (single append chokepoint)",
+    "description": "Route every mutation through an appendEvent() call so the event log is complete and authoritative.\n\n## Work\n- Every CLI command, MCP tool, and UI write goes through one emit() chokepoint in repo.js.\n- Cover the mutations ticket_history does NOT capture today: ticket.create, comment.add, relation.add/remove, workspace.*.\n- Events live in ULID space: tickets carry a stable uid; parent/relation refs are translated KEY-N -> uid.\n\n## Acceptance\n- Deleting scope.db and replaying .scope/events/ reproduces the board (joint with SCP-109).\n- No code path mutates tickets/relations/comments without emitting an event.\n",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W84",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

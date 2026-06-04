@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DDXWZ10XYYH0QFKK633Q",
+  "ts": "2026-05-25T08:00:56.252Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5E",
+    "number": 19,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "HTTP MCP transport (multi-agent)",
+    "description": "Mount /mcp on Express via StreamableHTTPServerTransport. Stateless per-request: any number of agents POST to one endpoint, coordination at the SQLite layer (WAL mode).",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5C",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

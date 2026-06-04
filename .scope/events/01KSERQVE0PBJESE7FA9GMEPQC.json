@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQVE0PBJESE7FA9GMEPQC",
+  "ts": "2026-05-25T05:11:52.000Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W57",
+    "number": 7,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Drawer for ticket detail",
+    "description": "",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W52",
+    "branch": "feat/drawer",
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHETG1Q6P5NY91FHX51K0H3",
+  "ts": "2026-05-26T06:16:16.183Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W65",
+    "number": 42,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Motion & delight",
+    "description": "Visual polish that makes the board feel alive — especially compelling when running on a secondary monitor as a passive view of work in flight. Animations for cross-column movement, celebratory feedback on completion, and similar tactile UI flourishes live here. All motion respects prefers-reduced-motion.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

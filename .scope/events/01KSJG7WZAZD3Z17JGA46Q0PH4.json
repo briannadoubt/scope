@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSJG7WZAZD3Z17JGA46Q0PH4",
+  "ts": "2026-05-26T16:00:18.410Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W74",
+    "number": 74,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "node-forge X.509 certs reject ERR_OSSL_ASN1_ILLEGAL_PADDING under Node 24's OpenSSL",
+    "description": "Repro: 'CI: Test (Node 24)' job; test/revocation.test.js:61 throws ERR_OSSL_ASN1_ILLEGAL_PADDING when constructing 'new X509Certificate(leaf.certPem)' from a cert that node-forge (src/ca.js issueLeafCert) just signed. Same code passes on Node 20, 22, and 26 (locally tested). Specifically: 'error:068000DD:asn1 encoding routines::illegal padding'.\n\nSuspected: Node 24 ships an OpenSSL build (~3.5) with stricter ASN.1 validation that catches an encoding quirk in forge's cert output that Node 20/22/26 (different OpenSSL builds) accept. node-forge 1.4.0 is already the latest.\n\nWorkarounds to consider:\n- Round-trip the forge-signed cert through Node's native crypto to re-canonicalize before storing.\n- Replace forge cert signing with Node's experimental key/cert APIs (Node 22+ added some).\n- Patch forge's INTEGER encoding for the cert serial / validity fields.\n\nCI matrix temporarily drops Node 24 to keep main green. Re-add once this is fixed.",
+    "status": "done",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

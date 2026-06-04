@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2DF9XZBAVHDAVWYCBMWBF",
+  "ts": "2026-05-25T08:00:57.661Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5S",
+    "number": 30,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Local release wrapper",
+    "description": "scripts/release.sh trimmed to: sanity-check tree, npm version <bump>, push --follow-tags. CI handles publish/sha/tap.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5N",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHVYMAQ12AJY79EBW30PCPS",
+  "ts": "2026-05-26T10:05:43.127Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6R",
+    "number": 62,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "History view + live action toast feed",
+    "description": "Add a History screen showing a log of all agent/ticket actions, plus a floating SSE-driven toast column on large screens that shows incoming change events in real-time.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

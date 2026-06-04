@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3TDXXB864C68EM172P1HG5",
+  "ts": "2026-06-02T09:25:27.083Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3TDXXB864C68EM172P1HG4",
+    "number": 118,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "workspace.rekey event + scope workspace rekey <KEY>",
+    "description": "New event kind; replay reprefixes ALL tickets to the new key; CLI rebuilds the cache from the log. set --key keeps future-only behavior.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KT3TDXHQWSJG407WEGKQQQSJ",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

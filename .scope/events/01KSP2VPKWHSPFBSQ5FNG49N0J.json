@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSP2VPKWHSPFBSQ5FNG49N0J",
+  "ts": "2026-05-28T01:23:24.924Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W80",
+    "number": 102,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Doc + skill updates for the flatter model",
+    "description": "Update README, skills/scope/SKILL.md, MCP tool descriptions. Drop the workspace/project distinction from the data model docs. Add a short migration note in CHANGELOG.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7S",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

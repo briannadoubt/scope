@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCDKD2V09GTWC8PNW5D0MZ",
+  "ts": "2026-05-27T18:51:14.210Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7M",
+    "number": 90,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "History view",
+    "description": "Paginated list of project history from GET /api/history. Each row shows the field changed, old → new value, ticket ID, and timestamp. Load-more via the before= cursor. Accessible from the project overflow menu.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

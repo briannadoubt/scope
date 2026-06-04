@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCDJZJN5PY2H5950FDTRHJ",
+  "ts": "2026-05-27T18:51:13.778Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7G",
+    "number": 86,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "New ticket creation",
+    "description": "Sheet with fields for title, type, status, priority, parent epic, and description. POST to /api/tickets. Pre-fill project from current context. Dismiss and animate new card into the correct column on success.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

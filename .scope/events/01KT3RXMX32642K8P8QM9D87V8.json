@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3RXMX32642K8P8QM9D87V8",
+  "ts": "2026-06-02T08:59:04.995Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX3V0DZMGAG0YQ61Q8R",
+    "number": 107,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Define the append-only event format & on-disk layout",
+    "description": "Design the canonical append-only event format that becomes Scope's source of truth.\n\n## Event shape\nEach event is one immutable record: `{ v, id (ULID), ts, actor, kind, payload }`.\n\n`kind` covers every mutation Scope can make: workspace.init/set, ticket.create, ticket.set_field, ticket.delete, comment.add, relation.add, relation.remove.\n\n## On-disk layout\nOne file per event under `.scope/events/`, named by ULID. One-file-per-event means two peers adding events never touch the same file — git sees only new files, so there is nothing to conflict on. (A single append-only NDJSON log was rejected because concurrent appends collide.)\n\n## Acceptance\n- A written spec (doc + schema module) for every event kind and its payload.\n- ULID gives global ordering + uniqueness without coordination.\n- scope.db/-wal/-shm stay gitignored; .scope/events/ is the tracked/synced unit.\n",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W84",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

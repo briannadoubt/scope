@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHT0BB0RVP9DDDN3FMG5FN9",
+  "ts": "2026-05-26T09:31:42.304Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6F",
+    "number": 53,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Generate and persist a local CA",
+    "description": "On first `scope serve` (when no CA exists), generate a self-signed root CA. Persist key + cert to ~/.scope-hub/ca/ with mode 0600 on the key. Print the SHA-256 fingerprint to stdout so the user can verify out-of-band when pairing devices.\n\nAcceptance:\n- ~/.scope-hub/ca/ca.key (0600) and ca.crt exist after first serve\n- `scope ca fingerprint` prints the SHA-256\n- Idempotent: re-running serve reuses the existing CA\n- CA validity: 10 years (it's a personal-machine root)\n- Use node's built-in crypto / x509, or node-forge if simpler — no openssl shell-out",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

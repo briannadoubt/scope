@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHEREKXABAJMJT7SMJ8X4Q5",
+  "ts": "2026-05-26T06:15:09.181Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W64",
+    "number": 41,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Confetti burst when a ticket moves to done",
+    "description": "When any ticket transitions into the done column — local drop, programmatic update, or realtime push from another client — fire a tasteful confetti burst from the card's resting position. Design intent: tactile, restrained, and momentary; not a screen-flooding party. Considerations: use canvas-confetti or a hand-rolled lightweight emitter; tune particle count, palette, gravity, and decay so it reads as a satisfying punctuation mark rather than noise; trigger once per transition (don't re-fire on re-render); respect prefers-reduced-motion (skip entirely); should coexist cleanly with [[SCP-40]]'s move animation so the card lands and then bursts.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W65",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

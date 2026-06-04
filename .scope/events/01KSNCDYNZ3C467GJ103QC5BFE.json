@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCDYNZ3C467GJ103QC5BFE",
+  "ts": "2026-05-27T18:51:25.759Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7N",
+    "number": 91,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Markdown + Mermaid rendering",
+    "description": "Render ticket descriptions using a Swift Markdown parser (swift-markdown or AttributedString). For Mermaid fenced code blocks, render via a lightweight WKWebView using the same mermaid.js pinned version the web UI uses. Fallback to raw code block if render fails.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

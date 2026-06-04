@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2ED6FBF85ATPWCHJ71PM7",
+  "ts": "2026-05-25T08:01:28.271Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W60",
+    "number": 37,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "scope --version stayed stale through several tags",
+    "description": "CLI version was hardcoded to 0.1.0 until v0.1.4. Caused brew test to drift from package.json — would have failed if brew test had been run in CI. Fixed by reading from package.json at startup.",
+    "status": "done",
+    "priority": "low",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHT0BREVWXS6AM4K3G886WG",
+  "ts": "2026-05-26T09:31:42.734Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6M",
+    "number": 58,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Device management: list, rename, revoke",
+    "description": "CLI commands to manage paired devices:\n- `scope devices list` — table of name, paired_at, last_seen, cert serial\n- `scope devices rename <name> <new>` — change display name\n- `scope devices revoke <name>` — remove from devices.json AND add cert serial to a CRL file the server consults on every request\n\nAcceptance:\n- Revoked device's cert gets 401 on next request even though it chains to the CA\n- CRL persisted to ~/.scope-hub/revoked.json; loaded into memory on serve, reloaded on signal\n- last_seen updates per request (debounced to ~1/min per device to avoid disk thrash)\n\nDepends on the pairing and mTLS stories.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

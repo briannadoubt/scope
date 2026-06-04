@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHREC56YZ1NQ0XVX7YE6V9W",
+  "ts": "2026-05-26T09:04:24.742Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6C",
+    "number": 50,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Bugs without epics should land in a \"Random Bugs\" lane in epics swimlanes layout view",
+    "description": "",
+    "status": "done",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

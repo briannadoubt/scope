@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCDZ0KNBQJPYMSJPJ8F5ZJ",
+  "ts": "2026-05-27T18:51:26.099Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7R",
+    "number": 94,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "App icon + launch screen",
+    "description": "Design and export the Scope app icon (◆ mark from the web topbar) at all required sizes. Configure the launch screen. Match the dark colour palette of the web UI.",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

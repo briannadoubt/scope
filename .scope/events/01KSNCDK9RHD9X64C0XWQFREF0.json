@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSNCDK9RHD9X64C0XWQFREF0",
+  "ts": "2026-05-27T18:51:14.104Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7K",
+    "number": 89,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Live updates via SSE",
+    "description": "Connect to /events with URLSession streaming. Parse 'event: change' messages and apply incremental updates to in-memory state (add/update/remove ticket, workspace lifecycle). Reconnect automatically on drop. Show a live indicator dot like the web UI.",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7A",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

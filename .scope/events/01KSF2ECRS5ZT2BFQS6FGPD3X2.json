@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSF2ECRS5ZT2BFQS6FGPD3X2",
+  "ts": "2026-05-25T08:01:27.833Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5V",
+    "number": 32,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Add a real test suite",
+    "description": "Zero tests today. Need at minimum: repo unit tests against a temp DB, MCP tool round-trips, and the brew formula test block (already declared, never run in CI).",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W5T",
+    "branch": "main",
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

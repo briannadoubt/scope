@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHHC577CFQE0YA4PYGWP244",
+  "ts": "2026-05-26T07:00:52.071Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W68",
+    "number": 45,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "View popover: collapse epic-filter + group-by + show-done",
+    "description": "Replace the epic-filter `<select>`, the group-by `<select>`, and the \"Show done\" checkbox with a single button:\n\n  [≡ View ▾]\n\nClicking opens a popover with the three controls stacked:\n- Filter by epic: (All tickets / SCP-N · …)\n- Group by: (None / Epic / Assignee / Priority / Type)\n- Show done epics: checkbox (only shown when Group by = Epic, same conditional as today)\n\nTrigger reflects active state — when non-default, the label shows what's set:\n- Default: `View ▾`\n- Only group: `Epic ▾`\n- Only filter: `SCP-2 ▾`\n- Both: `Epic · SCP-2 ▾`\n- Or use a small badge with count of active non-default settings.\n\nNotes:\n- Replaces 3 bar controls with 1.\n- Popover anchors below trigger, closes on outside-click and Escape.\n- localStorage keys (`scope.groupBy`, `scope.showDoneEpics`) keep working — the popover reads/writes the same state.\n\nTouches: index.html, app.js (bindViewPopover, replace bindTopbar wiring), style.css (popover styles, can share with breadcrumb popover).",
+    "status": "done",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W66",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

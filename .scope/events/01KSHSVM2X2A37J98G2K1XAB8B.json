@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHSVM2X2A37J98G2K1XAB8B",
+  "ts": "2026-05-26T09:29:07.421Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6E",
+    "number": 52,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Scroll to card after it moves columns",
+    "description": "After any card status change — drag-and-drop, CLI, or SSE realtime push — smoothly scroll the board so the card is visible in its new column. Should use scrollIntoView with behavior:smooth and block:nearest. Works in both flat board and swimlane mode. Ties in with the FLIP animation from SCP-40: scroll should happen after the animation settles so the card lands before the viewport moves.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W65",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHVZ1TM96A07N29H3DWEG3E",
+  "ts": "2026-05-26T10:05:56.948Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6S",
+    "number": 63,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Add /api/history project-scoped endpoint",
+    "description": "New GET /api/history?project=<id>&limit=<n>&offset=<n> endpoint. Queries ticket_history joined with tickets so each row has: ticket_id, ticket_title, field, old_value, new_value, changed_by, changed_at. Enables the history view and can be polled/pushed via SSE.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W6R",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

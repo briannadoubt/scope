@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KT3RXNJZJVXV6G09ZG078N2N",
+  "ts": "2026-06-02T08:59:05.695Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXNJZ7NMVF5XJNJ3F9RR2",
+    "number": 113,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Migration: backfill event log from existing workspaces",
+    "description": "One-time migration: backfill the event log from existing workspaces so current users lose no history.\n\n## Work\n- Synthesize an event stream from current state + ticket_history: ticket.create with INITIAL values (from first history old_value), then set_field per history row, plus comment.add / relation.add.\n- Run automatically on first launch when .scope/events/ is absent but scope.db exists.\n\n## Acceptance\n- Migrating this workspace (SCP) yields an event log that replays to today's exact board. Idempotent.\n",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W84",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSM2M722P4YKABBQV24RGY8C",
+  "ts": "2026-05-27T06:40:50.754Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W79",
+    "number": 79,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Automate Scope plugin skill sync",
+    "description": "Make the codex-marketplace Scope plugin skill a generated copy of the canonical Scope repo SKILL.md, with a local sync/check script and GitHub Actions workflow.",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W75",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

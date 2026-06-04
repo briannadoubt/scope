@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSHWST4QQ456YZGTXJS9DT7S",
+  "ts": "2026-05-26T10:20:33.815Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W6Z",
+    "number": 69,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Mermaid render test",
+    "description": "# Mermaid smoke test\n\nSome prose first with **bold** and *italic*.\n\n```mermaid\ngraph LR\n    A[Browser] -->|HTTP| B(Scope hub)\n    B --> C{(SQLite)}\n    B -->|SSE| A\n```\n\nAnd after the diagram:\n\n- a list item\n- another with `code`\n",
+    "status": "cancelled",
+    "priority": "low",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

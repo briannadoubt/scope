@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSERQVNSVTXXBHQZRXFR3G3B",
+  "ts": "2026-05-25T05:11:52.249Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W5A",
+    "number": 10,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Card text wraps awkwardly with long titles",
+    "description": "",
+    "status": "done",
+    "priority": "medium",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W52",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KSP2VP59FT41X1P7CP4YA3WW",
+  "ts": "2026-05-28T01:23:24.457Z",
+  "actor": "migration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7W",
+    "number": 98,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "CLI: collapse project commands into workspace",
+    "description": "scope ticket create no longer needs --project (uses current workspace). scope project show MA → scope workspace show. scope project create remains but warns + maps to workspace setup. Ticket IDs stay SCP-N. scope init in a new repo creates workspace + sets its key in one prompt.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KT3RXMX2D7PSQSVDTEE08W7S",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}
