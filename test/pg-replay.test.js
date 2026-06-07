@@ -10,7 +10,7 @@ import {
 import { replayInto } from '../src/replay.js';
 import { readAllEvents, eventsDir } from '../src/event-store.js';
 import { pgReplay } from '../src/pg/replay.js';
-import { ensureSchema, dropSchema } from '../src/pg/schema.js';
+import { ensureSchema } from '../src/pg/schema.js';
 import { getPool, closePool, pgUrl } from '../src/pg/pool.js';
 
 /**
@@ -101,6 +101,8 @@ test('SQLite replay and Postgres replay project identical board state', { skip }
   assert.ok(postgres.history.some((h) => h.changed_by === 'Opus 4.8 on behalf of bri'));
 });
 
+// Shared test DB across parallel files — don't drop the schema (unique
+// tenant_ids isolate; ensureSchema is idempotent).
 test.after(async () => {
-  if (available) { try { await dropSchema(getPool()); } catch {} await closePool(); }
+  if (available) await closePool();
 });

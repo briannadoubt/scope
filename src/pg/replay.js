@@ -23,18 +23,16 @@ const FIELD_TO_COLUMN = Object.fromEntries(
 );
 
 /**
- * Rebuild a tenant's cache tables from `events`, inside one transaction.
+ * Replay `events` into a tenant's cache using an EXISTING transaction `client`.
+ * Does NOT manage the transaction — the caller owns BEGIN/COMMIT — so it can be
+ * composed atomically with an event-log insert (SCP-142 upload).
  *
- * Acquires a dedicated client from the pool for the transaction — using the
- * pool directly would let BEGIN and the writes land on different pooled
- * connections, silently breaking atomicity.
- *
- * @param {import('pg').Pool} pool
+ * @param {import('pg').PoolClient} client - a client with an open transaction
  * @param {string} tenantId
  * @param {Array<object>} events - any order; sorted internally
  * @returns {Promise<{ applied: number, renumbered: Array }>}
  */
-export async function pgReplay(pool, tenantId, events) {
+export async function replayWithinTx(client, tenantId, events) {
   const ordered = events.slice().sort(compareEvents);
   const { assignments, renumbered } = resolveDisplayNumbers(ordered);
 
@@ -54,56 +52,72 @@ export async function pgReplay(pool, tenantId, events) {
 
   const T = tenantId;
   const now = new Date().toISOString();
-  const db = await pool.connect();
-  try {
-    await db.query('BEGIN');
-    // Wipe this tenant's derived rows (workspace row is upserted, not deleted).
-    for (const t of ['ticket_history', 'ticket_comments', 'ticket_relations', 'tickets'])
-      await db.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [T]);
-    // Ensure a workspace row exists; workspace.* events UPDATE it below.
-    await db.query(
-      `INSERT INTO workspace (tenant_id, key, name, created_at, updated_at)
-       VALUES ($1, '', 'Workspace', $2, $2) ON CONFLICT (tenant_id) DO NOTHING`,
-      [T, now]
-    );
 
-    let wsKey = null;
-    let applied = 0;
-    for (const e of ordered) {
-      applied += await applyEvent(db, T, e, human, assignments);
-      if (e.kind === 'workspace.init' || e.kind === 'workspace.set') {
-        if (typeof e.payload.key === 'string') wsKey = e.payload.key;
-      } else if (e.kind === 'workspace.rekey') {
-        wsKey = e.payload.to;
-      }
+  // Wipe this tenant's derived rows (workspace row is upserted, not deleted).
+  for (const t of ['ticket_history', 'ticket_comments', 'ticket_relations', 'tickets'])
+    await client.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [T]);
+  // Ensure a workspace row exists; workspace.* events UPDATE it below.
+  await client.query(
+    `INSERT INTO workspace (tenant_id, key, name, created_at, updated_at)
+     VALUES ($1, '', 'Workspace', $2, $2) ON CONFLICT (tenant_id) DO NOTHING`,
+    [T, now]
+  );
+
+  let wsKey = null;
+  let applied = 0;
+  for (const e of ordered) {
+    applied += await applyEvent(client, T, e, human, assignments);
+    if (e.kind === 'workspace.init' || e.kind === 'workspace.set') {
+      if (typeof e.payload.key === 'string') wsKey = e.payload.key;
+    } else if (e.kind === 'workspace.rekey') {
+      wsKey = e.payload.to;
     }
+  }
 
-    // Orphan cleanup mirrors the FK CASCADE the SQLite path relies on.
-    await db.query(
-      `DELETE FROM ticket_comments WHERE tenant_id=$1
-         AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
-    await db.query(
-      `DELETE FROM ticket_relations WHERE tenant_id=$1
-         AND (from_ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)
-              OR to_ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1))`, [T]);
-    await db.query(
-      `DELETE FROM ticket_history WHERE tenant_id=$1
-         AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
+  // Orphan cleanup mirrors the FK CASCADE the SQLite path relies on.
+  await client.query(
+    `DELETE FROM ticket_comments WHERE tenant_id=$1
+       AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
+  await client.query(
+    `DELETE FROM ticket_relations WHERE tenant_id=$1
+       AND (from_ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)
+            OR to_ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1))`, [T]);
+  await client.query(
+    `DELETE FROM ticket_history WHERE tenant_id=$1
+       AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
 
-    // Advance the allocator past every assigned number; follow the rekey/set key.
-    await db.query(
-      'UPDATE workspace SET next_ticket_number=$2, updated_at=$3 WHERE tenant_id=$1',
-      [T, nextNumberSeed(assignments), now]
-    );
-    if (wsKey) await db.query('UPDATE workspace SET key=$2 WHERE tenant_id=$1', [T, wsKey]);
+  // Advance the allocator past every assigned number; follow the rekey/set key.
+  await client.query(
+    'UPDATE workspace SET next_ticket_number=$2, updated_at=$3 WHERE tenant_id=$1',
+    [T, nextNumberSeed(assignments), now]
+  );
+  if (wsKey) await client.query('UPDATE workspace SET key=$2 WHERE tenant_id=$1', [T, wsKey]);
 
-    await db.query('COMMIT');
-    return { applied, renumbered };
+  return { applied, renumbered };
+}
+
+/**
+ * Rebuild a tenant's cache from `events` in its own transaction. Acquires a
+ * dedicated client from the pool — using the pool directly would let BEGIN and
+ * the writes land on different pooled connections, silently breaking atomicity.
+ *
+ * @param {import('pg').Pool} pool
+ * @param {string} tenantId
+ * @param {Array<object>} events
+ * @returns {Promise<{ applied: number, renumbered: Array }>}
+ */
+export async function pgReplay(pool, tenantId, events) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const r = await replayWithinTx(client, tenantId, events);
+    await client.query('COMMIT');
+    return r;
   } catch (err) {
-    await db.query('ROLLBACK');
+    await client.query('ROLLBACK');
     throw err;
   } finally {
-    db.release();
+    client.release();
   }
 }
 

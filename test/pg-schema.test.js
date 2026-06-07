@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
 
-import { ensureSchema, dropSchema } from '../src/pg/schema.js';
+import { ensureSchema } from '../src/pg/schema.js';
 import { getPool, closePool, pgUrl } from '../src/pg/pool.js';
 
 /**
@@ -75,9 +75,9 @@ test('tenant scoping: a query filtered by tenant_id never sees another tenant ro
   assert.deepEqual(b.rows.map((r) => r.id), ['B-1'], 'tenant B sees only its row');
 });
 
+// Shared test DB: files run in parallel processes, so do NOT drop the schema
+// here (it would wipe tables other files are mid-test on). Isolation comes from
+// unique tenant_ids + per-tenant cleanup. ensureSchema is idempotent.
 test.after(async () => {
-  if (available) {
-    try { await dropSchema(getPool()); } catch {}
-    await closePool();
-  }
+  if (available) await closePool();
 });
