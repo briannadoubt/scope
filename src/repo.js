@@ -1,7 +1,7 @@
 import { nowIso, nextTicketId, recordHistory, getWorkspace, bumpMeta, setMeta } from './db.js';
 import { emitChange } from './events.js';
 import { ulid } from './ulid.js';
-import { makeEvent } from './event-schema.js';
+import { makeEvent, formatActor } from './event-schema.js';
 import { appendEvent, eventsDirForDb, readAllEvents } from './event-store.js';
 import { replayInto } from './replay.js';
 import {
@@ -32,8 +32,8 @@ let pendingEvents = null;
  * Inside applyBatch the event is buffered (not written) so the whole batch can
  * be flushed atomically after the transaction commits.
  */
-function emit(db, kind, payload, actor) {
-  const evt = makeEvent(kind, payload, { actor: actorOf(actor) });
+function emit(db, kind, payload, actor, model = null) {
+  const evt = makeEvent(kind, payload, { actor: actorOf(actor), model: model || undefined });
   if (pendingEvents) {
     pendingEvents.push(evt);
     return evt;
@@ -71,9 +71,12 @@ function uidFor(db, id) {
  * Any `id`/`from`/`to`/`parent` value of the form "$name" is resolved to the id
  * of the ticket created earlier in the same batch under `ref: 'name'`.
  *
+ * `model` is the acting-model attribution (SCP-128) applied to every op; an op
+ * may override it with its own `model` (mirroring how `by` overrides `actor`).
+ *
  * @returns {{ applied: number, results: Array, refs: object }}
  */
-export function applyBatch(db, ops, { actor = null } = {}) {
+export function applyBatch(db, ops, { actor = null, model = null } = {}) {
   if (!Array.isArray(ops)) throw new Error('batch ops must be an array');
   if (pendingEvents) throw new Error('applyBatch cannot be nested');
 
@@ -86,7 +89,7 @@ export function applyBatch(db, ops, { actor = null } = {}) {
     const results = db.transaction(() => {
       const out = [];
       ops.forEach((op, i) => {
-        out.push(dispatchOp(db, op, i, actor, refs, deref));
+        out.push(dispatchOp(db, op, i, actor, model, refs, deref));
       });
       return out;
     })();
@@ -107,10 +110,11 @@ function resolveRef(refs, name) {
   return refs[name];
 }
 
-function dispatchOp(db, op, i, actor, refs, deref) {
+function dispatchOp(db, op, i, actor, model, refs, deref) {
   if (!op || typeof op !== 'object' || typeof op.op !== 'string')
     throw new Error(`batch op #${i} must be an object with an "op" field`);
   const who = op.by || actor;
+  const how = op.model || model;
   switch (op.op) {
     case 'create': {
       const t = createTicket(db, {
@@ -125,26 +129,27 @@ function dispatchOp(db, op, i, actor, refs, deref) {
         assignee: op.assignee,
         labels: op.labels,
         actor: who,
+        model: how,
       });
       if (op.ref) refs[op.ref] = t.id;
       return { op: 'create', id: t.id, ref: op.ref ?? null };
     }
     case 'update':
-      return { op: 'update', id: deref(op.id), ticket: updateTicket(db, deref(op.id), op.fields ?? {}, who).id };
+      return { op: 'update', id: deref(op.id), ticket: updateTicket(db, deref(op.id), op.fields ?? {}, who, how).id };
     case 'status':
-      return { op: 'status', id: deref(op.id), ticket: updateTicket(db, deref(op.id), { status: op.status }, who).id };
+      return { op: 'status', id: deref(op.id), ticket: updateTicket(db, deref(op.id), { status: op.status }, who, how).id };
     case 'delete':
-      return { op: 'delete', id: deref(op.id), deleted: deleteTicket(db, deref(op.id), who) };
+      return { op: 'delete', id: deref(op.id), deleted: deleteTicket(db, deref(op.id), who, how) };
     case 'comment':
-      return { op: 'comment', id: deref(op.id), comment: addComment(db, deref(op.id), op.body, who) };
+      return { op: 'comment', id: deref(op.id), comment: addComment(db, deref(op.id), op.body, who, how) };
     case 'link':
-      addRelation(db, deref(op.from), deref(op.to), op.type, who);
+      addRelation(db, deref(op.from), deref(op.to), op.type, who, how);
       return { op: 'link', from: deref(op.from), to: deref(op.to), type: op.type };
     case 'unlink':
-      removeRelation(db, deref(op.from), deref(op.to), op.type, who);
+      removeRelation(db, deref(op.from), deref(op.to), op.type, who, how);
       return { op: 'unlink', from: deref(op.from), to: deref(op.to), type: op.type };
     case 'workspace':
-      updateWorkspace(db, op.fields ?? {}, who);
+      updateWorkspace(db, op.fields ?? {}, who, how);
       return { op: 'workspace', fields: op.fields ?? {} };
     default:
       throw new Error(`batch op #${i}: unknown op "${op.op}"`);
@@ -178,7 +183,7 @@ export function listWorkspaces(db) {
   }
 }
 
-export function updateWorkspace(db, fields = {}, who = null) {
+export function updateWorkspace(db, fields = {}, who = null, model = null) {
   const ws = getWorkspace(db);
   const allowed = ['key', 'name', 'description', 'overview'];
   const updates = [];
@@ -201,7 +206,7 @@ export function updateWorkspace(db, fields = {}, who = null) {
   values.push(nowIso());
   db.prepare(`UPDATE workspace SET ${updates.join(', ')} WHERE id = 1`).run(...values);
   const updated = getWorkspace(db);
-  emit(db, 'workspace.set', changed, who);
+  emit(db, 'workspace.set', changed, who, model);
   emitChange({ type: 'workspace.updated', id: 1 });
   return updated;
 }
@@ -217,12 +222,12 @@ export function updateWorkspace(db, fields = {}, who = null) {
  *
  * @returns {{ key: string, reprefixed: number }}
  */
-export function rekeyWorkspace(db, newKey, { actor = null } = {}) {
+export function rekeyWorkspace(db, newKey, { actor = null, model = null } = {}) {
   if (pendingEvents) throw new Error('rekey cannot run inside a batch');
   if (!/^[A-Z][A-Z0-9]{1,9}$/.test(newKey))
     throw new Error(`Invalid key "${newKey}" — use 2-10 uppercase letters/digits, e.g. "SCP".`);
   const count = db.prepare('SELECT COUNT(*) AS n FROM tickets').get().n;
-  emit(db, 'workspace.rekey', { to: newKey }, actor);
+  emit(db, 'workspace.rekey', { to: newKey }, actor, model);
   // Rebuild from the (now rekey-containing) log; replay reprefixes all ids.
   const events = readAllEvents(eventsDirForDb(db));
   replayInto(db, events);
@@ -247,6 +252,7 @@ export function createTicket(
     assignee,
     labels = [],
     actor,
+    model = null,
   }
 ) {
   if (!TICKET_TYPES.includes(type)) throw new Error(`Invalid type "${type}". Use epic|story|bug.`);
@@ -312,7 +318,8 @@ export function createTicket(
       assignee: assignee ?? null,
       labels: labels ?? [],
     },
-    actor
+    actor,
+    model
   );
   emitChange({
     type: 'ticket.created',
@@ -462,7 +469,7 @@ export function searchTickets(db, query, { limit } = {}) {
   return results;
 }
 
-export function updateTicket(db, id, fields, who = null) {
+export function updateTicket(db, id, fields, who = null, model = null) {
   const ticket = getTicket(db, id);
   if (!ticket) throw new Error(`Ticket not found: ${id}`);
 
@@ -522,7 +529,7 @@ export function updateTicket(db, id, fields, who = null) {
       updates.push(`${k} = ?`);
       values.push(v);
       const oldRaw = k === 'labels' ? JSON.stringify(ticket[k] ?? []) : ticket[k];
-      const historyId = recordHistory(db, ticket.id, k, oldRaw, v, who);
+      const historyId = recordHistory(db, ticket.id, k, oldRaw, v, who, model);
       if (historyId != null) {
         fieldChanges.push({ field: k, old: oldRaw, new: v, historyId });
         // Event value is the natural JSON type: array for labels, the parent's
@@ -541,7 +548,7 @@ export function updateTicket(db, id, fields, who = null) {
   values.push(ticket.id);
   db.prepare(`UPDATE tickets SET ${updates.join(', ')} WHERE id = ?`).run(...values);
   for (const e of setFieldEvents) {
-    emit(db, 'ticket.set_field', { ticketId: ticket.uid, field: e.field, value: e.value }, who);
+    emit(db, 'ticket.set_field', { ticketId: ticket.uid, field: e.field, value: e.value }, who, model);
   }
   const after = getTicket(db, ticket.id);
   // One toast-shaped event per field. If nothing actually changed value-wise
@@ -556,7 +563,7 @@ export function updateTicket(db, id, fields, who = null) {
         field: change.field,
         old_value: change.old == null ? null : String(change.old),
         new_value: change.new == null ? null : String(change.new),
-        changed_by: who,
+        changed_by: who == null ? null : formatActor(who, model),
         historyId: change.historyId,
       });
     }
@@ -566,18 +573,18 @@ export function updateTicket(db, id, fields, who = null) {
   return after;
 }
 
-export function deleteTicket(db, id, who = null) {
+export function deleteTicket(db, id, who = null, model = null) {
   const t = getTicket(db, id);
   if (!t) return false;
   db.prepare('DELETE FROM tickets WHERE id = ?').run(t.id);
-  emit(db, 'ticket.delete', { ticketId: t.uid }, who);
+  emit(db, 'ticket.delete', { ticketId: t.uid }, who, model);
   emitChange({ type: 'ticket.deleted', id: t.id, title: t.title });
   return true;
 }
 
 /* ---------------- relations ---------------- */
 
-export function addRelation(db, fromId, toId, type, who = null) {
+export function addRelation(db, fromId, toId, type, who = null, model = null) {
   if (!RELATION_TYPES.includes(type))
     throw new Error(`Invalid relation type "${type}". One of: ${RELATION_TYPES.join(', ')}`);
   if (fromId === toId) throw new Error('Cannot relate a ticket to itself.');
@@ -596,12 +603,12 @@ export function addRelation(db, fromId, toId, type, who = null) {
   });
   tx();
   // Emit the single user intent; replay materializes the inverse (SCP-110).
-  emit(db, 'relation.add', { fromId: from.uid, toId: to.uid, type }, who);
+  emit(db, 'relation.add', { fromId: from.uid, toId: to.uid, type }, who, model);
   emitChange({ type: 'relation.added', from: from.id, to: to.id, relType: type });
   return listRelations(db, from.id);
 }
 
-export function removeRelation(db, fromId, toId, type, who = null) {
+export function removeRelation(db, fromId, toId, type, who = null, model = null) {
   if (!RELATION_TYPES.includes(type)) throw new Error(`Invalid relation type "${type}".`);
   const fromUid = uidFor(db, fromId);
   const toUid = uidFor(db, toId);
@@ -615,7 +622,7 @@ export function removeRelation(db, fromId, toId, type, who = null) {
   });
   tx();
   if (fromUid && toUid) {
-    emit(db, 'relation.remove', { fromId: fromUid, toId: toUid, type }, who);
+    emit(db, 'relation.remove', { fromId: fromUid, toId: toUid, type }, who, model);
   }
   emitChange({ type: 'relation.removed', from: fromId, to: toId, relType: type });
 }
@@ -634,26 +641,29 @@ export function listRelations(db, ticketId) {
 
 /* ---------------- comments & history ---------------- */
 
-export function addComment(db, ticketId, body, author = null) {
+export function addComment(db, ticketId, body, author = null, model = null) {
   const t = getTicket(db, ticketId);
   if (!t) throw new Error(`Ticket not found: ${ticketId}`);
+  // Cache stores the rendered attribution; the event keeps author + model
+  // separate. With no model this is exactly the prior behavior (author as-is).
+  const displayAuthor = author == null ? null : formatActor(author, model);
   const res = db
     .prepare(
       `INSERT INTO ticket_comments (ticket_id, author, body, created_at)
        VALUES (?, ?, ?, ?)`
     )
-    .run(t.id, author, body, nowIso());
+    .run(t.id, displayAuthor, body, nowIso());
   const commentId = Number(res.lastInsertRowid);
-  emit(db, 'comment.add', { ticketId: t.uid, commentId: ulid(), author: author ?? null, body }, author);
+  emit(db, 'comment.add', { ticketId: t.uid, commentId: ulid(), author: author ?? null, body }, author, model);
   emitChange({
     type: 'comment.added',
     id: t.id,
     title: t.title,
-    author,
+    author: displayAuthor,
     body,
     commentId,
   });
-  return { id: commentId, ticket_id: t.id, author, body };
+  return { id: commentId, ticket_id: t.id, author: displayAuthor, body };
 }
 
 export function listComments(db, ticketId) {

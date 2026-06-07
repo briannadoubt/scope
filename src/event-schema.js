@@ -47,12 +47,16 @@ export const EVENT_KINDS = Object.freeze([
  * @param {string} kind - one of EVENT_KINDS
  * @param {object} payload - kind-specific payload (see docs/event-log-format.md)
  * @param {object} opts
- * @param {string} opts.actor - required; who caused the change
+ * @param {string} opts.actor - required; the human principal who caused the change
+ * @param {string} [opts.model] - optional; the acting model (e.g. "Opus 4.8") when
+ *   a coding agent performed the change on the principal's behalf (SCP-128).
+ *   Attribution renders as "{model} on behalf of {actor}". Absent for direct
+ *   human edits, so old events stay byte-identical.
  * @param {string} [opts.ts] - ISO timestamp; defaults to now
  * @param {number} [opts.ms] - epoch ms for the ULID; defaults to Date.parse(ts) or now
  * @returns {object} the event
  */
-export function makeEvent(kind, payload, { actor, ts, ms } = {}) {
+export function makeEvent(kind, payload, { actor, model, ts, ms } = {}) {
   const when = ts || new Date().toISOString();
   const millis = Number.isFinite(ms) ? ms : Date.parse(when);
   const evt = {
@@ -63,8 +67,20 @@ export function makeEvent(kind, payload, { actor, ts, ms } = {}) {
     kind,
     payload,
   };
+  // Additive optional field: present only when an agent acted on a human's
+  // behalf. Omitted otherwise so direct human edits serialize exactly as before.
+  if (model) evt.model = model;
   validateEvent(evt);
   return evt;
+}
+
+/**
+ * Render an event's actor for display: "{model} on behalf of {actor}" when an
+ * agent acted on the principal's behalf (SCP-128), else just the principal.
+ * The principal is always the authenticated/named human; the model is metadata.
+ */
+export function formatActor(actor, model) {
+  return model ? `${model} on behalf of ${actor}` : actor;
 }
 
 /* -------------------------- validation -------------------------- */
@@ -93,6 +109,11 @@ export function validateEvent(evt) {
   if (!isNonEmptyStr(evt.ts) || Number.isNaN(Date.parse(evt.ts)))
     fail(`bad ts ${JSON.stringify(evt.ts)}`);
   if (!isNonEmptyStr(evt.actor)) fail('missing actor (every event must record who)');
+  // Optional acting-model attribution (SCP-128): absent for human edits; when
+  // present it must be a non-empty string. Forward-compatible — older readers
+  // simply ignore the field.
+  if (evt.model !== undefined && !isNonEmptyStr(evt.model))
+    fail('model must be a non-empty string when present');
   if (!EVENT_KINDS.includes(evt.kind)) fail(`unknown kind ${JSON.stringify(evt.kind)}`);
   if (!evt.payload || typeof evt.payload !== 'object') fail('missing payload');
   validatePayload(evt.kind, evt.payload);

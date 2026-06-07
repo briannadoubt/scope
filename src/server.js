@@ -261,6 +261,28 @@ export async function startServer({
     };
   }
 
+  /**
+   * Attribution context for a mutating request (SCP-128). `by` is the human
+   * principal, `model` the acting agent ("Opus 4.8"); history renders
+   * "{model} on behalf of {by}". Prefer the X-Scope-By / X-Scope-Model headers
+   * (set once per agent client); fall back to body `__by` / `__model`.
+   */
+  function actorCtx(req) {
+    const b = req.body || {};
+    return {
+      by: req.get('x-scope-by') || b.__by || null,
+      model: req.get('x-scope-model') || b.__model || null,
+    };
+  }
+
+  /** Strip attribution sentinels from a body before it reaches a repo writer. */
+  function cleanBody(body) {
+    const out = { ...(body || {}) };
+    delete out.__by;
+    delete out.__model;
+    return out;
+  }
+
   app.get('/api/workspaces', (_req, res) => res.json(enrichedWorkspaces()));
 
   app.post('/api/workspaces', (req, res) => {
@@ -281,7 +303,8 @@ export async function startServer({
     if (!w) return res.status(404).json({ error: 'unknown workspace' });
     try {
       wsContext.run(w.id, () => {
-        const updated = updateWorkspace(w.db, req.body || {});
+        const { by, model } = actorCtx(req);
+        const updated = updateWorkspace(w.db, cleanBody(req.body), by, model);
         res.json({
           id: w.id,
           scope_dir: w.scope_dir,
@@ -333,7 +356,8 @@ export async function startServer({
   }));
 
   app.patch('/api/projects/:idOrKey', ws((req, res, w) => {
-    const updated = updateWorkspace(w.db, req.body || {});
+    const { by, model } = actorCtx(req);
+    const updated = updateWorkspace(w.db, cleanBody(req.body), by, model);
     res.json({
       id: updated.key.toLowerCase(),
       key: updated.key,
@@ -376,25 +400,26 @@ export async function startServer({
   }));
 
   app.post('/api/tickets', ws((req, res, w) => {
-    const body = { ...(req.body || {}) };
+    const { by, model } = actorCtx(req);
+    const body = cleanBody(req.body);
     // Strip legacy v1 fields so they don't confuse createTicket().
     delete body.project;
     delete body.projectIdOrKey;
     delete body.workspace;
-    const t = createTicket(w.db, body);
+    const t = createTicket(w.db, { ...body, actor: by, model });
     res.status(201).json(t);
   }));
 
   app.patch('/api/tickets/:id', ws((req, res, w) => {
-    const body = { ...req.body };
-    const by = body.__by;
-    delete body.__by;
-    const t = updateTicket(w.db, req.params.id, body, by);
+    const { by, model } = actorCtx(req);
+    const body = cleanBody(req.body);
+    const t = updateTicket(w.db, req.params.id, body, by, model);
     res.json(t);
   }));
 
   app.delete('/api/tickets/:id', ws((req, res, w) => {
-    const ok = deleteTicket(w.db, req.params.id);
+    const { by, model } = actorCtx(req);
+    const ok = deleteTicket(w.db, req.params.id, by, model);
     if (!ok) return res.status(404).json({ error: 'not found' });
     res.json({ deleted: req.params.id });
   }));
@@ -407,12 +432,14 @@ export async function startServer({
 
   app.post('/api/tickets/:id/relations', ws((req, res, w) => {
     const { to, type } = req.body;
-    res.status(201).json(addRelation(w.db, req.params.id, to, type));
+    const { by, model } = actorCtx(req);
+    res.status(201).json(addRelation(w.db, req.params.id, to, type, by, model));
   }));
 
   app.delete('/api/tickets/:id/relations', ws((req, res, w) => {
     const { to, type } = req.body;
-    removeRelation(w.db, req.params.id, to, type);
+    const { by, model } = actorCtx(req);
+    removeRelation(w.db, req.params.id, to, type, by, model);
     res.json({ ok: true });
   }));
 
@@ -423,7 +450,8 @@ export async function startServer({
   }));
 
   app.post('/api/tickets/:id/comments', ws((req, res, w) => {
-    const c = addComment(w.db, req.params.id, req.body.body, req.body.author);
+    const { model } = actorCtx(req);
+    const c = addComment(w.db, req.params.id, req.body.body, req.body.author, model);
     res.status(201).json(c);
   }));
 

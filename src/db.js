@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 
 import { ulid } from './ulid.js';
+import { formatActor } from './event-schema.js';
 
 export const SCOPE_DIR_NAME = '.scope';
 export const DB_FILE_NAME = 'scope.db';
@@ -690,8 +691,11 @@ export function bumpMeta(db, key, by = 1) {
   return next;
 }
 
-export function recordHistory(db, ticketId, field, oldValue, newValue, who = null) {
+export function recordHistory(db, ticketId, field, oldValue, newValue, who = null, model = null) {
   if (String(oldValue ?? '') === String(newValue ?? '')) return null;
+  // Store the rendered attribution ("{model} on behalf of {who}") in the
+  // disposable cache so every history/UI surface shows it without a schema
+  // change. The event log keeps actor + model separate as the source of truth.
   const result = db.prepare(
     `INSERT INTO ticket_history (ticket_id, field, old_value, new_value, changed_by, changed_at)
      VALUES (?, ?, ?, ?, ?, ?)`
@@ -700,7 +704,7 @@ export function recordHistory(db, ticketId, field, oldValue, newValue, who = nul
     field,
     oldValue == null ? null : String(oldValue),
     newValue == null ? null : String(newValue),
-    who,
+    who == null ? null : formatActor(who, model),
     nowIso()
   );
   return Number(result.lastInsertRowid);
