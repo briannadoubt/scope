@@ -67,6 +67,17 @@ scope comment MA-2 "Token expiry was 5min; bumped to 1h" --by codex
 scope link add MA-2 blocked_by MA-7
 ```
 
+## Version control
+
+Scope is event-sourced. Commit the append-only log in `.scope/events/` (the
+source of truth that hydrates the local DB); never commit `.scope/scope.db*`
+(a rebuildable SQLite cache). `scope init` writes a `.scope/.gitignore` that
+already does this. **Watch for a parent `.gitignore` that ignores all of
+`.scope/`** — a blanket `.scope/` rule in the repo root silently excludes the
+event log too. Ignore only `.scope/scope.db`, `.scope/scope.db-wal`,
+`.scope/scope.db-shm` there, and verify with
+`git check-ignore -v .scope/events/ .scope/scope.db`.
+
 ## Guardrails
 
 - Don't change a workspace's key without an explicit human request — ticket

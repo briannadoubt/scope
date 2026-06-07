@@ -123,6 +123,36 @@ Batch ops: `create` (optional `ref`), `update {id,fields}`, `status {id,status}`
 {fields}`. If a command for what you need seems missing, ask for it to be added —
 never fall back to SQL.
 
+## Version control — commit the event log, never the cache
+
+A `.scope/` workspace has two kinds of files:
+
+- **`.scope/events/`** — the append-only event log (one JSON file per event).
+  This is the **source of truth** and **must be committed**. It's what
+  hydrates the local database, merges cleanly across branches/agents, and lets
+  any clone rebuild state.
+- **`.scope/scope.db`, `scope.db-wal`, `scope.db-shm`** — a rebuildable
+  **SQLite cache** of the event log. **Never commit these.** They're
+  machine-local, churn constantly, and corrupt merges.
+
+`scope init` writes a `.scope/.gitignore` that already excludes the SQLite
+cache while keeping `events/`. Leave it in place and commit it.
+
+**Watch for a parent `.gitignore` that ignores all of `.scope/`.** A blanket
+`.scope/` rule in the repo-root `.gitignore` silently excludes the event log
+too — the nested `.scope/.gitignore` never runs, and the workspace's history
+never gets committed. The root rule should ignore only the cache:
+
+```gitignore
+# Scope: commit the event log (.scope/events/), never the SQLite cache.
+.scope/scope.db
+.scope/scope.db-wal
+.scope/scope.db-shm
+```
+
+Verify with `git check-ignore -v .scope/events/ .scope/scope.db` — `events/`
+should be NOT ignored, `scope.db` should be ignored.
+
 ## Guardrails
 
 - **Don't change a workspace's key without an explicit human request.** When

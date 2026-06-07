@@ -195,6 +195,20 @@ numbers are de-collided deterministically at replay. Any file sync works (git,
 iCloud, Dropbox, Syncthing). Run `scope serve` only when you want sub-second
 live updates on a machine/LAN — it's an optimization over the same log.
 
+`scope init` writes a `.scope/.gitignore` that keeps `events/` while ignoring
+`scope.db*`. **Watch for a parent `.gitignore` that ignores all of `.scope/`** —
+a blanket `.scope/` rule in the repo root silently excludes the event log too,
+so the workspace history never gets committed. Ignore only the cache there:
+
+```gitignore
+.scope/scope.db
+.scope/scope.db-wal
+.scope/scope.db-shm
+```
+
+Verify with `git check-ignore -v .scope/events/ .scope/scope.db` — `events/`
+must be NOT ignored, `scope.db` must be ignored.
+
 ## Useful follow-ups
 
 - `scope --json epic list` to see epic progress at a glance.

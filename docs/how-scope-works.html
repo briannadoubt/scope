@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Scope Works</title>
+<style>
+  :root{
+    --bg:#0c0e14; --bg2:#11141d;
+    --ink:#eef1f7; --muted:#9aa3b8; --faint:#5b6479;
+    --line:#222838;
+    --accent:#7c9cff; --accent2:#5ee0c0; --accent3:#ffb454; --accent4:#ff7eb6;
+    --backlog:#5b6479; --todo:#7c9cff; --prog:#ffb454; --review:#ff7eb6; --done:#5ee0c0;
+    --card:#161a26; --card-line:#262c3d;
+    --r:18px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--font); color:var(--ink); background:var(--bg);
+    overflow:hidden;
+    background-image:
+      radial-gradient(1100px 700px at 80% -10%, rgba(124,156,255,.16), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(94,224,192,.12), transparent 60%);
+  }
+
+  .deck{height:100vh;width:100vw;position:relative}
+  .slide{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;justify-content:center;
+    padding:6vh 8vw;
+    opacity:0;transform:translateY(18px) scale(.99);
+    transition:opacity .5s ease, transform .5s ease;
+    pointer-events:none;
+  }
+  .slide.active{opacity:1;transform:none;pointer-events:auto}
+
+  .kicker{
+    font-size:.8rem;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--accent2);font-weight:700;margin-bottom:1.1rem;
+    display:flex;align-items:center;gap:.7rem;
+  }
+  .kicker::before{content:"";width:34px;height:2px;background:var(--accent2);display:inline-block;border-radius:2px}
+
+  h1{font-size:clamp(2.6rem,6.2vw,5rem);line-height:1.02;letter-spacing:-.03em;font-weight:800}
+  h2{font-size:clamp(1.9rem,3.6vw,3rem);line-height:1.05;letter-spacing:-.02em;font-weight:800;margin-bottom:.3rem}
+  .lede{font-size:clamp(1.05rem,1.6vw,1.4rem);color:var(--muted);max-width:46ch;line-height:1.5;margin-top:1.4rem}
+  .sub{color:var(--faint);font-size:.95rem;margin-top:.4rem}
+
+  .grad{
+    background:linear-gradient(100deg,var(--accent) 0%,var(--accent2) 60%,var(--accent3) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+
+  /* ---- title slide ---- */
+  .logo{
+    font-family:var(--mono);font-weight:700;font-size:1.05rem;letter-spacing:-.02em;
+    color:var(--ink);display:flex;align-items:center;gap:.6rem;margin-bottom:2.4rem;
+  }
+  .logo .sq{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 6px 22px rgba(124,156,255,.5)}
+  .chips{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:2.4rem}
+  .chip{
+    font-family:var(--mono);font-size:.82rem;padding:.5rem .9rem;border-radius:999px;
+    border:1px solid var(--card-line);background:var(--card);color:var(--muted);
+  }
+  .chip b{color:var(--ink);font-weight:600}
+
+  /* ---- generic grid of feature cards ---- */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1.1rem;margin-top:2.2rem;max-width:1000px}
+  .card{
+    background:var(--card);border:1px solid var(--card-line);border-radius:var(--r);
+    padding:1.3rem 1.4rem;transition:transform .3s ease,border-color .3s ease;
+  }
+  .slide.active .card{animation:rise .55s backwards}
+  .slide.active .card:nth-child(2){animation-delay:.08s}
+  .slide.active .card:nth-child(3){animation-delay:.16s}
+  .slide.active .card:nth-child(4){animation-delay:.24s}
+  @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  .card .ic{font-size:1.5rem;margin-bottom:.7rem;display:block}
+  .card h3{font-size:1.12rem;margin-bottom:.35rem;letter-spacing:-.01em}
+  .card p{color:var(--muted);font-size:.95rem;line-height:1.5}
+  .card code{font-family:var(--mono);font-size:.85em;color:var(--accent2);background:rgba(94,224,192,.08);padding:.05em .35em;border-radius:5px}
+
+  /* ---- data model slide ---- */
+  .model{display:grid;grid-template-columns:1.1fr 1fr;gap:2.6rem;align-items:center;margin-top:2rem}
+  .tree{display:flex;flex-direction:column;gap:.7rem;font-family:var(--mono);font-size:.95rem}
+  .node{display:flex;align-items:center;gap:.7rem;padding:.7rem 1rem;border-radius:12px;border:1px solid var(--card-line);background:var(--card)}
+  .node .tag{font-size:.7rem;padding:.15rem .5rem;border-radius:6px;font-weight:700;letter-spacing:.04em}
+  .node.ws{border-color:var(--accent)}
+  .node.epic{margin-left:1.6rem;border-color:rgba(255,180,84,.5)}
+  .node.story{margin-left:3.2rem;border-color:rgba(124,156,255,.45)}
+  .node.bug{margin-left:3.2rem;border-color:rgba(255,126,182,.45)}
+  .t-ws{background:rgba(124,156,255,.18);color:var(--accent)}
+  .t-epic{background:rgba(255,180,84,.18);color:var(--accent3)}
+  .t-story{background:rgba(124,156,255,.14);color:var(--accent)}
+  .t-bug{background:rgba(255,126,182,.18);color:var(--accent4)}
+  .node small{color:var(--faint);margin-left:auto;font-size:.78rem}
+
+  .flow-status{display:flex;flex-direction:column;gap:1rem}
+  .pipe{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
+  .st{font-family:var(--mono);font-size:.8rem;padding:.45rem .7rem;border-radius:8px;border:1px solid var(--card-line);background:var(--card);white-space:nowrap}
+  .st.b{color:var(--backlog)} .st.t{color:var(--todo);border-color:rgba(124,156,255,.4)}
+  .st.p{color:var(--prog);border-color:rgba(255,180,84,.4)} .st.r{color:var(--review);border-color:rgba(255,126,182,.4)}
+  .st.d{color:var(--done);border-color:rgba(94,224,192,.5)}
+  .arr{color:var(--faint)}
+  .prio{display:flex;gap:.5rem;margin-top:.4rem}
+  .prio span{font-family:var(--mono);font-size:.74rem;padding:.3rem .6rem;border-radius:7px;border:1px solid var(--card-line)}
+
+  /* ---- flow diagram slide ---- */
+  .diagram{margin-top:1.4rem;width:100%;max-width:1080px}
+  .dlabel{font-family:var(--mono);font-size:.78rem;fill:var(--muted)}
+  .dtitle{font-weight:700;fill:var(--ink)}
+  .dsub{fill:var(--faint);font-size:11px}
+  .legend{display:flex;gap:1.6rem;margin-top:1.4rem;flex-wrap:wrap;font-size:.88rem;color:var(--muted)}
+  .legend i{display:inline-block;width:22px;height:0;border-top-width:2px;border-top-style:solid;vertical-align:middle;margin-right:.5rem}
+
+  /* ---- collab / last slide ---- */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:2.4rem;margin-top:2rem;align-items:start}
+  .term{
+    background:#0a0c12;border:1px solid var(--card-line);border-radius:14px;overflow:hidden;
+    font-family:var(--mono);font-size:.86rem;box-shadow:0 24px 60px rgba(0,0,0,.45)
+  }
+  .term .bar{display:flex;gap:.5rem;padding:.7rem .9rem;border-bottom:1px solid var(--card-line);background:#11141d}
+  .term .bar i{width:11px;height:11px;border-radius:50%}
+  .term .bar i:nth-child(1){background:#ff5f57}.term .bar i:nth-child(2){background:#febc2e}.term .bar i:nth-child(3){background:#28c840}
+  .term .body{padding:1.1rem 1.2rem;line-height:1.85}
+  .term .c{color:var(--accent2)} .term .o{color:var(--faint)} .term .p{color:var(--accent3)}
+  .points{display:flex;flex-direction:column;gap:1.2rem}
+  .pt{display:flex;gap:.9rem}
+  .pt .n{font-family:var(--mono);color:var(--accent);font-weight:700;font-size:1.05rem;flex:0 0 auto}
+  .pt h3{font-size:1.08rem;margin-bottom:.2rem}
+  .pt p{color:var(--muted);font-size:.94rem;line-height:1.45}
+
+  /* ---- chrome ---- */
+  .nav{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:1.3rem;z-index:20}
+  .dots{display:flex;gap:.6rem}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--line);border:none;cursor:pointer;padding:0;transition:all .3s}
+  .dot.active{background:var(--accent2);width:26px;border-radius:6px}
+  .ctrl{background:var(--card);border:1px solid var(--card-line);color:var(--ink);width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:1.1rem;display:grid;place-items:center;transition:background .2s}
+  .ctrl:hover{background:#1d2231}
+  .pagenum{position:fixed;top:30px;right:36px;font-family:var(--mono);font-size:.8rem;color:var(--faint);z-index:20}
+  .hint{position:fixed;bottom:30px;right:36px;font-size:.74rem;color:var(--faint);z-index:20}
+  @media (max-width:760px){
+    .grid,.model,.split{grid-template-columns:1fr}
+    .slide{padding:7vh 7vw}
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- SLIDE 1 -->
+  <section class="slide active" id="s1">
+    <div class="logo"><span class="sq"></span> scope-kanban</div>
+    <div class="kicker">Local-first project tracking</div>
+    <h1>How <span class="grad">Scope</span> works</h1>
+    <p class="lede">A kanban for epics, stories, and bugs — built so coding agents and humans can plan and track work together without ever leaving the repo.</p>
+    <div class="chips">
+      <div class="chip"><b>CLI</b> · every command speaks <code style="color:inherit">--json</code></div>
+      <div class="chip"><b>Web UI</b> · drag-and-drop board + swimlanes</div>
+      <div class="chip"><b>Hub</b> · live SSE over LAN</div>
+      <div class="chip"><b>Event-sourced</b> · git-syncable log</div>
+    </div>
+  </section>
+
+  <!-- SLIDE 2 -->
+  <section class="slide" id="s2">
+    <div class="kicker">The pieces</div>
+    <h2>Four faces, one <code style="font-family:var(--mono);font-size:.55em;color:var(--accent2)">.scope/</code> directory</h2>
+    <p class="sub">Everything lives in your repo as SQLite (WAL mode) — offline, git-syncable, no external service.</p>
+    <div class="grid">
+      <div class="card">
+        <span class="ic">⌨️</span>
+        <h3>The CLI</h3>
+        <p><code>workspace · ticket · epic · link · status · branch · pr · board</code> — and every one supports <code>--json</code> so agents read and write state directly.</p>
+      </div>
+      <div class="card">
+        <span class="ic">🗂️</span>
+        <h3>The Web UI</h3>
+        <p>GitHub-Projects-style columns, a ticket drawer with inline edit, and <b>swimlanes</b> that group by epic, assignee, priority, or type. Live dot = SSE health.</p>
+      </div>
+      <div class="card">
+        <span class="ic">📡</span>
+        <h3>The Hub — <code>scope serve</code></h3>
+        <p>One daemon serves UI + REST + SSE on <code>https://localhost:4321</code>. Self-healing & federated: hubs auto-discover, share workspaces, and promote a survivor if the owner dies.</p>
+      </div>
+      <div class="card">
+        <span class="ic">📓</span>
+        <h3>The event log</h3>
+        <p>Every change is an append-only JSON file under <code>.scope/events/</code>. <code>scope.db</code> is just a cache rebuilt from it — so the workspace travels with <code>git clone</code> and syncs offline.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 3 -->
+  <section class="slide" id="s3">
+    <div class="kicker">The data model</div>
+    <h2>Workspaces, epics, and a status pipeline</h2>
+    <div class="model">
+      <div class="tree">
+        <div class="node ws"><span class="tag t-ws">WORKSPACE</span> My App <small>key: MA · one SQLite db</small></div>
+        <div class="node epic"><span class="tag t-epic">EPIC</span> Auth refactor <small>MA-1</small></div>
+        <div class="node story"><span class="tag t-story">STORY</span> OAuth login <small>MA-2</small></div>
+        <div class="node bug"><span class="tag t-bug">BUG</span> CSRF on /signup <small>MA-3</small></div>
+      </div>
+      <div class="flow-status">
+        <div>
+          <p class="sub" style="margin-bottom:.7rem">Status flows left to right</p>
+          <div class="pipe">
+            <span class="st b">backlog</span><span class="arr">→</span>
+            <span class="st t">todo</span><span class="arr">→</span>
+            <span class="st p">in_progress</span><span class="arr">→</span>
+            <span class="st r">in_review</span><span class="arr">→</span>
+            <span class="st d">done</span>
+          </div>
+        </div>
+        <div>
+          <p class="sub" style="margin-bottom:.5rem">Priority</p>
+          <div class="prio">
+            <span style="color:var(--faint)">low</span>
+            <span style="color:var(--accent2)">medium</span>
+            <span style="color:var(--accent3)">high</span>
+            <span style="color:var(--accent4)">urgent</span>
+          </div>
+        </div>
+        <div>
+          <p class="sub" style="margin-bottom:.5rem">Relations <span style="color:var(--faint)">(inverse auto-created)</span></p>
+          <p style="font-family:var(--mono);font-size:.82rem;color:var(--muted);line-height:1.7">blocks · blocked_by · relates_to<br>duplicates · duplicate_of</p>
+        </div>
+        <p class="sub">IDs like <code style="color:var(--accent2)">MA-3</code> are immutable — the prefix is baked in at create time.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLIDE 4 — FLOW DIAGRAM -->
+  <section class="slide" id="s4">
+    <div class="kicker">How a change travels</div>
+    <h2>Event log → cache → every viewer</h2>
+    <svg class="diagram" viewBox="0 0 1100 440" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="ah" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5ee0c0"/></marker>
+        <marker id="ah2" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7c9cff"/></marker>
+        <marker id="ah3" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ffb454"/></marker>
+        <marker id="ah4" markerWidth="8" markerHeight="8" refX="5.5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ff7eb6"/></marker>
+      </defs>
+
+      <!-- producers -->
+      <rect x="0" y="92" width="186" height="50" rx="11" fill="#161a26" stroke="#262c3d"/>
+      <text x="20" y="116" class="dtitle" font-size="14">CLI</text>
+      <text x="20" y="133" class="dsub">scope status MA-7 …</text>
+      <rect x="0" y="155" width="186" height="50" rx="11" fill="#161a26" stroke="#262c3d"/>
+      <text x="20" y="179" class="dtitle" font-size="14">Web UI · drag-drop</text>
+      <text x="20" y="196" class="dsub">browser</text>
+      <rect x="0" y="218" width="186" height="50" rx="11" fill="#161a26" stroke="#262c3d"/>
+      <text x="20" y="242" class="dtitle" font-size="14">Agents</text>
+      <text x="20" y="259" class="dsub">--json writes</text>
+
+      <!-- arrows producers -> log (converge on left edge x=300, center y=180) -->
+      <path d="M186 117 C 250 117, 248 162, 296 168" stroke="#5ee0c0" stroke-width="2" fill="none" marker-end="url(#ah)"/>
+      <path d="M186 180 L296 180" stroke="#5ee0c0" stroke-width="2" marker-end="url(#ah)"/>
+      <path d="M186 243 C 250 243, 248 198, 296 192" stroke="#5ee0c0" stroke-width="2" fill="none" marker-end="url(#ah)"/>
+
+      <!-- event log -->
+      <rect x="300" y="108" width="216" height="144" rx="14" fill="#0e1a17" stroke="#5ee0c0" stroke-width="1.5"/>
+      <text x="322" y="136" class="dtitle" font-size="15">append-only log</text>
+      <text x="322" y="156" class="dsub">.scope/events/*.json</text>
+      <rect x="322" y="168" width="120" height="16" rx="4" fill="#15211d"/><text x="330" y="180" class="dsub" font-size="10">01J…A.json</text>
+      <rect x="322" y="190" width="120" height="16" rx="4" fill="#15211d"/><text x="330" y="202" class="dsub" font-size="10">01J…B.json</text>
+      <text x="322" y="232" class="dsub" font-size="11" fill="#5ee0c0">ULID-sorted · source of truth</text>
+
+      <!-- log -> cache -->
+      <path d="M516 180 L596 180" stroke="#7c9cff" stroke-width="2" marker-end="url(#ah2)"/>
+      <text x="556" y="170" class="dlabel" font-size="11" text-anchor="middle">replay</text>
+
+      <!-- cache db -->
+      <rect x="600" y="142" width="182" height="76" rx="14" fill="#13182a" stroke="#7c9cff" stroke-width="1.4"/>
+      <text x="622" y="170" class="dtitle" font-size="15">scope.db</text>
+      <text x="622" y="190" class="dsub">SQLite cache · WAL</text>
+      <text x="622" y="207" class="dsub" fill="#7c9cff" font-size="10">rebuilt on demand · gitignored</text>
+
+      <!-- cache -> hub -->
+      <path d="M782 180 L862 180" stroke="#ffb454" stroke-width="2" marker-end="url(#ah3)"/>
+      <text x="822" y="170" class="dlabel" font-size="11" text-anchor="middle">serve</text>
+
+      <!-- hub -->
+      <rect x="866" y="142" width="210" height="76" rx="14" fill="#1c1710" stroke="#ffb454" stroke-width="1.4"/>
+      <text x="888" y="170" class="dtitle" font-size="15">Hub · scope serve</text>
+      <text x="888" y="190" class="dsub">HTTPS + SSE</text>
+      <text x="888" y="207" class="dsub" fill="#ffb454" font-size="10">fans out to viewers in ~100ms</text>
+
+      <!-- hub -> browsers (straight down) -->
+      <path d="M971 218 L971 286" stroke="#ffb454" stroke-width="2" marker-end="url(#ah3)"/>
+      <rect x="866" y="298" width="210" height="50" rx="11" fill="#161a26" stroke="#262c3d"/>
+      <text x="888" y="322" class="dtitle" font-size="14">🗂️ Live web boards</text>
+      <text x="888" y="339" class="dsub">every viewer, instantly</text>
+
+      <!-- git / offline path: down from log, then to the offline box -->
+      <path d="M408 252 L408 320" stroke="#ff7eb6" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#ah4)"/>
+      <rect x="300" y="332" width="440" height="64" rx="12" fill="#1c121a" stroke="#ff7eb6" stroke-width="1.3"/>
+      <text x="322" y="360" class="dtitle" font-size="14" fill="#ff7eb6">git pull · iCloud · Dropbox · Syncthing</text>
+      <text x="322" y="380" class="dsub">union of new event files — no server, no binary merge, no conflicts</text>
+    </svg>
+    <div class="legend">
+      <span><i style="border-color:#5ee0c0"></i>write → log (truth)</span>
+      <span><i style="border-color:#7c9cff"></i>replay → cache</span>
+      <span><i style="border-color:#ffb454"></i>hub fan-out (live)</span>
+      <span><i style="border-color:#ff7eb6;border-top-style:dashed"></i>dumb file sync (offline)</span>
+    </div>
+  </section>
+
+  <!-- SLIDE 5 -->
+  <section class="slide" id="s5">
+    <div class="kicker">Why it's different</div>
+    <h2>Collaborate by <span class="grad">git pull</span> — deploy nothing</h2>
+    <div class="split">
+      <div class="points">
+        <div class="pt"><span class="n">01</span><div><h3>The log is the truth</h3><p>Every change is one immutable JSON file named by a time-sortable ULID. <code style="font-family:var(--mono);color:var(--accent2)">scope.db</code> is just a cache rebuilt from it.</p></div></div>
+        <div class="pt"><span class="n">02</span><div><h3>Parallel writers never collide</h3><p>Globally-unique filenames mean two people (or agents) never touch the same file. Merging is just the union of files.</p></div></div>
+        <div class="pt"><span class="n">03</span><div><h3>Deterministic conflict resolution</h3><p>Field edits: last-writer-wins by ULID. New tickets/comments: grow-only union. Numbers de-collide at replay.</p></div></div>
+        <div class="pt"><span class="n">04</span><div><h3>Live is an optimization</h3><p>Run <code style="font-family:var(--mono);color:var(--accent2)">scope serve</code> for sub-second SSE updates — but the log stays the source of truth, online or off.</p></div></div>
+      </div>
+      <div class="term">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <div class="body">
+<span class="o"># commit the log — never the cache</span><br>
+$ <span class="c">git add</span> .scope/events<br>
+$ <span class="c">git commit</span> -m <span class="p">"scope: plan auth work"</span><br>
+$ <span class="c">git pull</span> <span class="o"># teammates' event files</span><br>
+<br>
+<span class="o"># next command rebuilds scope.db</span><br>
+$ <span class="c">scope</span> board<br>
+<span class="o">  ↳ replayed 142 events · 0 conflicts</span><br>
+<br>
+<span class="o"># want it live? one daemon, LAN-wide</span><br>
+$ <span class="c">scope</span> serve<br>
+<span class="o">  → https://scope.local:4321</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- chrome -->
+<div class="pagenum"><span id="cur">1</span> / 5</div>
+<div class="nav">
+  <button class="ctrl" id="prev" aria-label="Previous">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="ctrl" id="next" aria-label="Next">›</button>
+</div>
+<div class="hint">← → · space · click</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const dotsWrap=document.getElementById('dots');
+  const cur=document.getElementById('cur');
+  let i=0;
+  slides.forEach((_,n)=>{
+    const b=document.createElement('button');
+    b.className='dot'+(n===0?' active':'');
+    b.onclick=()=>go(n);
+    dotsWrap.appendChild(b);
+  });
+  const dots=[...dotsWrap.children];
+  function go(n){
+    i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    dots.forEach((d,k)=>d.classList.toggle('active',k===i));
+    cur.textContent=i+1;
+  }
+  document.getElementById('next').onclick=()=>go(i+1);
+  document.getElementById('prev').onclick=()=>go(i-1);
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();go(i+1)}
+    if(e.key==='ArrowLeft'){go(i-1)}
+    if(e.key==='Home'){go(0)} if(e.key==='End'){go(slides.length-1)}
+  });
+  document.querySelector('.deck').addEventListener('click',e=>{
+    if(e.target.closest('.nav')||e.target.closest('a'))return;
+    go(i+1>=slides.length?i:i+1);
+  });
+</script>
+</body>
+</html>
