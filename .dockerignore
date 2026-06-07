@@ -1,0 +1,34 @@
+# Keep the build context small and the image clean.
+# better-sqlite3 is rebuilt in the image, so never ship the host's compiled
+# node_modules (wrong ABI / platform).
+node_modules
+npm-debug.log*
+
+# Local state, caches, and the dev event log — the hosted node uses its own
+# persistent volume + Postgres, not these.
+.scope
+*.db
+*.db-wal
+*.db-shm
+
+# VCS / CI / editor noise — not needed at runtime.
+.git
+.github
+.gitignore
+.vscode
+.idea
+*.swp
+
+# Docs and design artifacts don't belong in the runtime image.
+docs
+*.md
+LICENSE
+
+# Tests aren't run in the production image (CI runs them separately).
+test
+coverage
+
+# Local secrets / env files must never enter the image.
+.env
+.env.*
+fly.toml
