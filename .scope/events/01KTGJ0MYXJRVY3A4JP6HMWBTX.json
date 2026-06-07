@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJ0MYXJRVY3A4JP6HMWBTX",
+  "ts": "2026-06-07T08:08:30.941Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG60037EEM58DKQ02JJVT6",
+    "commentId": "01KTGJ0MYXJRVY3A4JP6HMWBTW",
+    "author": "claude",
+    "body": "PRIOR PROPOSAL (from a completed storage investigation — fold in, don't redo).\n\nRECOMMENDATION: Postgres for BOTH the canonical log and the replayed cache, with a tenant_id column on every table and Postgres Row-Level Security for isolation. Defer object storage.\n\n- Canonical event log -> Postgres table: events(tenant_id, event_id ULID, ts, kind, actor, payload JSONB, PK (tenant_id, event_id)). Upload = INSERT ... ON CONFLICT (tenant_id, event_id) DO NOTHING -> union semantics + idempotency for free. Index (tenant_id, ts, event_id) for canonical-order reads. Real logs are small (sample workspace ~177 events / 716KB); JSONB-in-Postgres is plenty. Do NOT start with S3 — file-per-event maps cleanly onto rows; revisit S3 only if payloads grow (attachments), storing only the blob there + keeping the index row in PG.\n- Replayed cache -> shared Postgres tables with tenant_id (NOT SQLite-per-tenant, which defeats horizontal scaling). Port tickets/ticket_*/workspace/FTS schema from db.js; replayInto logic + SCP-110 de-collision ports as-is, scoped by tenant_id.\n- Replay timing: INCREMENTAL on append (apply only new events in the same txn as the log insert); keep full wipe-and-rebuild as cold-start/repair. Wrinkle: SCP-110 de-collision is deterministic over the WHOLE log, so a late event with an earlier ts can renumber -> emit a 'renumbered' notice + scoped re-resolve.\n- Migration: existing .scope/events/*.json upload via the same idempotent endpoint (a bulk union, no special path).\n\nSUGGESTED CHILD TICKETS (create with parent=SCP-120 unless an epic):\n1. (epic, high) Multi-tenant Postgres event log + cache.\n2. (story, high) Port replay to Postgres, scoped by tenant — golden test vs current SQLite replay output.\n3. (story, high) Idempotent event-upload endpoint with union semantics (ON CONFLICT DO NOTHING); return newly-applied events for fan-out + incremental replay.\n4. (story, medium) Incremental replay on append + renumber handling; fall back to full replay on inconsistency.\n5. (story, high) Tenant isolation via Postgres RLS keyed on a tenant_id session claim; test cross-tenant access is impossible even with raw queries.\n6. (story, medium) Migrate a local .scope/events log into a hosted tenant via the idempotent upload endpoint (re-runnable)."
+  }
+}

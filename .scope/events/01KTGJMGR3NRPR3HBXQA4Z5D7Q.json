@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJMGR3NRPR3HBXQA4Z5D7Q",
+  "ts": "2026-06-07T08:19:21.987Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJMGR3NRPR3HBXQA4Z5D7P",
+    "number": 158,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Per-tenant concurrent SSE connection ceiling",
+    "description": "Track live SSE connections per tenant at the /events handler and reject new connections past a configured ceiling. The default ceiling is derived from the per-node connection benchmark in SCP-150 so summed tenant ceilings stay within tested node capacity. Depends on SCP-125/SCP-150. (From SCP-127.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

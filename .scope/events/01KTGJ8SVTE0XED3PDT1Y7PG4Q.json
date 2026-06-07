@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVTE0XED3PDT1Y7PG4Q",
+  "ts": "2026-06-07T08:12:58.106Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4P",
+    "number": 137,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Sync bootstrap & snapshot path for large logs",
+    "description": "Fresh-client bootstrap: empty cursor streams the full log; for large tenants add GET /sync/snapshot returning a compacted replay-state blob + tail cursor, then pull the tail. Snapshot is strictly an optimization and must be reproducible by replay; the event log stays the source of truth. Coordinate storage with SCP-124. (From SCP-123.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

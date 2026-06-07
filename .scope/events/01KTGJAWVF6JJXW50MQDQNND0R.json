@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJAWVF6JJXW50MQDQNND0R",
+  "ts": "2026-06-07T08:14:06.703Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEH",
+    "commentId": "01KTGJAWVF6JJXW50MQDQNND0Q",
+    "author": "claude",
+    "body": "PROPOSED ARCHITECTURE (design-sweep result).\n\nPHASE-1 (cheapest proof): ONE containerized Express hub on a public PaaS. Keep src/server.js as-is; only deltas are TLS termination + login. Docker (node:22-slim), single instance on Fly.io (or Render): both build better-sqlite3 cleanly, give free TLS + custom domains, and PROXY LONG-LIVED SSE WITHOUT IDLE-KILLING IT. One persistent volume for .scope/. Single-tenant = no external pub/sub; in-process EventEmitter still sees every mutation (defers SCP-125 entirely). Login: GitHub OAuth -> HttpOnly cookie + long-lived API token for CLI/iOS (the SCP-122 surface, single-tenant subset). Drop loopback bypass on public deploys. CI/CD: SEPARATE deploy.yml (not the tag-driven CLI release.yml). Observability: platform logs + pino + /healthz. Backup: nightly rsync of .scope/events to S3/R2 (cache is disposable).\n\nEventual topology: N stateless Express containers -> LB -> Postgres (log+cache, SCP-124) -> Redis/NATS fan-out (SCP-125) -> object store for archival/DR -> OIDC multi-tenant (SCP-122).\n\nHONEST TREBUCHET TAKE: not viable for this realtime layer. (1) It is a SWIFT actor framework; our hub is Node/Express + native better-sqlite3 — adopting = rewrite, not deploy. (2) Its AWS streaming is API-Gateway-WebSocket + per-message Lambda + DynamoDB connection table — the short-lived request/response Lambda model is hostile to the long-lived server-push SSE we ship. Recommendation: containerized Express, NOT Trebuchet. Revisit only if the iOS app wants native Swift actors (orthogonal).\n\nDeps: SCP-125 (deferred in phase 1 by staying single-process), SCP-124 (phase 1 keeps SQLite-on-volume).\n\nCHILD TICKETS: SCP-151 (phase-1 deploy — FIRST buildable step), SCP-152 (phase-1 GitHub OAuth login), SCP-153 (CI/CD deploy.yml), SCP-154 (event-log backup/DR), SCP-155 (logging/health/alerting)."
+  }
+}

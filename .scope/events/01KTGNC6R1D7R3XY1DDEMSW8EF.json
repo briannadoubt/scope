@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTGNC6R1D7R3XY1DDEMSW8EF",
+  "ts": "2026-06-07T09:07:15.329Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "commentId": "01KTGNC6R1D7R3XY1DDEMSW8EE",
+    "author": "Bri",
+    "body": "CORRECTION for future agents: there is NO MCP server in this codebase (the workspace overview text mentioning 'scope mcp' / '23 MCP tools' is STALE). The agent-control surface is the CLI (--json on every command) + the HTTP REST API on the hub. Any spike or ticket that assumes an MCP transport should target CLI/HTTP instead. Surfaced while finishing SCP-128 (grep for modelcontextprotocol/registerTool returns nothing)."
+  },
+  "model": "Opus 4.8"
+}

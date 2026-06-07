@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGG6006KBN3NK8ZERR0MMEJ",
+  "ts": "2026-06-07T07:36:28.934Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEH",
+    "number": 126,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Spike: hosting runtime, TLS, deploy & operational model",
+    "description": "OPEN QUESTION: Where and how does the hosted hub run, and what does day-2 operations look like?\n\nQuestions to resolve:\n- Runtime/platform: containerized Express on Fly.io/Render/ECS, vs a more serverless model (Trebuchet — already in our toolbelt — for the actor/streaming layer)? Long-lived SSE/WS connections constrain serverless choices.\n- Public TLS + custom domains + CORS (replacing the self-signed local CA + scope.local).\n- CI/CD: how deploys happen; the current release is tag-driven via GitHub Actions ([[26]]) — does the service piggyback or get its own pipeline?\n- Observability: logs/metrics/tracing for a multi-tenant service (we have a Trebuchet observability skill to draw on).\n- Backup/restore + disaster recovery for the canonical event log.\n- Single-tenant phase-1 deploy (the cheapest proof) — what's the minimal stack to put the EXISTING hub on the public internet with real login?\n\nDeliverable: comment with a recommended phase-1 deploy stack + a sketch of the eventual production topology. Likely spawns: 'Phase-1 single-tenant deploy', 'CI/CD for the service', 'Observability + alerting'.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVTE0XED3PDT1Y7PG4S",
+  "ts": "2026-06-07T08:12:58.106Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4R",
+    "number": 138,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "ADR: sync-cursor protocol & reconciliation guarantees",
+    "description": "Write docs/adr/0002-sync-cursor-protocol.md: ULID high-water cursor (rejecting per-tenant sequence and vector clock, with rationale), pull/push shapes, the 'server reconciliation == local file-union replay' invariant, idempotency via content-addressed ULIDs, renumber-notice propagation, and the clock-skew/backfill edge handled by a count guard. Cross-ref ADR-0001. (From SCP-123.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

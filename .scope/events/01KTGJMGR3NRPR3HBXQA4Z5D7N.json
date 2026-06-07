@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJMGR3NRPR3HBXQA4Z5D7N",
+  "ts": "2026-06-07T08:19:21.987Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJMGR3NRPR3HBXQA4Z5D7M",
+    "number": 157,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Tenant quota enforcement + usage metering",
+    "description": "Enforce per-tenant quotas (events/day, projects, seats, storage bytes) against counters maintained alongside the Postgres event log (SCP-124 — count only newly-applied events on the ON CONFLICT upload). Emit soft warnings at ~80% and hard-reject at the cap. Depends on SCP-124. (From SCP-127.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVSR7H8CZ76808C51BB",
+  "ts": "2026-06-07T08:12:58.105Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVSR7H8CZ76808C51BA",
+    "number": 129,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Cloud auth: OIDC login + JWT/refresh sessions",
+    "description": "Stand up hosted interactive login via OIDC (GitHub/Google/Apple) with optional email+password fallback. Mint short-lived JWT access tokens carrying sub + project/role claims, plus long-lived rotating refresh tokens; expose refresh + logout/revoke. Principal is always the human account. Web and iOS both consume this path. (From SCP-122 design.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

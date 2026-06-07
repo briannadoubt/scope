@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJ0MYWX3AGPNCTVXZ67FP6",
+  "ts": "2026-06-07T08:08:30.940Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6308",
+    "commentId": "01KTGJ0MYWX3AGPNCTVXZ67FP5",
+    "author": "claude",
+    "body": "AGENT BRIEFING (read before investigating).\n\nFULL CONTEXT: read epic SCP-120 and validation spike SCP-121 (3 comments + verdict) first. Validated thesis: Scope = AGENT-OPERATED MULTIPLAYER KANBAN. A hosted, auth-gated realtime relay lets parallel LLM agents (and their humans) see each other's task claims instantly so they don't collide (collisions waste tokens + rework). Differentiator = the native agent-control surface (CLI + --json + MCP), already built.\n\nDECIDED CONSTRAINTS (do not re-litigate):\n- Identity: authenticated principal = HUMAN account. Agents authenticate AS the user and stamp an acting-model string. Attribution = '{model} on behalf of {user}'. See SCP-128 (the buildable schema piece) and the SCP-121 verdict comment.\n- Offline-first is REQUIRED for v1.\n- Product shape: project structure -> authenticate -> syncing starts. Project = unit of sharing + realtime sync boundary.\n\nWHERE TO LOOK (read excerpts, not whole files):\n- src/auth.js (per-hub bearer token + loopback bypass — the model that CANNOT stretch to multi-tenant)\n- src/server.js (how auth is applied per-endpoint; X-Scope-Workspace routing)\n- src/pair.js, src/devices.js, src/ca.js, src/tls.js, src/revocation.js (existing mTLS device-pairing + local CA)\n- App/Sources/Network/ — HubClient, PairingManager, KeychainStore (how iOS authenticates today)\n\nSTILL OPEN (your job): identity PROVIDER (OAuth/OIDC vs email+pw), session/token format, non-interactive CLI/agent credentials, account<->project<->team mapping + roles, per-tenant data isolation (coordinate w/ SCP-124), authz check that on-behalf-of principal == authenticated user (coordinate w/ SCP-123).\n\nDELIVERABLE: comment a proposed auth architecture (recommendation + tradeoffs) here, then spawn implementation child stories with parent=SCP-120."
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTGMCMCQGE10DB7N00BQVC90",
+  "ts": "2026-06-07T08:50:00.727Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGHTC7RGF8Z06DQJJSR4S3Q",
+    "commentId": "01KTGMCMCQGE10DB7N00BQVC8Z",
+    "author": "Bri",
+    "body": "IMPLEMENTED + verified (branch feat/scp-128-event-attribution, not yet committed).\n\nDESIGN (additive, zero DB migration): the event envelope gains an OPTIONAL 'model' field; 'actor' stays the human principal so --by is unchanged. Source of truth keeps (actor, model) SEPARATE and structured. The disposable cache stores the RENDERED string ('{model} on behalf of {actor}') in the existing changed_by/author columns, so every history/UI surface shows attribution with no read-path, schema, or web changes. Behavior is byte-identical when no model is present (backward compat both directions; v=1 unbumped since the field is forward-compatible).\n\nFILES: event-schema.js (optional model in makeEvent/validateEvent + new formatActor helper); repo.js (emit + updateTicket/createTicket/addComment/deleteTicket/relations/updateWorkspace/rekey + applyBatch/dispatchOp thread model, with per-op op.model override mirroring op.by); db.js recordHistory renders changed_by; replay.js renders changed_by + comment author from e.actor/e.model; cli.js global --model flag + SCOPE_MODEL env via actingModel(cmd), threaded to status/edit/branch/pr/comment/batch/rekey (and batch-create via dispatchOp).\n\nSCOPE BOUNDARY: threaded model only where --by already exists. Standalone 'ticket create' and 'workspace set' commands have no --by today (actor defaults to 'unknown'), so they were left alone; batch-create DOES stamp model via dispatchOp. MCP/HTTP write paths default model=null (unchanged) — they will supply model under SCP-122 cloud auth.\n\nVERIFICATION: new test/attribution.test.js (5/5 pass) covers no-model omission, attribution rendering, full log->replay reconstruction, comments, and validation rules. Full suite shows ZERO regressions vs baseline (96 pass / 42 fail identical both ways; the 42 are a pre-existing deriveDefaultKey fixture issue in this checkout, unrelated). Live proof: this ticket's own history now reads 'Opus 4.8 on behalf of Bri' (set via the new --model flag), confirmed through the CLI, the hub REST API, and the event log."
+  },
+  "model": "Opus 4.8"
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGHTC7RGF8Z06DQJJSR4S3R",
+  "ts": "2026-06-07T08:05:05.400Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGHTC7RGF8Z06DQJJSR4S3Q",
+    "number": 128,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Event attribution model: model on behalf of user",
+    "description": "DECIDED outcome of validation (SCP-121) — buildable now, no further design spike needed.\n\nEvents must carry attribution as TWO parts: (1) the authenticated PRINCIPAL = a human account, and (2) an acting-MODEL string (e.g. \"Opus 4.8\"). Attribution renders as \"{model} on behalf of {user}\" — e.g. \"Opus 4.8 moved SCP-42 to in_progress for Bri\". Agents do NOT get their own identities; they authenticate as the user and supply the model string per event/request.\n\nScope of work:\n- Extend the event schema / actor field to carry (principal, acting_model) instead of a single free-text actor. Keep backward-compat with existing single-string actors in the log (treat as principal, no model).\n- Surface the rendered attribution in history + (later) presence UI.\n- The authorization check (on-behalf-of principal == authenticated user) lives in the auth work (SCP-122); the schema/representation is here.\n- CLI: allow passing the acting model (e.g. --model or env) so agent-driven calls stamp it; --by remains the human principal.\n\nThis is the one fully-settled, transport-agnostic piece — it can land in the LOCAL event model ahead of any cloud work, and the hosted relay inherits it for free.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

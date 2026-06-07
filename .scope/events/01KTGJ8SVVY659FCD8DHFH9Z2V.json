@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z2V",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4T",
+    "number": 139,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Multi-tenant Postgres event log + cache",
+    "description": "Sub-epic: move the canonical event log and derived cache off per-workspace SQLite onto shared Postgres with airtight tenant isolation. Holds the schema, replay port, upload primitive, incremental replay, isolation, and migration stories. Done when a hosted tenant can upload events and read a replayed board with cross-tenant access impossible. (From SCP-124; folds in the prior storage proposal.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

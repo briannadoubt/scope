@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGG60037EEM58DKQ02JJVT5",
+  "ts": "2026-06-07T07:36:28.931Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM630A",
+    "number": 123,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Spike: sync-cursor protocol for offline-first clients",
+    "description": "OPEN QUESTION: What is the wire protocol that lets the CLI and iOS app keep their LOCAL event logs and reconcile with the cloud replica? This is where the de-collision work cashes out.\n\nShape to design:\n- Pull: 'give me every event since cursor X' (what is the cursor — a ULID high-water mark? a per-tenant monotonic sequence? a vector clock?).\n- Push: 'here are my N offline events' — server appends to the canonical union, runs replay + SCP-110 de-collision, returns any display-number reassignment notices.\n- The hard case to get right: a client offline for a week uploads 400 events that interleave (by canonical ts,id order) with events the server accepted from other clients meanwhile. Result must match what local file-union replay would have produced.\n\nQuestions to resolve:\n- Cursor semantics + how a fresh client bootstraps (full log download vs snapshot + tail).\n- Idempotency: re-uploading the same ULID event must be a no-op (events are content-addressed by ULID — confirm).\n- Ordering guarantees the client can rely on for optimistic UI.\n- How display-number reassignment notices propagate back to a client that already showed SCP-42 locally.\n- Bandwidth: delta/snapshot strategy for large logs (relates to [[106]]).\n\nDeliverable: comment with a proposed protocol spec (endpoints + cursor format + reconciliation algorithm). Likely spawns: 'Implement /sync pull+push endpoints', 'iOS sync engine', 'CLI sync command', and an ADR.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

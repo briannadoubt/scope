@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGHD41HC5R7K0SH9BHG3YBT",
+  "ts": "2026-06-07T07:57:51.025Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6306",
+    "commentId": "01KTGHD41HC5R7K0SH9BHG3YBS",
+    "author": "claude",
+    "body": "Round 2 — MAJOR reframe (sharpens thesis, strengthens willingness-to-pay).\n\nPRIMARY ACTOR IS AGENTS, NOT HUMANS. The killer use case: multiple LLM-driven coding agents working in parallel against one board must not COLLIDE. LLMs render code fast; two agents grabbing the same task = wasted tokens + rework = real dollar cost. Realtime sync exists to coordinate agents (and the humans steering them) so claims propagate instantly. This is a far stronger 'take my money' than human-human coordination because the cost of the gap is quantifiable.\n\nDIFFERENTIATOR (re-reframed again): not merge correctness, not even human presence — it is that SCOPE IS THE BOARD AGENTS NATIVELY DRIVE. CLI + --json on every command + MCP server are ALREADY BUILT and are the unique agent-control surface vs Linear/Trello/Convex. The realtime relay makes that agent-driven board multiplayer.\n\nPRODUCT SHAPE (bri's words): 'project' structure -> authenticate -> syncing starts. Humans collaborate through team-member accounts; agents act on the board via the CLI under those accounts.\n\nBUSINESS MODEL: Scope-the-board-as-a-SaaS (agent-operated kanban), NOT a resold realtime/auth backend. The 'hosted realtime auth + todo streaming' framing is the MECHANISM, not the sold product.\n\nOPEN FOR ROUND 3: concrete pricing/willingness; whether offline-first is still v1-critical (agents are usually online -> may let us ship online-realtime-relay first, defer offline); and account/agent identity model (do agents get own identity or act as a human's account?)."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGG6006KBN3NK8ZERR0MMEM",
+  "ts": "2026-06-07T07:36:28.934Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEK",
+    "number": 127,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Spike: quotas, abuse prevention & billing model",
+    "description": "OPEN QUESTION: How do we meter, protect, and monetize the service?\n\nLower priority — gated behind validation (the validate spike) and the existence of real tenants, but worth capturing so it isn't an afterthought.\n\nQuestions to resolve:\n- Rate limiting strategy (token bucket / sliding window — Trebuchet security skill has patterns) per tenant and per principal.\n- Quotas: events/day, workspaces, seats, storage, connection count — what are the natural limits and how are they enforced + surfaced to users?\n- Abuse model: what does a malicious or runaway client look like, and how do we contain it?\n- Pricing shape: per-seat vs per-workspace vs flat vs usage-based (informed by the validation spike findings).\n- Billing integration (Stripe?) and the free-tier boundary.\n\nDeliverable: comment with a proposed quota + pricing model. Likely spawns concrete stories once pricing is chosen.",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

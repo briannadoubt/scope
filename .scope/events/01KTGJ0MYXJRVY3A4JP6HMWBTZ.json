@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJ0MYXJRVY3A4JP6HMWBTZ",
+  "ts": "2026-06-07T08:08:30.941Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEF",
+    "commentId": "01KTGJ0MYXJRVY3A4JP6HMWBTY",
+    "author": "claude",
+    "body": "AGENT BRIEFING (read before investigating).\n\nFULL CONTEXT: read epic SCP-120 and validation spike SCP-121 first (thesis = agent-operated multiplayer kanban; the relay is what makes the agent-driven board multiplayer).\n\nWHY THIS MATTERS: the status-claim events that prevent agent collisions must reach every subscriber with minimal latency, across app servers. The in-process EventEmitter bus dies the moment we run >1 app server.\n\nWHERE TO LOOK:\n- src/events.js (in-process EventEmitter bus — what must become external pub/sub)\n- src/server.js (the /events SSE endpoint ~lines 450-485; keepalive; workspace filtering)\n- src/hub.js (watchdog, port-race self-healing, Bonjour discovery — becomes LB + failover + health checks; document what we drop)\n- App/Sources/Network/EventStream.swift and the web EventSource in src/web/app.js\n\nSTILL OPEN (your job): external pub/sub choice (Redis pub/sub vs NATS vs Postgres LISTEN/NOTIFY vs managed bus) + tradeoffs; keep SSE vs move to WebSocket (call out the SSE-over-WAN reconnect unknown); per-tenant/per-project topic routing; connection scale per node + LB handling of long-lived conns. Coordinate w/ SCP-124 (appends are the event source — likely LISTEN/NOTIFY or an outbox row) and SCP-126 (can the chosen runtime hold long-lived connections?).\n\nDELIVERABLE: comment a proposed fan-out architecture here, then spawn implementation child stories with parent=SCP-120."
+  }
+}

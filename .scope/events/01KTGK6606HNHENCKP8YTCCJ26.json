@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "id": "01KTGK6606HNHENCKP8YTCCJ26",
+  "ts": "2026-06-07T08:29:00.806Z",
+  "actor": "ui",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM630A",
+    "field": "status",
+    "value": "done"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGG60037EEM58DKQ02JJVT7",
+  "ts": "2026-06-07T07:36:28.931Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGG60037EEM58DKQ02JJVT6",
+    "number": 124,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Spike: multi-tenant storage for the event log + cache",
+    "description": "OPEN QUESTION: What backs the canonical event log and the replay cache when there are many tenants on shared infra?\n\nToday: one SQLite file per workspace, single process. Does not multi-tenant.\n\nQuestions to resolve:\n- Where does the canonical append-only event log live? Postgres table (one row per event, indexed by tenant + ts,id)? Object store (S3) for the raw JSON with a Postgres index? Both?\n- Where does the replayed cache live — per-tenant Postgres schema, shared tables with tenant_id, or keep SQLite-per-tenant on a stateful node?\n- Does server-side replay run on every read, on a schedule, or incrementally on append? Cost of replaying a large log.\n- Tenant isolation at the storage layer (row-level security? separate schemas? separate DBs?). Coordinate with the auth spike.\n- Retention / archival of old events; log compaction story (relates to [[106]]).\n- Migration path from a user's existing local .scope/events to the cloud.\n\nDeliverable: comment with a proposed storage architecture w/ tradeoffs. Likely spawns: 'Event log schema in Postgres', 'Server-side replay service', 'Tenant data migration tool'.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

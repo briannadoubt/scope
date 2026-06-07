@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJAWVEW08Z21PXYYGCWXD9",
+  "ts": "2026-06-07T08:14:06.702Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM630A",
+    "commentId": "01KTGJAWVEW08Z21PXYYGCWXD8",
+    "author": "claude",
+    "body": "PROPOSED ARCHITECTURE (design-sweep result).\n\nKEYSTONE: server-side reconciliation is NOT a new merge algorithm — it is the IDENTICAL readAllEvents -> replayInto -> resolveDisplayNumbers pipeline Scope already runs locally, executed over the union of event files. Because replay is a pure function of the event SET sorted by compareEvents (ts -> ULID) and de-collision runs over ALL ticket.creates in that global order, a late interleaved upload produces byte-identical state to local file-union replay, by construction. The protocol just moves event files + reports the renumber notices replay already emits.\n\nRECOMMENDATION: cursor = ULID high-water mark + a server event_count guard (detects late backfill below the watermark from clock skew) — rejecting per-tenant sequence (reintroduces the consensus value ADR-0001 killed) and vector clocks (one canonical replica per tenant). Idempotency is free (content-addressed ULIDs; append = tmp+rename). Endpoints: GET /sync/pull?since=<ulid>&limit=N; POST /sync/push -> {accepted,duplicates,renumbered,cursor}; GET /sync/snapshot for large-log bootstrap (optimization only). Status-claim events push individually + immediately (latency-critical for agent collision avoidance); batch only the offline backlog. Renumber notice rewrites a client's displayed SCP-42 -> SCP-58; ULID identity unchanged so no refs break.\n\nDeps: SCP-122 (verify on-behalf-of principal on push), SCP-124 (canonical log location + snapshot backing).\n\nCHILD TICKETS: SCP-134 (/sync endpoints), SCP-135 (iOS sync engine), SCP-136 (scope sync CLI), SCP-137 (bootstrap/snapshot), SCP-138 (ADR-0002)."
+  }
+}

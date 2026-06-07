@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z35",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z34",
+    "number": 144,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Tenant isolation via Postgres RLS + app-layer scoping",
+    "description": "Enable RLS on every tenant-scoped table keyed on a tenant_id session GUC set from the authenticated claim (claim shape owned by SCP-122). Add a defense-in-depth app-layer tenant_id filter so a missing GUC fails closed. Test cross-tenant reads/writes are impossible even via raw SQL and even if the app forgets to scope a query. (From SCP-124, AMENDMENT 2.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGJ8SVTE0XED3PDT1Y7PG4T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

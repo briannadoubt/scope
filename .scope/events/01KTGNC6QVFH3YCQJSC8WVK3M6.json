@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTGNC6QVFH3YCQJSC8WVK3M6",
+  "ts": "2026-06-07T09:07:15.323Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGHTC7RGF8Z06DQJJSR4S3Q",
+    "commentId": "01KTGNC6QVFH3YCQJSC8WVK3M5",
+    "author": "Bri",
+    "body": "ATTRIBUTION THREAD FINISHED (still branch feat/scp-128-event-attribution, uncommitted).\n\nExtended beyond the original --by sites to the FULL write surface:\n- CLI: 'ticket create' and 'workspace set' now take --by and honor the global --model / SCOPE_MODEL (so freshly-created tickets attribute too).\n- HTTP REST API (src/server.js): new actorCtx(req) helper reads X-Scope-By / X-Scope-Model headers (preferred, per-agent-client) with body __by / __model fallback, threaded through POST/PATCH/DELETE tickets, relations add/remove, comments, and the two workspace PATCH endpoints. cleanBody() strips the __by/__model sentinels before they reach a repo writer.\n- NOTE: there is NO MCP server in this codebase anymore (the workspace overview text mentioning 'scope mcp' is stale). The agent-control surface is CLI + HTTP REST. Recorded on the epic.\n\nVERIFIED: hermetic HTTP probe (real Express server, valid-key temp workspace) confirmed X-Scope-Model header AND __model body fallback both render '{model} on behalf of {by}' in history, and comment authors attribute over HTTP. Full suite: 101 pass / 42 fail — the 42 are the pre-existing deriveDefaultKey fixture issue (see the spawned cleanup task); my changes add ZERO regressions (42 identical to clean baseline)."
+  },
+  "model": "Opus 4.8"
+}

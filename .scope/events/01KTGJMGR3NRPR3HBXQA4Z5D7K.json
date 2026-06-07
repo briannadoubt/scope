@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJMGR3NRPR3HBXQA4Z5D7K",
+  "ts": "2026-06-07T08:19:21.987Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJMGR3NRPR3HBXQA4Z5D7J",
+    "number": 156,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Per-principal + per-tenant rate limiting middleware",
+    "description": "Add a token-bucket limiter keyed on the authenticated principal (auth.sub) and a sliding-window per-tenant aggregate ceiling, mounted after authMiddleware in src/server.js and before workspace resolution. Reuse the {allowed, retryAfterMs} + 429/Retry-After shape from src/pair.js. Fail closed. Depends on SCP-122 for the claim shape. (From SCP-127.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

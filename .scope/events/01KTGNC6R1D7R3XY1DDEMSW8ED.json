@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTGNC6R1D7R3XY1DDEMSW8ED",
+  "ts": "2026-06-07T09:07:15.329Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEK",
+    "commentId": "01KTGNC6R1D7R3XY1DDEMSW8EC",
+    "author": "Bri",
+    "body": "RATIFIED (architecture review) with one decision still open for Bri. Mechanics accepted: two-layer rate limiting (per-principal token bucket + per-tenant window), quota dimensions tied to SCP-150's connection benchmark, runaway-agent abuse model, Stripe billing. PRICING UNIT remains Bri's call (recommended per-project tiers, with per-event usage available since SCP-124 already meters applied events) — to be decided post-validation-with-real-usage, NOT a blocker. Child stories SCP-156..160 accepted. Spike closed; SCP-160 (Stripe) stays gated until the unit is chosen."
+  },
+  "model": "Opus 4.8"
+}

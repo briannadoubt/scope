@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGG6002B2Y0XQRBVKFM6305",
+  "ts": "2026-06-07T07:36:28.930Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "number": 120,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Hosted Scope: offline-first cloud relay (Path A)",
+    "description": "Turn Scope into a hosted realtime auth + todo-streaming service WITHOUT abandoning local-first.\n\n## The decision (Path A)\nThe cloud node is \"just another replica\" plus a sync transport. Clients keep their local event logs; the server accepts event uploads, stores the canonical log union, runs the EXISTING replay + SCP-110 display-number de-collision server-side unchanged, and fans changes out over SSE/WS. Offline-first survives.\n\nWe explicitly rejected Path B (server-as-single-writer SaaS) because it forces us to discard the merge/de-collision logic that is our actual moat and puts us in head-to-head commodity competition with Convex/Supabase/Firebase/Linear. Path A is a strict superset of B from the user's view: a hosted relay serves purely-online users fine, but a central-authority SaaS can never serve the offline user.\n\nUnverified bet worth testing cheaply before heavy build: that \"deterministic offline merge for todos\" is something people will PAY for, not just a nice engineering story. See the validation spike.\n\n## What ports as-is\n- Append-only event log as source of truth ([[106]] event-sourced storage)\n- Deterministic replay into disposable SQLite cache\n- ULID identity + LWW scalars + grow-only sets + display-number de-collision (SCP-110)\n- The realtime client contract: SSE /events, iOS EventStream, web EventSource\n\n## What must change (both paths would need these — table stakes)\n- Real multi-tenant identity (the current loopback-bypass + LAN-CA trust model is single-domain by construction and CANNOT stretch) — biggest new surface\n- Multi-tenant storage (per-workspace SQLite -> Postgres, possibly + object store for the log)\n- External pub/sub for SSE fan-out across >1 app server (in-process EventEmitter dies the moment we scale horizontally)\n- Public TLS / real domains / CORS\n- Rate limiting, tenant quotas, abuse model, billing\n\n## Phased path\n1. Single-tenant cloud hub: deploy existing Express hub, public TLS, swap bearer-token for real login. Proves realtime over WAN.\n2. Multi-tenant storage + external pub/sub.\n3. Sync-cursor protocol for offline-first clients (where de-collision cashes out).\n4. Billing, quotas, teams.\n\nThe spike stories under this epic are deliberately open questions. Each is meant for a future agent (or human) to investigate, comment with findings/clarifications, and SPAWN child stories/epics once scope is understood. Do not treat the spikes as the implementation plan — they are the question list that produces the plan.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

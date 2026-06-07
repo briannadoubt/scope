@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJAWVF6JJXW50MQDQNND0P",
+  "ts": "2026-06-07T08:14:06.703Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEF",
+    "commentId": "01KTGJAWVF6JJXW50MQDQNND0N",
+    "author": "claude",
+    "body": "PROPOSED ARCHITECTURE (design-sweep result).\n\nRECOMMENDATION: Postgres LISTEN/NOTIFY as the v1 fan-out bus; KEEP SSE; ADD a resume cursor. Defer Redis/NATS until connection counts force it.\n\nWhy PG first: if appends already land in Postgres (SCP-124), the SAME transaction can NOTIFY scope_events '<tenant>:<seq>'. Each app node holds one LISTEN connection and fans out to its local SSE subscribers — zero new infra, event source and bus are the same store (no dual-write skew), and it is replayable (raw Redis pub/sub is not). NOTIFY payload is capped (~8KB) so send only the (tenant,seq) pointer; each node reads missing rows by cursor. Graduate to NATS (JetStream, subjects = tenant.project) if a single LISTEN backbone saturates.\n\nTransport: keep SSE — push flows through existing mutation/MCP endpoints, so WebSocket bidirectionality buys nothing and adds LB/proxy cost. THE REAL RISK IS SSE-over-WAN RECONNECT, broken-by-omission today: server emits retry:2000 but NO id: lines, neither client sends Last-Event-ID; iOS just reopens after 2s and silently drops the gap. Fix: stamp id:<tenant>:<seq>, honor Last-Event-ID to replay from the log. LAN self-healing (hub.js port-race, probeHub, Bonjour, watchdog) is dropped in cloud -> replaced by LB + /healthz + N stateless nodes. Long-lived SSE rules out short-timeout serverless (API-GW 30s) -> favors containerized Express (SCP-126). FLAG: the shipped web app.js has NO EventSource consumer today — only iOS is realtime; confirm whether the web UI should be.\n\nDeps: SCP-124 (NOTIFY source, hard blocker), SCP-126 (runtime holds long-lived conns), SCP-122 (topic authz).\n\nCHILD TICKETS: SCP-146 (LISTEN/NOTIFY bus), SCP-147 (WAN reconnect + Last-Event-ID), SCP-148 (topic routing + isolation), SCP-149 (retire LAN self-heal + LB topology), SCP-150 (connection/throughput load test)."
+  }
+}

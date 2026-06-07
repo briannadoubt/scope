@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJAWVEW08Z21PXYYGCWXD7",
+  "ts": "2026-06-07T08:14:06.702Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6308",
+    "commentId": "01KTGJAWVEW08Z21PXYYGCWXD6",
+    "author": "claude",
+    "body": "PROPOSED ARCHITECTURE (design-sweep result).\n\nRECOMMENDATION: OIDC for humans (GitHub/Google/Apple, email+pw fallback) + per-user API keys for machines, JWT access (15min) + rotating refresh, claims scoped to a project. Keep the LAN mTLS/pairing stack UNCHANGED as a separate local trust domain — the cloud relay is a parallel auth path, not a replacement; loopback bypass stays local-only and never ships in the hosted deploy.\n\nKey points: principal is always the human account; API keys carry only the principal, the acting-model is supplied per request (never in the credential). Project = tenant = sharing + sync boundary; replace trusted X-Scope-Workspace header with server-enforced tenancy from the JWT/key claims. On upload, reject if event.actor.principal != auth.sub or subject lacks write role. Today actor is a single free-text string (event-schema.js:95) and tenancy is a trusted client header (workspaces.js:286) with loopback bypass (auth.js:150) — both safe only on a single-trust-domain LAN, must not survive into the relay.\n\nDeps: SCP-123 (authz on push path), SCP-124 (RLS/claim shape).\n\nCHILD TICKETS: SCP-129 (OIDC login), SCP-130 (API keys), SCP-131 (membership/roles), SCP-132 (upload authz), SCP-133 (ADR)."
+  }
+}

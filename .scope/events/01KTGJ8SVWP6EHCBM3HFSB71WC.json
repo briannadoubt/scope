@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVWP6EHCBM3HFSB71WC",
+  "ts": "2026-06-07T08:12:58.108Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z3J",
+    "number": 151,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Phase 1: single-tenant Express hub on public TLS",
+    "description": "Containerize src/server.js (node:22-slim, build better-sqlite3) and deploy a single instance to Fly.io with a persistent volume for .scope/, a real TLS hostname, and a custom domain. Verify long-lived SSE survives the platform proxy (no idle reaping) and that in-process EventEmitter fan-out works to a remote browser/iOS client over WAN. Disable loopback bypass + Bonjour/mTLS for the cloud build; keep them for LAN. Output: a reachable public hub one collaborator can hit. (From SCP-126; the first buildable step.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}
