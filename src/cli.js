@@ -440,7 +440,7 @@ export function buildProgram() {
     .addOption(
       new Option('-p, --priority <priority>', 'priority').choices(SCHEMA_PRIORITIES).default('medium')
     )
-    .option('--parent <ticketId>', 'parent epic (for stories/bugs)')
+    .option('--parent <ticketId>', 'parent epic (stories/bugs, or a sub-epic)')
     .option('--branch <name>', 'git branch')
     .option('--pr <url>', 'pull request URL')
     .option('--assignee <name>', 'assignee handle')

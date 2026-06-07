@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.0
+
+### Added
+
+- **Nestable epics.** An epic can now have a parent epic, so work can be
+  organized into multiple levels (e.g. _Platform → Auth subsystem → OAuth
+  providers_). Reparenting is cycle-safe — an epic can't be nested under one of
+  its own descendants. An epic's progress now rolls up recursively across the
+  whole subtree (stories/bugs under nested epics included), not just its direct
+  children. Create one with `scope ticket create -t epic "…" --parent <epic>`.
+- **Nested swimlanes (web).** Grouping the board by epic now renders the epic
+  hierarchy: sub-epics appear indented beneath their parent in tree order, with
+  a `SUB-EPIC` badge and subtree-aware progress bars.
+
+### Changed
+
+- **Custom swimlane scroll indicator (web).** Each lane's column strip now
+  scrolls edge-to-edge across the window while a custom indicator stays inset
+  from the window edges — aligned to the column gutter and each lane's nesting
+  indent — instead of the native scrollbar. The first column rests at the
+  gutter and the last column stops one gutter in when fully scrolled, lining up
+  with the indicator on both ends.
+
 ## 0.7.1
 
 ### Fixed

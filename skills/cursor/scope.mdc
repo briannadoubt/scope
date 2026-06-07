@@ -33,7 +33,7 @@ Install if needed: `brew install briannadoubt/tap/scope`
 | | |
 |---|---|
 | Project | top-level container, has a 2-10 letter key (`MA`) |
-| Epic | high-level body of work, parent for stories/bugs |
+| Epic | high-level body of work, parent for stories/bugs (and may nest under another epic) |
 | Story | unit of work toward an epic |
 | Bug | defect, can live under an epic |
 | Status | `backlog` → `todo` → `in_progress` → `in_review` → `done` (+ `cancelled`) |

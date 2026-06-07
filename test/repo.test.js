@@ -80,7 +80,7 @@ test('createTicket validates inputs', () => {
   }
 });
 
-test('createTicket enforces parent rules: only epics can be parents, no epic-of-epic', () => {
+test('createTicket enforces parent rules: only epics can be parents; epics may nest', () => {
   const { db, cleanup } = createTempScope();
   try {
     const { epic } = seed(db);
@@ -95,14 +95,53 @@ test('createTicket enforces parent rules: only epics can be parents, no epic-of-
       () => createTicket(db, { type: 'story', title: 'x', parent: story.id }),
       /Parent must be an epic/,
     );
-    // Epic with an epic parent
-    assert.throws(
-      () => createTicket(db, { type: 'epic', title: 'sub-epic', parent: epic.id }),
-      /Epics cannot have an epic parent/,
-    );
+    // Epic nested under another epic — now allowed.
+    const subEpic = createTicket(db, { type: 'epic', title: 'sub-epic', parent: epic.id });
+    assert.equal(subEpic.parent_id, epic.id);
     // Happy path
     const child = createTicket(db, { type: 'story', title: 'real child', parent: epic.id });
     assert.equal(child.parent_id, epic.id);
+  } finally {
+    cleanup();
+  }
+});
+
+test('updateTicket rejects nesting an epic under its own descendant (cycle)', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const { epic } = seed(db);
+    const subEpic = createTicket(db, { type: 'epic', title: 'sub', parent: epic.id });
+    // Reparenting the root epic under its own child would create a loop.
+    assert.throws(
+      () => updateTicket(db, epic.id, { parent_id: subEpic.id }),
+      /its own descendant/,
+    );
+    // A ticket still can't be its own parent.
+    assert.throws(
+      () => updateTicket(db, epic.id, { parent_id: epic.id }),
+      /cannot be its own parent/,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('epicProgress aggregates work nested under sub-epics', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const { epic } = seed(db);
+    const subEpic = createTicket(db, { type: 'epic', title: 'sub', parent: epic.id });
+    createTicket(db, { type: 'story', title: 's1', parent: subEpic.id, status: 'done' });
+    createTicket(db, { type: 'story', title: 's2', parent: subEpic.id });
+    createTicket(db, { type: 'bug', title: 'b1', parent: epic.id, status: 'done' });
+    // Root epic rolls up the bug under it + both stories under the sub-epic.
+    const root = epicProgress(db, epic.id);
+    assert.equal(root.total, 3);
+    assert.equal(root.done, 2);
+    // The sub-epic itself isn't counted as a work item.
+    const sub = epicProgress(db, subEpic.id);
+    assert.equal(sub.total, 2);
+    assert.equal(sub.done, 1);
   } finally {
     cleanup();
   }

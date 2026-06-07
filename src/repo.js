@@ -261,7 +261,9 @@ export function createTicket(
     if (!parentTicket) throw new Error(`Parent ticket not found: ${parent}`);
     if (parentTicket.type !== 'epic')
       throw new Error(`Parent must be an epic, got "${parentTicket.type}" (${parentTicket.id}).`);
-    if (type === 'epic') throw new Error('Epics cannot have an epic parent.');
+    // Epics may nest under other epics. A freshly created ticket has no
+    // descendants yet, so it can't introduce a cycle here — only edits can
+    // (see updateTicket).
     parentId = parentTicket.id;
     parentUid = parentTicket.uid;
   }
@@ -487,7 +489,20 @@ export function updateTicket(db, id, fields, who = null) {
     if (parent.type !== 'epic')
       throw new Error(`Parent must be an epic, got "${parent.type}".`);
     if (parent.id === ticket.id) throw new Error('A ticket cannot be its own parent.');
-    if (ticket.type === 'epic') throw new Error('Epics cannot have a parent.');
+    // Epics may nest under other epics, but the parent chain must stay acyclic
+    // — reparenting an epic under one of its own descendants would create a
+    // loop that recursive walks (progress, swimlanes) never terminate on.
+    if (ticket.type === 'epic') {
+      let cursor = parent;
+      const seen = new Set();
+      while (cursor) {
+        if (cursor.id === ticket.id)
+          throw new Error(`Cannot nest ${ticket.id} under its own descendant ${parent.id}.`);
+        if (seen.has(cursor.id)) break;
+        seen.add(cursor.id);
+        cursor = cursor.parent_id ? getTicket(db, cursor.parent_id) : null;
+      }
+    }
     fields.parent_id = parent.id;
   }
 
@@ -709,12 +724,54 @@ export function listEpicChildren(db, epicId) {
     .map(hydrateTicket);
 }
 
+/**
+ * Ids of an epic and every epic nested beneath it (depth-first). Used so that
+ * progress and descendant queries fold in work that lives under sub-epics, not
+ * just the direct children.
+ */
+export function epicSubtreeIds(db, epicId) {
+  const ids = [];
+  const seen = new Set();
+  const walk = (id) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+    const childEpics = db
+      .prepare(`SELECT id FROM tickets WHERE parent_id = ? AND type = 'epic'`)
+      .all(id);
+    for (const c of childEpics) walk(c.id);
+  };
+  walk(epicId);
+  return ids;
+}
+
+/** Stories and bugs anywhere beneath an epic, including under nested epics. */
+export function listEpicDescendants(db, epicId) {
+  const ids = epicSubtreeIds(db, epicId);
+  const placeholders = ids.map(() => '?').join(',');
+  return db
+    .prepare(
+      `SELECT * FROM tickets
+       WHERE parent_id IN (${placeholders}) AND type != 'epic'
+       ORDER BY type, number`
+    )
+    .all(...ids)
+    .map(hydrateTicket);
+}
+
 export function epicProgress(db, epicId) {
+  // Count the work items (stories/bugs) across the whole subtree so a parent
+  // epic's progress reflects everything nested beneath it, not just its direct
+  // children. Sub-epics are containers, not work, so they're excluded.
+  const ids = epicSubtreeIds(db, epicId);
+  const placeholders = ids.map(() => '?').join(',');
   const rows = db
     .prepare(
-      `SELECT status, COUNT(*) as n FROM tickets WHERE parent_id = ? GROUP BY status`
+      `SELECT status, COUNT(*) as n FROM tickets
+       WHERE parent_id IN (${placeholders}) AND type != 'epic'
+       GROUP BY status`
     )
-    .all(epicId);
+    .all(...ids);
   const counts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
   let total = 0;
   for (const r of rows) {

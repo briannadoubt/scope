@@ -1037,6 +1037,9 @@ function renderBoard() {
   // empty state restores normal board flex/grid behavior.
   root.classList.remove('board-empty-wrap');
   root.innerHTML = '';
+  // Old lane strips are gone now — drop their observations so the observer only
+  // ever tracks the lanes built below (no leak across re-renders).
+  if (typeof laneScrollbarRO !== 'undefined' && laneScrollbarRO) laneScrollbarRO.disconnect();
   const restoreScroll = () => {
     if (savedWindowY) window.scrollTo({ top: savedWindowY, behavior: 'instant' });
     for (const lane of document.querySelectorAll('.lane-columns')) {
@@ -1091,16 +1094,23 @@ function renderBoard() {
     section.dataset.group = lane.key;
     if (lane.status) section.dataset.status = lane.status;
     if (state.collapsedLanes.has(lane.key)) section.classList.add('collapsed');
+    // Nested epics indent under their parent so the hierarchy reads top-down.
+    if (lane.depth) {
+      section.classList.add('lane-nested');
+      section.style.setProperty('--lane-depth', lane.depth);
+    }
 
     const head = document.createElement('header');
     head.className = 'lane-head';
     const isEpic = lane.kind === 'epic';
+    const isSubEpic = isEpic && lane.depth > 0;
     // .lane-break is a zero-width flex item that forces a wrap onto the
     // next row at narrow viewports (via CSS @media). At wide widths it's
     // display:none, so the head stays a single line.
     head.innerHTML = `
       <span class="lane-chevron">▾</span>
-      ${isEpic ? '<span class="lane-epic-badge">EPIC</span>' : ''}
+      ${isSubEpic ? '<span class="lane-nest-arrow" aria-hidden="true">↳</span>' : ''}
+      ${isEpic ? `<span class="lane-epic-badge">${isSubEpic ? 'SUB-EPIC' : 'EPIC'}</span>` : ''}
       <span class="lane-title">${escapeHtml(lane.label)}</span>
       <span class="lane-break" aria-hidden="true"></span>
       ${isEpic && lane.status
@@ -1136,10 +1146,111 @@ function renderBoard() {
     cols.className = 'lane-columns';
     renderColumnRow(cols, lane.buckets, { showHeader: false, lane: lane.key });
     section.appendChild(cols);
+    // Append to the live DOM *before* wiring the scrollbar so attach can measure
+    // overflow synchronously (a detached strip reports 0 size).
     root.appendChild(section);
+    attachLaneScrollbar(section, cols);
   }
   restoreScroll();
+  // The native scrollbar is hidden (so the columns can bleed to the window
+  // edges); our custom indicator sits inset from the edges instead. Refresh
+  // every lane's thumb once layout + restored scroll positions have settled.
+  requestAnimationFrame(updateAllLaneScrollbars);
 }
+
+/* ---------------- custom lane scroll indicator ----------------
+ * The column strips scroll full-bleed (out to both window edges), but the
+ * native scrollbar can't be inset from the edge — macOS overlay scrollbars
+ * ignore CSS offsets entirely. So we hide it and drive our own thin indicator
+ * that lives in the lane's content box, padded from the window edges (and the
+ * nesting indent), while staying in sync with the real scroll position. */
+function updateLaneScrollbar(section) {
+  const cols = section.querySelector('.lane-columns');
+  const bar = section.querySelector(':scope > .lane-scrollbar');
+  const thumb = bar && bar.querySelector('.lane-scrollbar-thumb');
+  if (!cols || !bar || !thumb) return;
+  const { scrollWidth, clientWidth, scrollLeft } = cols;
+  // Nothing to scroll → hide the indicator (and reclaim its row).
+  if (scrollWidth <= clientWidth + 1) {
+    bar.classList.remove('scrollable');
+    return;
+  }
+  bar.classList.add('scrollable');
+  const trackW = bar.clientWidth;
+  const thumbW = Math.max(24, Math.round((trackW * clientWidth) / scrollWidth));
+  const maxScroll = scrollWidth - clientWidth;
+  const maxThumbX = Math.max(0, trackW - thumbW);
+  const x = maxScroll > 0 ? Math.round((scrollLeft / maxScroll) * maxThumbX) : 0;
+  thumb.style.width = thumbW + 'px';
+  thumb.style.transform = `translateX(${x}px)`;
+}
+
+function updateAllLaneScrollbars() {
+  for (const section of document.querySelectorAll('#board .lane')) updateLaneScrollbar(section);
+}
+
+function attachLaneScrollbar(section, cols) {
+  const bar = document.createElement('div');
+  bar.className = 'lane-scrollbar';
+  const thumb = document.createElement('div');
+  thumb.className = 'lane-scrollbar-thumb';
+  bar.appendChild(thumb);
+  section.appendChild(bar);
+
+  cols.addEventListener('scroll', () => updateLaneScrollbar(section), { passive: true });
+  // Fires once the strip first gets its real layout size (and again on
+  // window/content resize) — more reliable than a post-render rAF, since grid
+  // column widths aren't always settled by the time that fires.
+  if (laneScrollbarRO) laneScrollbarRO.observe(cols);
+
+  // Drag the thumb to scroll. Pointer capture keeps tracking even if the
+  // cursor leaves the thin thumb mid-drag.
+  let startX = 0, startScroll = 0, maxScroll = 0, maxThumbX = 0, dragging = false;
+  thumb.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    thumb.classList.add('dragging');
+    try { thumb.setPointerCapture(e.pointerId); } catch {}
+    startX = e.clientX;
+    startScroll = cols.scrollLeft;
+    maxScroll = cols.scrollWidth - cols.clientWidth;
+    maxThumbX = Math.max(0, bar.clientWidth - thumb.offsetWidth);
+  });
+  thumb.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    cols.scrollLeft = startScroll + (maxThumbX > 0 ? (dx / maxThumbX) * maxScroll : 0);
+  });
+  const end = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    thumb.classList.remove('dragging');
+    try { thumb.releasePointerCapture(e.pointerId); } catch {}
+  };
+  thumb.addEventListener('pointerup', end);
+  thumb.addEventListener('pointercancel', end);
+
+  // Measure now (the strip is already live, so scrollWidth/clientWidth are real)
+  // so the indicator is correct immediately — no dependency on a frame firing,
+  // which matters for background/throttled tabs. The rAF is a follow-up after
+  // restoreScroll() repositions the strip.
+  updateLaneScrollbar(section);
+  requestAnimationFrame(() => updateLaneScrollbar(section));
+}
+
+// Single shared observer for all lane strips. Each render disconnects it (see
+// renderBoard) and the freshly-built lanes re-observe, so it never accumulates
+// stale detached elements. The initial observation callback is what reliably
+// reveals the indicator on load. Covers window resize too — full-bleed strips
+// resize with the window.
+const laneScrollbarRO = typeof ResizeObserver !== 'undefined'
+  ? new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const section = e.target.closest && e.target.closest('.lane');
+        if (section) updateLaneScrollbar(section);
+      }
+    })
+  : null;
 
 function renderColumnRow(parent, buckets, { showHeader, lane = null }) {
   for (const status of BOARD_COLUMNS) {
@@ -1208,11 +1319,17 @@ function buildLanes(board, groupBy) {
   // Honor the "Show done" toggle: when grouped by epic and toggle is off,
   // hide lanes whose epic is done (their children get hidden too — usually
   // they're done as well, and "Show done" lets you see them when you want).
+  // Cancelled epics are abandoned work — hide their lanes unconditionally,
+  // independent of the Show-done toggle.
   // Exception: when the user explicitly filtered to one epic, don't hide it
-  // — otherwise jumping to a done epic from the overview shows nothing.
-  const hideDone =
-    groupBy === 'epic' && !state.showDoneEpics && !state.epicFilter;
-  const isHiddenEpicId = (id) => hideDone && epicById[id]?.status === 'done';
+  // — otherwise jumping to a done/cancelled epic from the overview shows nothing.
+  const filteredToOne = groupBy === 'epic' && !!state.epicFilter;
+  const hideDone = groupBy === 'epic' && !state.showDoneEpics && !filteredToOne;
+  const hideCancelled = groupBy === 'epic' && !filteredToOne;
+  const isHiddenEpic = (e) =>
+    (hideDone && e?.status === 'done') ||
+    (hideCancelled && e?.status === 'cancelled');
+  const isHiddenEpicId = (id) => isHiddenEpic(epicById[id]);
 
   const groups = new Map();
   const ensure = (key, label, extras = {}) => {
@@ -1248,18 +1365,30 @@ function buildLanes(board, groupBy) {
   // empty epics still appear as planning rows. Skip done ones when filtered.
   if (groupBy === 'epic') {
     for (const e of Object.values(epicById)) {
-      if (hideDone && e.status === 'done') continue;
+      if (isHiddenEpic(e)) continue;
       ensure(e.id, `${e.id} · ${e.title}`, {
         kind: 'epic',
         epicId: e.id,
         status: e.status,
         meta: e.status,
-        progress: epicProgressFromTickets(e.id, allTickets),
       });
     }
   }
 
-  return [...groups.values()].sort(laneSorter(groupBy));
+  const lanes = [...groups.values()];
+  // Attach hierarchy info to epic lanes: subtree-aware progress, nesting depth
+  // (for indentation), and a tree-order sort path so sub-epics sit under their
+  // parent. Done in one pass here since it needs the full epic + ticket sets.
+  if (groupBy === 'epic') {
+    for (const lane of lanes) {
+      if (lane.kind !== 'epic') continue;
+      lane.progress = epicProgressFromTickets(lane.epicId, allTickets, epicById);
+      lane.depth = epicDepth(lane.epicId, epicById);
+      lane.sortPath = epicSortPath(lane.epicId, epicById);
+    }
+  }
+
+  return lanes.sort(laneSorter(groupBy));
 }
 
 function groupKey(t, groupBy, epicById) {
@@ -1271,16 +1400,12 @@ function groupKey(t, groupBy, epicById) {
     }
     if (t.parent_id && epicById[t.parent_id]) {
       const e = epicById[t.parent_id];
+      // progress/depth/sortPath are attached in buildLanes' post-process pass
+      // (they need the full ticket + epic sets), so we don't compute them here.
       return {
         key: e.id,
         label: `${e.id} · ${e.title}`,
-        extras: {
-          kind: 'epic',
-          epicId: e.id,
-          status: e.status,
-          meta: e.status,
-          progress: epicProgressFromTickets(e.id, Object.values(epicById).concat()),
-        },
+        extras: { kind: 'epic', epicId: e.id, status: e.status, meta: e.status },
       };
     }
     // Orphan bugs get their own catch-all lane so they don't drown in the
@@ -1303,15 +1428,65 @@ function groupKey(t, groupBy, epicById) {
   return { key: '__none', label: '(none)' };
 }
 
-function epicProgressFromTickets(epicId, allTickets) {
+// Ids of an epic plus every epic nested beneath it. Mirrors epicSubtreeIds()
+// on the server so the swimlane progress bars fold in work under sub-epics.
+function epicSubtreeIds(epicId, epicById) {
+  const ids = [];
+  const seen = new Set();
+  const walk = (id) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+    for (const e of Object.values(epicById)) {
+      if (e.parent_id === id && e.type === 'epic') walk(e.id);
+    }
+  };
+  walk(epicId);
+  return new Set(ids);
+}
+
+function epicProgressFromTickets(epicId, allTickets, epicById = {}) {
+  const subtree = epicSubtreeIds(epicId, epicById);
   let total = 0, done = 0;
   for (const t of allTickets) {
-    if (t.parent_id === epicId) {
+    // Sub-epics are containers, not work — count only the stories/bugs nested
+    // anywhere beneath this epic, matching the server's epicProgress().
+    if (t.type === 'epic') continue;
+    if (subtree.has(t.parent_id)) {
       total++;
       if (t.status === 'done') done++;
     }
   }
   return { total, done, percent: total ? Math.round((done / total) * 100) : 0 };
+}
+
+// Depth of an epic in the epic tree (0 = top-level). Used to indent nested
+// lanes. Guards against cycles defensively even though the server rejects them.
+function epicDepth(epicId, epicById) {
+  let depth = 0;
+  let cur = epicById[epicId];
+  const seen = new Set();
+  while (cur && cur.parent_id && epicById[cur.parent_id] && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    depth++;
+    cur = epicById[cur.parent_id];
+  }
+  return depth;
+}
+
+// A NUL-joined label chain from the root epic down to this one. Lexically
+// sorting on it lays the lanes out in tree order — each parent immediately
+// followed by its descendants.
+function epicSortPath(epicId, epicById) {
+  const parts = [];
+  let cur = epicById[epicId];
+  const seen = new Set();
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id);
+    parts.unshift(`${cur.id} · ${cur.title}`);
+    cur = cur.parent_id ? epicById[cur.parent_id] : null;
+  }
+  return parts.join(' ');
 }
 
 function laneSorter(groupBy) {
@@ -1331,7 +1506,10 @@ function laneSorter(groupBy) {
     const sa = sinkOrder(a.key);
     const sb = sinkOrder(b.key);
     if (sa !== sb) return sa - sb;
-    return String(a.label).localeCompare(String(b.label));
+    // Epic lanes carry a root-to-self label chain; sorting on it keeps each
+    // nested epic directly beneath its parent (tree/DFS order). Other lanes
+    // fall back to their own label.
+    return String(a.sortPath ?? a.label).localeCompare(String(b.sortPath ?? b.label));
   };
 }
 
