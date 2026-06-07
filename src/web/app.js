@@ -584,7 +584,16 @@ function startEventStream() {
   if (state.currentWorkspace) params.set('workspace', state.currentWorkspace);
   const url = '/events' + (params.toString() ? `?${params}` : '');
   eventSource = new EventSource(url);
-  eventSource.addEventListener('open', () => setIndicator(null));
+  // Reconcile on every (re)connect (SCP-147): SSE has no Last-Event-ID replay,
+  // so a reconnect can miss changes emitted during the gap. Resume by pulling
+  // current state rather than replaying the stream — scheduleRefresh is
+  // debounced and board-hash-guarded, so the initial connect is a no-op and a
+  // reconnect catches up immediately instead of waiting for the next change.
+  const resumeOnConnect = () => {
+    setIndicator(null);
+    scheduleRefresh();
+  };
+  eventSource.addEventListener('open', resumeOnConnect);
   eventSource.addEventListener('error', () => {
     setIndicator('disconnected');
     // EventSource will keep retrying internally, but if the hub died and
@@ -594,7 +603,7 @@ function startEventStream() {
     // exponential backoff would.
     scheduleAutoRepair();
   });
-  eventSource.addEventListener('hello', () => setIndicator(null));
+  eventSource.addEventListener('hello', resumeOnConnect);
   eventSource.addEventListener('change', async (e) => {
     const detail = safeParse(e.data);
     if (
