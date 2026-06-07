@@ -10,6 +10,13 @@ const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const COOKIE_NAME = 'scope_token';
 
 export function loadOrCreateToken() {
+  // An explicit SCOPE_TOKEN (hosted deploys set this as a secret) is
+  // authoritative: stable across restarts and independent of the on-disk config
+  // file, whose dir is ephemeral in a container. Without this a cloud hub would
+  // mint a fresh random token on every boot, breaking the shared-token login.
+  const envTok = process.env.SCOPE_TOKEN;
+  if (typeof envTok === 'string' && envTok.length >= 16) return envTok.trim();
+
   if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true });
   if (existsSync(CONFIG_FILE)) {
     try {

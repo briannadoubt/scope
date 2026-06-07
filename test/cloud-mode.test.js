@@ -55,6 +55,17 @@ test('cloud: /healthz is open; authed routes 401 WITHOUT the token even from loo
   }
 });
 
+test('cloud: SCOPE_TOKEN env is authoritative (stable token across restarts)', () => {
+  const prev = process.env.SCOPE_TOKEN;
+  process.env.SCOPE_TOKEN = 'z'.repeat(40);
+  try {
+    assert.equal(loadOrCreateToken(), 'z'.repeat(40), 'env token wins over the config file');
+  } finally {
+    if (prev === undefined) delete process.env.SCOPE_TOKEN;
+    else process.env.SCOPE_TOKEN = prev;
+  }
+});
+
 test('cloud: realtime SSE is live (in-process bus) and also requires the token', async () => {
   const hub = await startCloudHub();
   try {
