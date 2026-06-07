@@ -1,18 +1,19 @@
 # Deploy the hosted Scope hub to Fly.io (SCP-153).
 #
-# SEPARATE from release.yml — that workflow ships the CLI to npm/Homebrew on a
-# version tag. This one only deploys the cloud hub image and never touches the
-# package registry.
+# SEPARATE workflow from release.yml — that ships the CLI to npm/Homebrew. This
+# one only deploys the cloud hub image and never touches the package registry.
 #
-# Triggers:
-#   - push to main         → continuous deploy of the hub
-#   - push of a deploy-*    tag → manual/pinned deploy of a specific commit
-#   - workflow_dispatch     → on-demand deploy from the Actions UI
+# Triggers — version-tag-driven, mirroring release.yml (the Homebrew/npm flow):
+#   - push of a `v*.*.*` tag → deploy the hub for that release
+#   - workflow_dispatch       → on-demand deploy from the Actions UI
 #
-# Gating: this workflow waits for the existing CI workflow ("CI") to succeed on
-# the same commit before deploying, via `workflow_run`. We DO NOT edit ci.yml;
-# we observe its conclusion. (The tag/dispatch paths run a quick gate job since
-# workflow_run only fires for branch pushes.)
+# The same `v*.*.*` tag drives release.yml (publish the CLI) and this workflow
+# (deploy the hosted hub) — one tag, one coordinated release. Like release.yml,
+# this assumes the tag is release-quality (CI gates PRs before you tag); it does
+# not re-run the suite here.
+#
+# Required repo secret:
+#   FLY_API_TOKEN   a Fly deploy token (`fly tokens create deploy`)
 #
 # Rollback: see docs/deploy.md. In short — `fly releases` to list, then
 # `fly deploy --image <previous-image-ref>` or `fly releases rollback`.
@@ -20,12 +21,8 @@
 name: Deploy hub
 
 on:
-  workflow_run:
-    workflows: ["CI"]        # must match the `name:` in ci.yml
-    types: [completed]
-    branches: [main]
   push:
-    tags: ["deploy-*"]
+    tags: ["v*.*.*"]
   workflow_dispatch:
 
 # Never run two deploys at once; let an in-flight deploy finish, don't cancel it
@@ -38,18 +35,9 @@ jobs:
   deploy:
     name: fly deploy
     runs-on: ubuntu-latest
-    # For the main-branch path (workflow_run), only deploy when CI passed.
-    # The tag and manual paths don't carry a workflow_run, so allow them through.
-    if: >
-      github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
     steps:
-      - name: Checkout the exact commit CI validated
+      - name: Checkout the tagged commit
         uses: actions/checkout@v4
-        with:
-          # On workflow_run, check out the commit CI ran against (not the tip of
-          # main, which may have advanced) so we deploy what was actually tested.
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
