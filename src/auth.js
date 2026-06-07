@@ -122,7 +122,17 @@ export function deviceFromPeerCert(cert) {
  * On a successful cert-auth, req.device is set to the device record so
  * downstream handlers (and the future audit log) can attribute the request.
  */
-export function authMiddleware({ token, allowedHosts }) {
+/**
+ * @param {object} opts
+ * @param {string} opts.token
+ * @param {string[]} opts.allowedHosts - host allowlist (empty = allow any, for
+ *   hosted mode where the edge proxy already routes by host).
+ * @param {boolean} [opts.trustLoopback=true] - bypass auth for loopback peers.
+ *   MUST be false in hosted/cloud mode (SCP-161): behind a reverse proxy inside
+ *   a container, requests can appear to originate from loopback, so trusting it
+ *   would let anyone through unauthenticated.
+ */
+export function authMiddleware({ token, allowedHosts, trustLoopback = true }) {
   const hostSet = new Set(allowedHosts.map((h) => h.toLowerCase()));
   return (req, res, next) => {
     // mTLS short-circuit: if the peer presented a CA-signed client cert we
@@ -147,10 +157,10 @@ export function authMiddleware({ token, allowedHosts }) {
       return res.status(401).json({ error: 'unknown client certificate' });
     }
 
-    if (isLoopback(req)) return next();
+    if (trustLoopback && isLoopback(req)) return next();
 
     const hostHeader = (req.headers.host || '').split(':')[0].toLowerCase();
-    if (hostHeader && !hostSet.has(hostHeader)) {
+    if (hostSet.size && hostHeader && !hostSet.has(hostHeader)) {
       return res.status(403).json({ error: 'forbidden host', host: hostHeader });
     }
 

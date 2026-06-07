@@ -78,6 +78,14 @@ export async function startServer({
   silent = false,
   discoverable = true,
   /**
+   * Hosted/cloud mode (SCP-161). When true: bind 0.0.0.0:$PORT (reachable by
+   * the platform proxy), skip Bonjour/mDNS and the LAN self-signed TLS (TLS
+   * terminates at the cloud edge), and require the bearer token on EVERY
+   * request (no loopback bypass — behind the proxy, requests can look like
+   * loopback). Defaults from the SCOPE_CLOUD env var so fly.toml controls it.
+   */
+  cloud = process.env.SCOPE_CLOUD === '1',
+  /**
    * TLS configuration.
    *   - `undefined` (default): generate / load the local CA + leaf and serve
    *     HTTPS. Production behavior.
@@ -176,7 +184,18 @@ export async function startServer({
     res.status(201).json(payload);
   });
 
-  app.use(authMiddleware({ token, allowedHosts: lanHosts() }));
+  // Unauthenticated liveness probe for the platform load balancer (SCP-155/161).
+  // Mounted BEFORE auth so health checks need no credentials.
+  app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
+
+  // In cloud mode require the token on every request (no loopback bypass, and
+  // no LAN host allowlist — the edge proxy routes by host). On a LAN the
+  // loopback bypass + scope.local allowlist keep same-machine CLI use friction-free.
+  app.use(
+    cloud
+      ? authMiddleware({ token, allowedHosts: [], trustLoopback: false })
+      : authMiddleware({ token, allowedHosts: lanHosts() })
+  );
 
   /* ---------- workspace helpers ---------- */
 
@@ -590,9 +609,10 @@ export async function startServer({
   });
 
   // Resolve TLS configuration. `tls === false` keeps the legacy HTTP path
-  // for tests; anything else (including undefined) means HTTPS on LAN.
+  // for tests; anything else (including undefined) means HTTPS on LAN. In cloud
+  // mode the edge proxy terminates TLS, so we never load a local CA/leaf.
   let tlsCtx = null;
-  if (tls !== false) {
+  if (tls !== false && !cloud) {
     if (tls && tls.ca && tls.leaf) {
       tlsCtx = tls;
     } else {
@@ -606,9 +626,12 @@ export async function startServer({
   // Auth middleware still enforces the bearer token for non-loopback requests,
   // but loopback bypasses auth entirely so `http://localhost` just works.
   const loopbackServer = http.createServer(app);
+  // Cloud: bind all interfaces so the platform proxy can reach us. LAN/local:
+  // bind loopback only and (below) add an HTTPS listener on the LAN IP.
+  const bindHost = cloud ? '0.0.0.0' : '127.0.0.1';
   await new Promise((res, rej) => {
     loopbackServer.once('error', rej);
-    loopbackServer.listen(port, '127.0.0.1', res);
+    loopbackServer.listen(port, bindHost, res);
   });
   const actualPort = loopbackServer.address().port;
 
@@ -648,7 +671,9 @@ export async function startServer({
   // Bonjour holds the event loop open and opens UDP multicast sockets, so
   // tests pass discoverable: false to skip it. In prod, the default flow
   // publishes both the scope.local hostname and the _scope._tcp service.
-  const bonjour = discoverable ? new Bonjour() : null;
+  // No LAN discovery in cloud mode (no mDNS on a public host; the platform
+  // routes by DNS/domain, not Bonjour).
+  const bonjour = (discoverable && !cloud) ? new Bonjour() : null;
   // TXT record:
   //   path=/       — where the UI / API lives
   //   auth=...     — comma-separated supported auth schemes. We always
