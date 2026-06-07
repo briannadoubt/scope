@@ -14,7 +14,11 @@ import { signCsr } from './ca.js';
 import { addDevice } from './devices.js';
 import { createPairingContext } from './pair.js';
 import { reloadCrl, installCrlReloadSignal } from './revocation.js';
-import { bus, wsContext } from './events.js';
+import { bus, wsContext, emitChange } from './events.js';
+import { readAllEvents, appendEvent, eventsDirForDb } from './event-store.js';
+import { replayInto } from './replay.js';
+import { setMeta } from './db.js';
+import { validateEvent } from './event-schema.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -461,6 +465,71 @@ export async function startServer({
     const { limit, before, beforeId } = req.query;
     const rows = listWorkspaceHistory(w.db, { limit, before, beforeId });
     res.json({ entries: rows, limit: rows.length, before: before ?? null });
+  }));
+
+  /* ---------- sync (SCP-134) ----------
+   * Offline-first sync transport over the event log. The cloud node is "just
+   * another replica": clients keep their local logs and reconcile here. Pull
+   * streams events after a ULID high-water cursor; push unions uploaded events
+   * onto the log, re-replays (the SAME deterministic pipeline a local replica
+   * runs, so server state == local file-union replay), and reports renumber
+   * notices. Idempotent: re-pushing a known ULID is a no-op.
+   *
+   * Single-tenant per-workspace for now; multi-tenant isolation + on-upload
+   * actor authz arrive with SCP-122/SCP-124. */
+  const SYNC_MAX = 1000;
+
+  app.get('/api/sync/pull', ws((req, res, w) => {
+    const since = typeof req.query.since === 'string' ? req.query.since : null;
+    const limit = Math.min(Number(req.query.limit) || SYNC_MAX, SYNC_MAX);
+    const all = readAllEvents(eventsDirForDb(w.db));
+    // Paginate by the ULID high-water mark (id-sorted), independent of canonical
+    // (ts,id) order — the client replays canonically regardless, so send order
+    // doesn't affect correctness, and id-sorting keeps the cursor monotonic.
+    const ahead = all
+      .filter((e) => !since || e.id > since)
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const page = ahead.slice(0, limit);
+    res.json({
+      events: page,
+      cursor: page.length ? page[page.length - 1].id : since,
+      count: all.length, // count guard: lets a client detect late backfill below its cursor
+      more: ahead.length > limit,
+    });
+  }));
+
+  app.post('/api/sync/push', ws((req, res, w) => {
+    const incoming = Array.isArray(req.body?.events) ? req.body.events : null;
+    if (!incoming) return res.status(400).json({ error: 'body.events must be an array' });
+    // Validate the whole batch up front so a bad event lands nothing (atomic).
+    try {
+      for (const e of incoming) validateEvent(e);
+    } catch (e) {
+      return res.status(400).json({ error: `invalid event: ${e.message}` });
+    }
+    const dir = eventsDirForDb(w.db);
+    const existing = new Set(readAllEvents(dir).map((e) => e.id));
+    const accepted = [];
+    const duplicates = [];
+    for (const e of incoming) {
+      if (existing.has(e.id)) { duplicates.push(e.id); continue; }
+      appendEvent(dir, e); // atomic tmp+rename; ULID filename => union semantics
+      existing.add(e.id);
+      accepted.push(e.id);
+    }
+    const all = readAllEvents(dir);
+    let renumbered = [];
+    if (accepted.length) {
+      // Full re-replay (SCP-143 will make this incremental). Keep the cache's
+      // applied-count in step so a later open doesn't think it's stale.
+      ({ renumbered } = replayInto(w.db, all));
+      setMeta(w.db, 'applied_event_count', all.length);
+      // Coarse notify so connected viewers refresh (granular fan-out = SCP-146).
+      emitChange({ type: 'sync.applied', workspace: w.id, applied: accepted.length });
+    }
+    // Cursor = the max ULID now in the log (the client's new high-water mark).
+    const cursor = all.length ? all.reduce((m, e) => (e.id > m ? e.id : m), all[0].id) : null;
+    res.json({ accepted, duplicates, renumbered, cursor, count: all.length });
   }));
 
   /* ---------- board ---------- */
