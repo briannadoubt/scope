@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTHZX42ZC50D7XD7BT15S1V7",
+  "ts": "2026-06-07T21:30:29.855Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4P",
+    "commentId": "01KTHZX42ZC50D7XD7BT15S1V6",
+    "author": "Bri",
+    "body": "DEFERRED (not blocking the epic): the bootstrap path already works — GET /api/sync/pull with an empty `since` returns the full log, and clients paginate via the cursor + `more` flag (verified in SCP-134/142 tests). The snapshot OPTIMIZATION (a compacted replay-state blob + tail cursor to avoid streaming a very large log on first sync) is genuinely future work, only valuable once real logs are large. Left in backlog intentionally; pick up when log sizes warrant it. Design is in the SCP-123 proposal + ADR 0002."
+  },
+  "model": "Opus 4.8"
+}

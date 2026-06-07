@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "id": "01KTHZX42ZC50D7XD7BT15S1V5",
+  "ts": "2026-06-07T21:30:29.855Z",
+  "actor": "Bri",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTHZX42WJ52SN92TCAQF8WBH",
+    "number": 161,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Wire hosted-mode server integration (assemble the modules)",
+    "description": "All hosted-Scope feature modules are built + tested as isolated units (SCP-129..160). This ticket is the final ASSEMBLY: wiring them into a coherent hosted server mode in src/server.js, behind a SCOPE_CLOUD flag, WITHOUT disturbing the local LAN hub path. Deliberately deferred from the parallel build so it gets one careful, tested pass (the parallel agents created only new files + returned these instructions).\n\nINTEGRATION CHECKLIST (from the cluster agents' returned instructions):\n\n1. BOOT (server.js startup, when SCOPE_CLOUD set): getPool(); await ensureSchema(pool); await ensureAuthSchema(pool); await ensureQuotaSchema(pool); await applyRls(pool). Bind 0.0.0.0 + process.env.PORT; disable Bonjour/mTLS/loopback-bypass; SCOPE_DIR=/data/.scope.\n\n2. AUTH (SCP-129/130/131/132): mount /auth/login, /auth/callback, /auth/refresh, /auth/logout (src/auth_hosted/oidc.js + sessions.js). authMiddleware derives req.principal from the verified JWT sub OR an API key (authenticateApiKey) — NEVER from X-Scope-By/Workspace. Tenant comes from membership claims.\n\n3. RLS (SCP-144): the app MUST connect as a non-superuser/non-BYPASSRLS Postgres role (verified constraint) or RLS is a no-op. Run tenant-scoped queries via withTenant(pool, principal.tenant, fn) so the app.tenant_id GUC is set.\n\n4. UPLOAD AUTHZ (SCP-132): in the push path, before uploadEvents, call authorizeUpload(events, principal, {checkRole: ()=>hasRole(pool, tenant, principal,'member')}); 4xx via statusForReject on failure.\n\n5. FAN-OUT (SCP-146/148): replace the in-process bus on /events with makeBus({pool}); subscribe to topicForPrincipal(principal,{project}); on the write path publish a {tenant,cursor} pointer after uploadEvents; SSE handler reads missed rows via pullEvents on the pointer. Seed hello with current cursor.\n\n6. QUOTAS (SCP-156/157/158/159): mount rateLimitMiddleware() after auth; acquire a connection lease (connections.js) on /events with 429 over ceiling; recordEvents/checkEventQuota around uploads; GET /api/usage -> getUsage(). Stripe webhook needs a raw-body route before express.json().\n\n7. OBSERVABILITY (SCP-155): mount requestLogger(log) early; GET /healthz (healthz.js) BEFORE auth.\n\nDEPS to install: stripe (billing, optional until used). All else uses node built-ins + pg.\nVERIFY: an integration test that boots the hosted server against the docker Postgres (non-superuser role), authenticates, pushes events with authz, and receives a fan-out over SSE. Then the deploy artifacts (Dockerfile/fly.toml — SCP-151) can carry it to a real environment.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "model": "Opus 4.8"
+}
