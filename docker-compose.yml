@@ -1,0 +1,26 @@
+# Local Postgres for hosted-Scope development (SCP-139/140).
+# The hosted node backs the canonical event log + replayed cache with Postgres
+# (ADR 0002 / SCP-124); the local-first CLI keeps using SQLite. This compose is
+# for development and tests only.
+#
+#   docker compose up -d        # start
+#   SCOPE_PG_URL=postgres://scope:scope@localhost:5433/scope_test npm test
+services:
+  postgres:
+    image: postgres:16
+    container_name: scope-pg
+    environment:
+      POSTGRES_USER: scope
+      POSTGRES_PASSWORD: scope
+      POSTGRES_DB: scope_test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scope -d scope_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    volumes:
+      - scope_pg_data:/var/lib/postgresql/data
+volumes:
+  scope_pg_data:
