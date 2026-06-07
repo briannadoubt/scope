@@ -70,7 +70,10 @@ function deriveDefaultKey(scopeDir) {
     const parent = dirname(resolve(scopeDir));
     const base = basename(parent);
     const letters = base.toUpperCase().replace(/[^A-Z]/g, '');
-    if (!letters) return 'WORK';
+    // The key must satisfy the event keyPrefix regex ^[A-Z][A-Z0-9]{1,9}$
+    // (2-10 chars). A 1-letter parent dir (e.g. macOS temp under .../T) would
+    // otherwise produce an invalid single-char key, so fall back when too short.
+    if (letters.length < 2) return 'WORK';
     return letters.slice(0, 10);
   } catch {
     return 'WORK';
