@@ -24,6 +24,7 @@ import {
 } from './db.js';
 import { ensureEventLog } from './backfill.js';
 import { syncFromLog } from './replay.js';
+import { syncWithRemote } from './sync-client.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -916,6 +917,32 @@ export function buildProgram() {
         );
       } catch (e) {
         fail(`Batch failed (nothing was applied): ${e.message}`);
+      }
+    });
+
+  /* ---------- sync (SCP-136) ---------- */
+
+  program
+    .command('sync')
+    .description('Sync this workspace with a remote hub: push local events, pull the remote back.')
+    .requiredOption('--remote <url>', 'remote hub base URL, e.g. https://hub.scope.dev')
+    .requiredOption('--remote-workspace <id>', 'the remote workspace id to sync with')
+    .option('--token <token>', 'bearer token for the remote hub')
+    .action(async (opts, cmd) => {
+      const { db, scopeDir } = openOrDie();
+      try {
+        const r = await syncWithRemote(db, scopeDir, {
+          remote: opts.remote,
+          remoteWorkspace: opts.remoteWorkspace,
+          token: opts.token,
+        });
+        out(cmd, r, (r) =>
+          chalk.green('✓') +
+          ` pushed ${r.pushed} (${r.duplicates} dup), pulled ${r.pulled}` +
+          (r.renumbered.length ? `, renumbered ${r.renumbered.length}` : '')
+        );
+      } catch (e) {
+        fail(e.message);
       }
     });
 
