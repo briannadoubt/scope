@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z2Z",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z2Y",
+    "number": 141,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Port replay to Postgres, scoped by tenant",
+    "description": "Port replayInto + resolveDisplayNumbers + rekey handling to write tenant-scoped Postgres cache tables. SCP-110 de-collision logic ports unchanged (pure over the create-set). Golden test: same event fixture replayed through SQLite and Postgres yields byte-identical board state. Depends on the schema story. (From SCP-124.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGJ8SVTE0XED3PDT1Y7PG4T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

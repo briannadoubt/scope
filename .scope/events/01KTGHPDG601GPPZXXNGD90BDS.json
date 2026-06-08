@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGHPDG601GPPZXXNGD90BDS",
+  "ts": "2026-06-07T08:02:55.622Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM630A",
+    "commentId": "01KTGHPDG59W7W09S8FTTHAV1B",
+    "author": "claude",
+    "body": "CONSTRAINT from SCP-121 validation: offline-first IS required for v1 — do NOT scope this down to an online-only relay. The full pull/push sync-cursor + reconciliation work stays in scope.\n\nRe-point at the agent use case: the high-frequency events to propagate fast are STATUS CLAIMS (ticket -> in_progress) that happen before any branch/commit, so two parallel agents must see each other's claims with minimal latency to avoid collision. Optimistic-claim + fast-converge matters more than for human-only use. Actor on each event = '{model} on behalf of {user}' (see SCP-122)."
+  }
+}

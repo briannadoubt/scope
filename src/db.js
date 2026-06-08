@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 
 import { ulid } from './ulid.js';
+import { formatActor } from './event-schema.js';
 
 export const SCOPE_DIR_NAME = '.scope';
 export const DB_FILE_NAME = 'scope.db';
@@ -69,7 +70,10 @@ function deriveDefaultKey(scopeDir) {
     const parent = dirname(resolve(scopeDir));
     const base = basename(parent);
     const letters = base.toUpperCase().replace(/[^A-Z]/g, '');
-    if (!letters) return 'WORK';
+    // The key must satisfy the event keyPrefix regex ^[A-Z][A-Z0-9]{1,9}$
+    // (2-10 chars). A 1-letter parent dir (e.g. macOS temp under .../T) would
+    // otherwise produce an invalid single-char key, so fall back when too short.
+    if (letters.length < 2) return 'WORK';
     return letters.slice(0, 10);
   } catch {
     return 'WORK';
@@ -690,8 +694,11 @@ export function bumpMeta(db, key, by = 1) {
   return next;
 }
 
-export function recordHistory(db, ticketId, field, oldValue, newValue, who = null) {
+export function recordHistory(db, ticketId, field, oldValue, newValue, who = null, model = null) {
   if (String(oldValue ?? '') === String(newValue ?? '')) return null;
+  // Store the rendered attribution ("{model} on behalf of {who}") in the
+  // disposable cache so every history/UI surface shows it without a schema
+  // change. The event log keeps actor + model separate as the source of truth.
   const result = db.prepare(
     `INSERT INTO ticket_history (ticket_id, field, old_value, new_value, changed_by, changed_at)
      VALUES (?, ?, ?, ?, ?, ?)`
@@ -700,7 +707,7 @@ export function recordHistory(db, ticketId, field, oldValue, newValue, who = nul
     field,
     oldValue == null ? null : String(oldValue),
     newValue == null ? null : String(newValue),
-    who,
+    who == null ? null : formatActor(who, model),
     nowIso()
   );
   return Number(result.lastInsertRowid);

@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTGNC6QXRCTX9PNF2PSBQK18",
+  "ts": "2026-06-07T09:07:15.325Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEH",
+    "commentId": "01KTGNC6QXRCTX9PNF2PSBQK17",
+    "author": "Bri",
+    "body": "RATIFIED (architecture review). Phase-1 = one containerized Express hub on Fly.io (or Render) with public TLS + GitHub OAuth + persistent volume; in-process EventEmitter still works single-process (defers SCP-125). Eventual topology: N stateless containers -> LB -> Postgres (SCP-124) -> LISTEN/NOTIFY|NATS (SCP-125) -> object store for DR. Trebuchet confirmed NOT viable (Swift + API-GW-WebSocket/per-message-Lambda vs long-lived SSE) — and the Trebuchet plugin has since been uninstalled, so this is settled. Child stories SCP-151..155 accepted. Spike closed."
+  },
+  "model": "Opus 4.8"
+}

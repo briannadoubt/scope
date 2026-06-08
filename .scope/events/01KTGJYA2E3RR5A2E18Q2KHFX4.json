@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJYA2E3RR5A2E18Q2KHFX4",
+  "ts": "2026-06-07T08:24:42.830Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEF",
+    "commentId": "01KTGJYA2E3RR5A2E18Q2KHFX3",
+    "author": "claude",
+    "body": "CORRECTION (verified against source): the earlier proposal's claim that 'the shipped web app.js has NO EventSource consumer — only iOS is realtime' is FALSE. The web UI IS realtime over the network: src/web/app.js:581 opens new EventSource('/events?workspace=...') with hello/change listeners, coalesced refresh, and active auto-repair on disconnect. The false negative came from grepping app.js without -a: it has long lines + Unicode glyphs so grep treats it as binary and silently matches nothing. FUTURE AGENTS: grep app.js with -a.\\n\\nWhat IS true and still actionable: the SSE stream emits 'event: change\\ndata: ...' with NO id: line (only retry: 2000 at server.js:457), so there is no Last-Event-ID resume — captured in SCP-147. The web client mitigates by re-fetching full board state on the next change event (self-heals on LAN); a real resume matters at WAN scale where full-refresh-per-event is costly. The 'reads files' part is the SERVER (hub watches .scope/ via fs.watch + data_version, fans out over the in-process bus); the browser consumes purely over HTTP/SSE."
+  }
+}

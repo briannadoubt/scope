@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGHP5HGJ8CJ29GASBSXQ19F",
+  "ts": "2026-06-07T08:02:47.472Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "commentId": "01KTGHP5HGJ8CJ29GASBSXQ19E",
+    "author": "claude",
+    "body": "VALIDATED via SCP-121 (GO). Thesis sharpened — the epic's framing shifts from 'offline-first relay (merge math is the moat)' to:\n\nAGENT-OPERATED MULTIPLAYER KANBAN. The product is the board that LLM agent fleets natively drive (CLI + --json + MCP — already built), made multiplayer by an auth-gated realtime relay. Core value: parallel agents (and their humans) see each other's claims INSTANTLY so they don't collide — collisions cost real tokens + rework. Merge/de-collision is the durable floor, not the pitch.\n\nConfirmed constraints from validation:\n- Offline-first IS required for v1 (full Path A, not a reduced online-only relay).\n- Identity: principal = human account; agent acts AS the user + stamps acting model; attribution = '{model} on behalf of {user}'.\n- Buyer: small/remote dev teams running agents. Business: SaaS, not a resold backend. Willingness confirmed; pricing unit TBD.\n\nPhase plan unchanged in spirit (1: single-tenant cloud hub + real login; 2: multi-tenant storage + external pub/sub; 3: offline sync-cursor protocol; 4: billing/quotas/teams) but every spike is now re-pointed at the agent-collision use case."
+  }
+}

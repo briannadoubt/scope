@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTJDGPZKMVSD9MAFATJXK5F8",
+  "ts": "2026-06-08T01:28:23.283Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4J",
+    "commentId": "01KTJDGPZKMVSD9MAFATJXK5F7",
+    "author": "Bri",
+    "body": "Marked done with the rest of SCP-120, but flagging: this is CODE-COMPLETE and UNVERIFIED — the iOS sync engine has not been built/run in Xcode in this environment. Needs a real simulator build + a pass against a running hub before it can be trusted in production."
+  },
+  "model": "Opus 4.8"
+}

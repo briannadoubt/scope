@@ -24,6 +24,7 @@ import {
 } from './db.js';
 import { ensureEventLog } from './backfill.js';
 import { syncFromLog } from './replay.js';
+import { syncWithRemote } from './sync-client.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -99,6 +100,15 @@ function out(cmd, data, formatter) {
 function fail(msg) {
   console.error(chalk.red(msg));
   process.exit(1);
+}
+
+/**
+ * The acting model for agent-driven changes (SCP-128): the global `--model`
+ * flag, else the SCOPE_MODEL env var, else null (a direct human edit). History
+ * renders "<model> on behalf of <--by>" when set. `--by` stays the human.
+ */
+function actingModel(cmd) {
+  return cmd.optsWithGlobals().model || process.env.SCOPE_MODEL || null;
 }
 
 function readBodyFromOpts({ description, descriptionFile, edit }) {
@@ -221,7 +231,11 @@ export function buildProgram() {
       'Local-first kanban for projects, epics, stories, and bugs. Built for agents.'
     )
     .version(PKG.version)
-    .option('--json', 'output JSON instead of pretty text', false);
+    .option('--json', 'output JSON instead of pretty text', false)
+    .option(
+      '--model <model>',
+      'acting model for agent-driven changes; history shows "<model> on behalf of <--by>" (or set SCOPE_MODEL)'
+    );
 
   /* ---------- init ---------- */
   program
@@ -445,6 +459,7 @@ export function buildProgram() {
     .option('--pr <url>', 'pull request URL')
     .option('--assignee <name>', 'assignee handle')
     .option('--labels <csv>', 'comma-separated labels')
+    .option('--by <author>', 'attribute the creation in history')
     .option('--project <key>', '(deprecated) validated against workspace key')
     .action((titleWords, opts, cmd) => {
       const { db } = openOrDie();
@@ -473,6 +488,8 @@ export function buildProgram() {
           prUrl: opts.pr,
           assignee: opts.assignee,
           labels: parseLabels(opts.labels),
+          actor: opts.by,
+          model: actingModel(cmd),
         });
         out(cmd, t, (t) =>
           chalk.green('✓') +
@@ -608,11 +625,11 @@ export function buildProgram() {
         if (list.length === 1) {
           const t = getTicket(db, list[0]);
           if (!t) fail(`Ticket not found: ${list[0]}`);
-          const updated = updateTicket(db, t.id, fields, opts.by);
+          const updated = updateTicket(db, t.id, fields, opts.by, actingModel(cmd));
           out(cmd, updated, (u) => chalk.green('✓') + ` Updated ${chalk.bold(u.id)}`);
           return;
         }
-        const r = applyBatch(db, list.map((id) => ({ op: 'update', id, fields })), { actor: opts.by });
+        const r = applyBatch(db, list.map((id) => ({ op: 'update', id, fields })), { actor: opts.by, model: actingModel(cmd) });
         out(cmd, { updated: list }, () => chalk.green('✓') + ` Updated ${r.applied} tickets: ${list.join(', ')}`);
       } catch (e) {
         fail(e.message);
@@ -652,11 +669,11 @@ export function buildProgram() {
       const list = splitIds(ids);
       try {
         if (list.length === 1) {
-          const t = updateTicket(db, list[0], { status }, opts.by);
+          const t = updateTicket(db, list[0], { status }, opts.by, actingModel(cmd));
           out(cmd, t, (t) => chalk.green('✓') + ` ${chalk.bold(t.id)} → ${colorStatus(t.status)}`);
           return;
         }
-        const r = applyBatch(db, list.map((id) => ({ op: 'status', id, status })), { actor: opts.by });
+        const r = applyBatch(db, list.map((id) => ({ op: 'status', id, status })), { actor: opts.by, model: actingModel(cmd) });
         out(cmd, { updated: list, status }, () =>
           chalk.green('✓') + ` ${r.applied} tickets → ${colorStatus(status)}: ${list.join(', ')}`
         );
@@ -681,7 +698,7 @@ export function buildProgram() {
       const value = branch === 'none' ? null : branch;
       const fields = { branch: value };
       if (opts.inProgress && value) fields.status = 'in_progress';
-      const updated = updateTicket(db, t.id, fields, opts.by);
+      const updated = updateTicket(db, t.id, fields, opts.by, actingModel(cmd));
       out(cmd, updated, (u) =>
         chalk.green('✓') +
         ` ${chalk.bold(u.id)} branch = ${u.branch ?? '(none)'}${
@@ -708,7 +725,7 @@ export function buildProgram() {
       const fields = { pr_url: value };
       if (opts.merged) fields.status = 'done';
       else if (opts.inReview && value) fields.status = 'in_review';
-      const updated = updateTicket(db, t.id, fields, opts.by);
+      const updated = updateTicket(db, t.id, fields, opts.by, actingModel(cmd));
       out(cmd, updated, (u) =>
         chalk.green('✓') +
         ` ${chalk.bold(u.id)} pr = ${u.pr_url ?? '(none)'}, status = ${colorStatus(u.status)}`
@@ -841,7 +858,7 @@ export function buildProgram() {
     .action((id, body, opts, cmd) => {
       const { db } = openOrDie();
       try {
-        const c = addComment(db, id, body.join(' '), opts.by);
+        const c = addComment(db, id, body.join(' '), opts.by, actingModel(cmd));
         out(cmd, c, () => chalk.green('✓') + ` Comment added on ${chalk.bold(id)}`);
       } catch (e) {
         fail(e.message);
@@ -893,13 +910,39 @@ export function buildProgram() {
       catch (e) { fail(`Ops must be valid JSON: ${e.message}`); }
       if (!Array.isArray(ops)) fail('Ops JSON must be an array of {op, ...} objects.');
       try {
-        const result = applyBatch(db, ops, { actor: opts.by });
+        const result = applyBatch(db, ops, { actor: opts.by, model: actingModel(cmd) });
         out(cmd, result, (r) =>
           chalk.green('✓') + ` Applied ${r.applied} ops atomically` +
           (Object.keys(r.refs).length ? `\n${chalk.gray('  refs: ' + JSON.stringify(r.refs))}` : '')
         );
       } catch (e) {
         fail(`Batch failed (nothing was applied): ${e.message}`);
+      }
+    });
+
+  /* ---------- sync (SCP-136) ---------- */
+
+  program
+    .command('sync')
+    .description('Sync this workspace with a remote hub: push local events, pull the remote back.')
+    .requiredOption('--remote <url>', 'remote hub base URL, e.g. https://hub.scope.dev')
+    .requiredOption('--remote-workspace <id>', 'the remote workspace id to sync with')
+    .option('--token <token>', 'bearer token for the remote hub')
+    .action(async (opts, cmd) => {
+      const { db, scopeDir } = openOrDie();
+      try {
+        const r = await syncWithRemote(db, scopeDir, {
+          remote: opts.remote,
+          remoteWorkspace: opts.remoteWorkspace,
+          token: opts.token,
+        });
+        out(cmd, r, (r) =>
+          chalk.green('✓') +
+          ` pushed ${r.pushed} (${r.duplicates} dup), pulled ${r.pulled}` +
+          (r.renumbered.length ? `, renumbered ${r.renumbered.length}` : '')
+        );
+      } catch (e) {
+        fail(e.message);
       }
     });
 
@@ -959,6 +1002,7 @@ export function buildProgram() {
     .option('--overview <text>')
     .option('--overview-file <path>')
     .option('-e, --edit', 'edit overview in $EDITOR', false)
+    .option('--by <author>', 'attribute the change in history')
     .action((opts, cmd) => {
       const { db } = openOrDie();
       const fields = {};
@@ -969,7 +1013,7 @@ export function buildProgram() {
       if (opts.overviewFile) fields.overview = readFileSync(opts.overviewFile, 'utf8');
       if (opts.edit) fields.overview = editorPrompt(getWorkspace(db).overview ?? '');
       try {
-        const updated = updateWorkspace(db, fields);
+        const updated = updateWorkspace(db, fields, opts.by, actingModel(cmd));
         out(cmd, updated, (u) => chalk.green('✓') + ` Updated ${chalk.bold(u.key)}`);
       } catch (e) {
         fail(e.message);
@@ -983,7 +1027,7 @@ export function buildProgram() {
     .action((newKey, opts, cmd) => {
       const { db } = openOrDie();
       try {
-        const r = rekeyWorkspace(db, newKey.toUpperCase(), { actor: opts.by });
+        const r = rekeyWorkspace(db, newKey.toUpperCase(), { actor: opts.by, model: actingModel(cmd) });
         out(cmd, r, (r) =>
           chalk.green('✓') + ` Rekeyed to ${chalk.bold(r.key)} — reprefixed ${r.reprefixed} tickets`
         );

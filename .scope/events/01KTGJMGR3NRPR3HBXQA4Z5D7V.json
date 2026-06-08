@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJMGR3NRPR3HBXQA4Z5D7V",
+  "ts": "2026-06-07T08:19:21.987Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJMGR3NRPR3HBXQA4Z5D7T",
+    "number": 160,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Stripe billing integration + plan-tier enforcement",
+    "description": "Integrate Stripe (Checkout + Customer Portal, plus metered usage records for event overage). A webhook writes the resolved plan/tier onto the tenant row that the quota checks read. Define the free-tier boundary (1 project, ~2 seats, low events/day, few SSE connections). Entirely server-side at the tenant boundary; does not touch the offline-first client path. NOTE: assumes the recommended per-project-tier model — if Bri picks per-agent/usage pricing, this story's plan-definition scope shifts but the metering plumbing (SCP-157) is unaffected. Depends on SCP-157 and SCP-158. (From SCP-127.)",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

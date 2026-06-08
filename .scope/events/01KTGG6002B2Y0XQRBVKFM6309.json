@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGG6002B2Y0XQRBVKFM6309",
+  "ts": "2026-06-07T07:36:28.930Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6308",
+    "number": 122,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Spike: multi-tenant auth & identity model",
+    "description": "OPEN QUESTION: What replaces the LAN trust model for a multi-tenant public service?\n\nThe current model — loopback bypass + per-hub bearer token + LAN-scoped self-signed CA with mTLS device pairing — assumes a single trust domain and CANNOT be stretched to multi-tenant. This is the largest genuinely-new surface and touches every endpoint, so design it early.\n\nQuestions to resolve:\n- Identity provider: OAuth/OIDC (Google/GitHub/Apple) vs email+password vs both? What do our users expect?\n- Session model: JWT vs server sessions? Token lifetime/refresh? How do CLI and iOS authenticate non-interactively (API keys / device tokens)?\n- How does the EXISTING mTLS device-pairing flow ([[51]]) relate to cloud auth — keep it for LAN, layer cloud identity on top, or unify?\n- Account <-> workspace <-> team mapping. Who owns a workspace? How is it shared? Permission model (owner/member/viewer)?\n- How is per-tenant isolation enforced at the data layer so one tenant can never read another's events?\n- Authorization on event upload: how do we verify the 'actor' field on incoming events matches the authenticated principal?\n\nDeliverable: comment with a proposed auth architecture (or 2-3 options w/ tradeoffs). Likely spawns child stories: 'Auth provider integration', 'CLI/iOS non-interactive auth', 'Tenant isolation at data layer', and possibly its own ADR under docs/adr/.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

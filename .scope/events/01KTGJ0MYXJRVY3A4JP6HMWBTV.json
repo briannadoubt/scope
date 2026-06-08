@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJ0MYXJRVY3A4JP6HMWBTV",
+  "ts": "2026-06-07T08:08:30.941Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG60037EEM58DKQ02JJVT6",
+    "commentId": "01KTGJ0MYXJRVY3A4JP6HMWBTT",
+    "author": "claude",
+    "body": "AGENT BRIEFING (read before investigating).\n\nFULL CONTEXT: read epic SCP-120 and validation spike SCP-121 first (thesis = agent-operated multiplayer kanban).\n\nDECIDED CONSTRAINTS: offline-first required v1; tenant isolation must be airtight (coordinate w/ SCP-122 auth); actor = '{model} on behalf of {user}'.\n\nWHERE TO LOOK:\n- src/db.js (SQLite schema, migrations, WAL)\n- src/event-store.js (append-only ULID JSON = source of truth)\n- src/replay.js (replay log -> cache)\n- src/repo.js (data layer), src/workspaces.js (multi-workspace today)\n- docs/adr/0001-decentralized-ticket-identity.md\n\nNOTE: a prior investigation already produced a proposed architecture + child tickets for this spike — see the next comment ('PRIOR PROPOSAL'). Build on it; do not start from scratch. Coordinate w/ SCP-122 (isolation) and SCP-125 (appends are the fan-out event source).\n\nDELIVERABLE: refine the prior proposal if needed, then spawn the storage implementation child stories with parent=SCP-120."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGHPB8JD3BV8VCKV09NA1JG",
+  "ts": "2026-06-07T08:02:53.330Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6308",
+    "commentId": "01KTGHPB8H8XKTZ8NX5P9NEGQ3",
+    "author": "claude",
+    "body": "DECISION from SCP-121 validation — resolves the central open question here:\n\nIDENTITY MODEL: authenticated principal = the HUMAN account. Agents do NOT get their own identities. An agent authenticates using the user's credential and stamps the acting model into the event; attribution renders as '{model} on behalf of {user}', e.g. 'Opus 4.8 moved SCP-42 to in_progress for Bri'.\n\nImplications to design around:\n- Event 'actor' field carries BOTH the principal (user account) and an acting-model attribution string. Authorization check on upload: verify the on-behalf-of principal == the authenticated user.\n- Presence/history surfaces show model + user, not chat/context/agent ids.\n- Non-interactive auth for CLI/agents = per-user API keys or device tokens that carry the user principal; the model string is supplied per-request/per-event, not part of the credential.\n- 'project' structure -> authenticate -> syncing starts (bri's words): accounts join projects; project = the unit of sharing + the realtime sync boundary.\n\nStill open: identity PROVIDER (OAuth/OIDC vs email+pw), session/token format, team roles. Spawn child stories for those."
+  }
+}

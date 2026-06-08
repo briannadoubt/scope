@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTGNC6QXRCTX9PNF2PSBQK16",
+  "ts": "2026-06-07T09:07:15.325Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEF",
+    "commentId": "01KTGNC6QXRCTX9PNF2PSBQK15",
+    "author": "Bri",
+    "body": "RATIFIED (architecture review). Postgres LISTEN/NOTIFY as the v1 fan-out bus (same txn as the append; graduate to NATS on saturation); KEEP SSE (push goes through HTTP, WebSocket buys nothing); add id:<tenant>:<seq> + Last-Event-ID resume (the confirmed real defect). LAN self-healing retired in cloud -> LB + /healthz. The earlier 'web has no EventSource' claim was already CORRECTED (it does; src/web/app.js:581). Child stories SCP-146..150 accepted. Spike closed."
+  },
+  "model": "Opus 4.8"
+}

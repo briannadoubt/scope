@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z2X",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z2W",
+    "number": 140,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Postgres schema for tenant-scoped event log + cache",
+    "description": "Define events(tenant_id, event_id ULID, ts, kind, actor JSONB, payload JSONB, PK(tenant_id,event_id)) with index (tenant_id, ts, event_id), plus tenant-scoped ports of tickets/ticket_relations/ticket_comments/ticket_history/workspace and an FTS equivalent (Postgres tsvector, replacing SQLite FTS5). Every cache table carries tenant_id. Blocks the replay and upload stories. (From SCP-124.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGJ8SVTE0XED3PDT1Y7PG4T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

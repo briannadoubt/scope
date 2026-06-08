@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVTE0XED3PDT1Y7PG4K",
+  "ts": "2026-06-07T08:12:58.106Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4J",
+    "number": 135,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "iOS offline sync engine + renumber handling",
+    "description": "Sync engine in the iOS app: maintain a local event log, track a ULID high-water cursor, pull on connect, push local events (status claims immediately, backlog batched). Consume renumbered notices (extend EventStream.swift) to rewrite display ids in place without dropping ULID identity. Apply optimistically before server ack. (From SCP-123.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

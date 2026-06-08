@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJMGR3NRPR3HBXQA4Z5D7S",
+  "ts": "2026-06-07T08:19:21.987Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJMGR3NRPR3HBXQA4Z5D7R",
+    "number": 159,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Surface quota + usage state to users",
+    "description": "Extend GET /api/meta and add a project usage panel showing current usage vs plan limits for each quota dimension, plus the soft-warning state. Gives humans and agents visibility to back off before hitting hard caps. (From SCP-127.)",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

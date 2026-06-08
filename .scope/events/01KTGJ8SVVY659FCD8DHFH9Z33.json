@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z33",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z32",
+    "number": 143,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Incremental replay on append with safe fallback",
+    "description": "In the same transaction as the upload insert, fast-path apply the new batch ONLY when it is a pure tail-append (batch min ts >= max applied ts) with no create-number collision; otherwise full tenant-scoped replay. Emit renumbered notices and cascade id/FK rewrites for renumbered tickets in the cache. Document the tail-append invariant. (From SCP-124, AMENDMENT 1.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGJ8SVTE0XED3PDT1Y7PG4T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

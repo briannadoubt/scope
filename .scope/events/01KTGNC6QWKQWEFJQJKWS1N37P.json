@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTGNC6QWKQWEFJQJKWS1N37P",
+  "ts": "2026-06-07T09:07:15.324Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG60037EEM58DKQ02JJVT6",
+    "commentId": "01KTGNC6QWKQWEFJQJKWS1N37N",
+    "author": "Bri",
+    "body": "RATIFIED (architecture review). Postgres for both canonical log and cache; events(tenant_id, event_id ULID, ...) PK(tenant_id,event_id); upload = INSERT ... ON CONFLICT DO NOTHING (union + idempotency); no S3 for the log initially. Both amendments accepted: incremental replay only for tail-appends (else full replay-in-txn, because SCP-110 de-collision is global); RLS + app-layer scoping (today there is NO tenant concept — claim shape owned by SCP-122). Sub-epic SCP-139 + stories SCP-140..145 accepted. Spike closed."
+  },
+  "model": "Opus 4.8"
+}

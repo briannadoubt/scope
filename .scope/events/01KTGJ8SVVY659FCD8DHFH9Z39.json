@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z39",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z38",
+    "number": 146,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Fan-out bus via Postgres LISTEN/NOTIFY (pluggable)",
+    "description": "Replace the in-process EventEmitter in src/events.js with a pluggable bus interface (publish(topic, seq)/subscribe(topic, cb)) backed by Postgres LISTEN/NOTIFY. On append (SCP-124), NOTIFY a tenant:seq pointer in the same transaction; each node holds one LISTEN connection and fans out to local SSE subscribers, reading missed rows by cursor. Thin interface so NATS can swap in later. Depends on SCP-124. (From SCP-125.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

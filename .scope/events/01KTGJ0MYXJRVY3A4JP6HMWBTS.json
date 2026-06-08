@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJ0MYXJRVY3A4JP6HMWBTS",
+  "ts": "2026-06-07T08:08:30.941Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM630A",
+    "commentId": "01KTGJ0MYXJRVY3A4JP6HMWBTR",
+    "author": "claude",
+    "body": "AGENT BRIEFING (read before investigating).\n\nFULL CONTEXT: read epic SCP-120 and validation spike SCP-121 first (thesis = agent-operated multiplayer kanban; relay prevents parallel-agent collisions).\n\nDECIDED CONSTRAINTS:\n- Offline-first is REQUIRED for v1 — do NOT scope this down to an online-only relay. Full pull/push sync-cursor + reconciliation stays in scope.\n- High-frequency event to propagate fast = STATUS CLAIM (ticket -> in_progress), which happens BEFORE any branch/commit, so git cannot carry it. Optimistic-claim + fast-converge is the core.\n- Every event's actor = '{model} on behalf of {user}' (see SCP-128 / SCP-122).\n\nWHERE TO LOOK:\n- src/event-store.js (append-only ULID-named JSON files = the event format + union-on-pull semantics)\n- src/replay.js (deterministic replay, canonical order by (ts, id))\n- src/event-schema.js (event kinds + validation)\n- docs/event-log-format.md and docs/adr/0001-decentralized-ticket-identity.md\n- SCP-110 display-number de-collision (grep the repo / event log for it)\n- App/Sources/Network/EventStream.swift (how iOS consumes realtime today)\n\nSTILL OPEN (your job): cursor format (ULID high-water vs per-tenant monotonic seq vs vector clock), push/pull endpoint shapes, the interleave-on-late-upload reconciliation algorithm (must match local file-union replay), idempotency, fresh-client bootstrap, how renumber notices reach a client that already showed SCP-42. Coordinate w/ SCP-122 (actor verification) and SCP-124 (where canonical log lives).\n\nDELIVERABLE: comment a proposed protocol spec here, then spawn implementation child stories with parent=SCP-120."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVWP6EHCBM3HFSB71WG",
+  "ts": "2026-06-07T08:12:58.108Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVWP6EHCBM3HFSB71WF",
+    "number": 153,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "CI/CD deploy pipeline for the hosted hub",
+    "description": "Add deploy.yml (separate from the tag-driven release.yml that ships the CLI to npm/Homebrew) that builds the Docker image and runs fly deploy on push to main or a deploy-* tag, gated behind ci.yml. Store deploy creds as secrets. Document rollback. Depends on o1. (From SCP-126.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z31",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z30",
+    "number": 142,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Idempotent event-upload endpoint with union semantics",
+    "description": "Accept a batch of events, INSERT ... ON CONFLICT (tenant_id,event_id) DO NOTHING in one transaction, return the set of newly-applied events plus any renumbered notices. This return value is the canonical fan-out source for SCP-125 and the push-reply for SCP-123. Reject events whose tenant/principal mismatch the authenticated claim (SCP-122). (From SCP-124.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGJ8SVTE0XED3PDT1Y7PG4T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

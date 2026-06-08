@@ -1,0 +1,52 @@
+# Deploy the hosted Scope hub to Fly.io (SCP-153).
+#
+# SEPARATE workflow from release.yml — that ships the CLI to npm/Homebrew. This
+# one only deploys the cloud hub image and never touches the package registry.
+#
+# Triggers — version-tag-driven, mirroring release.yml (the Homebrew/npm flow):
+#   - push of a `v*.*.*` tag → deploy the hub for that release
+#   - workflow_dispatch       → on-demand deploy from the Actions UI
+#
+# The same `v*.*.*` tag drives release.yml (publish the CLI) and this workflow
+# (deploy the hosted hub) — one tag, one coordinated release. Like release.yml,
+# this assumes the tag is release-quality (CI gates PRs before you tag); it does
+# not re-run the suite here.
+#
+# Required repo secret:
+#   FLY_API_TOKEN   a Fly deploy token (`fly tokens create deploy`)
+#
+# Rollback: see docs/deploy.md. In short — `fly releases` to list, then
+# `fly deploy --image <previous-image-ref>` or `fly releases rollback`.
+
+name: Deploy hub
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+# Never run two deploys at once; let an in-flight deploy finish, don't cancel it
+# (cancelling mid-`fly deploy` can leave a half-rolled release).
+concurrency:
+  group: deploy-hub
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: fly deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the tagged commit
+        uses: actions/checkout@v4
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # `fly deploy` builds the Dockerfile via Fly's remote builder (no local
+      # Docker needed) and performs a rolling release against the single machine.
+      # --remote-only keeps the build off the runner; the image is built in Fly's
+      # infra against fly.toml.
+      - name: Deploy
+        run: flyctl deploy --remote-only --strategy immediate
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

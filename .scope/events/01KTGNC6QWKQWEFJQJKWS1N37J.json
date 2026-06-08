@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTGNC6QWKQWEFJQJKWS1N37J",
+  "ts": "2026-06-07T09:07:15.324Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6308",
+    "commentId": "01KTGNC6QWKQWEFJQJKWS1N37H",
+    "author": "Bri",
+    "body": "RATIFIED (architecture review). The proposed model stands: OIDC for humans (GitHub/Google/Apple, email+pw fallback) + per-user API keys for machines; JWT access + rotating refresh; project = tenant = sharing+sync boundary; LAN mTLS kept as a separate local trust domain; on-upload authz verifies actor.principal == authenticated subject. The identity decision (principal=human, agent stamps model, '{model} on behalf of {user}') is implemented locally in SCP-128 and proven end-to-end. Child stories SCP-129..133 are the accepted plan. Spike closed; implementation tickets carry the work forward."
+  },
+  "model": "Opus 4.8"
+}

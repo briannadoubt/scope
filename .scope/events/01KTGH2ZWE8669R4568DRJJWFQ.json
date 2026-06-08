@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGH2ZWE8669R4568DRJJWFQ",
+  "ts": "2026-06-07T07:52:19.086Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6306",
+    "commentId": "01KTGH2ZWE8669R4568DRJJWFP",
+    "author": "claude",
+    "body": "Round 1 interview (bri as proxy for real collaborators).\n\nBUYER SHAPE: 1:1 / micro-teams (2-4), globally remote, mixed skill — ranges from a senior AWS backend dev to an amateur Swift dev who can barely use git. NOT enterprise. No shared LAN ever; iOS app exists but barely used.\n\nCORE PAIN (reframes the thesis): it is NOT merge correctness — git already unions events cleanly on pull. It is AWARENESS LATENCY. Moving a ticket to in_progress happens BEFORE making a branch/commit/pull, so the git channel structurally cannot carry it. Two remote people start the same task simultaneously because neither sees the other's live status. Defeats the 'birds-eye view of parallelized remote work' that is Scope's whole point.\n\nFALLBACK TODAY: texting each other about who has what. No one pays for an alternative for this specific need.\n\nIMPLICATION: the hosted relay's value prop is LIVE STATUS PRESENCE across remote collaborators (carrying the pre-commit changes git can't), not 'deterministic offline merge.' De-collision/merge stays as the durable floor, not the selling point. May also mean a LIGHTER architecture than full offline-first relay: a realtime presence/status channel layered over existing git sync, rather than a full cloud replica. To be pressure-tested in round 2 (pricing + willingness)."
+  }
+}

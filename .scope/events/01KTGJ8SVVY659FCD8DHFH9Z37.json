@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z37",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z36",
+    "number": 145,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Migrate a local .scope/events log into a hosted tenant",
+    "description": "Re-runnable tool that reads .scope/events/*.json and POSTs them to the idempotent upload endpoint as one bulk union (no special-case path). Verify a migrated tenant's replayed board matches the user's local board exactly (reuse the golden-test harness). Depends on the upload endpoint. (From SCP-124.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGJ8SVTE0XED3PDT1Y7PG4T",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

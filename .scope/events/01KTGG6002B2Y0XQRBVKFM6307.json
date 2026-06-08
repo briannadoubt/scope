@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGG6002B2Y0XQRBVKFM6307",
+  "ts": "2026-06-07T07:36:28.930Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6306",
+    "number": 121,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Spike: validate the offline-first cloud bet before heavy build",
+    "description": "OPEN QUESTION: Will people actually pay for a hosted Scope whose differentiator is deterministic offline merge — or is that just a nice engineering story?\n\nWhy first: this is the cheapest, highest-leverage spike. If the answer is 'shrug', the whole hosted idea (Path A OR B) needs rethinking before any infra work.\n\nQuestions to resolve:\n- Who is the buyer? Solo dev / small team who already syncs Scope over git, vs a team that wants 'Linear but cheap'? These want different products.\n- What is the concrete pitch that gets a yes? e.g. 'a cloud node that syncs your boards to your phone without the git remote dance.'\n- What would they pay (per seat? per workspace? flat?) and what is the alternative they use today?\n- Is offline merge a top-3 reason to choose us, or a footnote?\n\nHow to investigate (no code): talk to 5-10 existing local Scope users. Frame it as 'would you pay for X', not 'is X cool'.\n\nDeliverable: comment on this ticket with findings + a go/no-go recommendation. If go, refine the epic description and spawn the real phase-1 stories. If no-go, write a new epic for whatever the validated direction is.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

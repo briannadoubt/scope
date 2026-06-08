@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z3B",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z3A",
+    "number": 147,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "WAN SSE reconnect hardening (Last-Event-ID resume)",
+    "description": "Stamp every /events frame with id: <tenant>:<seq> and honor Last-Event-ID by replaying missed events from the log before resuming live. Update EventStream.swift and the web client to persist + resend the last id. Closes the gap where the current 2s blind reopen drops events. Test over real WAN conditions (sleep/wake, network change, proxy idle timeout). (From SCP-125.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

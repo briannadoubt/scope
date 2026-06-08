@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z3D",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z3C",
+    "number": 148,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Per-tenant/per-project topic routing + subscribe-time isolation",
+    "description": "Replace the in-process ?workspace= filter (server.js ~L465) with bus subscription to tenant.project topics derived from the authenticated principal (SCP-122). Guarantee a node never receives or forwards another tenant's events. Seed the SSE hello frame with the subscriber's current cursor. Depends on SCP-122 + the bus abstraction. (From SCP-125.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

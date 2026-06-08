@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVWP6EHCBM3HFSB71WE",
+  "ts": "2026-06-07T08:12:58.108Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVWP6EHCBM3HFSB71WD",
+    "number": 152,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Phase 1 login: GitHub OAuth + API token (single-tenant)",
+    "description": "Replace the LAN loopback-bypass + single shared token (src/auth.js) with GitHub OAuth issuing an HttpOnly session cookie for the web UI, plus a long-lived API token for CLI/iOS. Single-tenant scope (one org); design the middleware so the full SCP-122 multi-tenant model slots in later. Add a CORS allowlist. Depends on o1. (From SCP-126; phase-1 subset of the auth work.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

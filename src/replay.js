@@ -12,7 +12,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 
 import { nowIso, openDb, defaultScopeDir, findScopeDir, getMeta, setMeta } from './db.js';
-import { compareEvents } from './event-schema.js';
+import { compareEvents, formatActor } from './event-schema.js';
 import { resolveDisplayNumbers, nextNumberSeed } from './identity.js';
 import { readAllEvents, eventsDir, logHasInit } from './event-store.js';
 import { COLUMN_TO_FIELD, RELATION_INVERSE } from './enums.js';
@@ -207,7 +207,7 @@ function applyEvent(db, e, human, assignments) {
         column,
         oldValue == null ? null : String(oldValue),
         value == null ? null : String(value),
-        e.actor,
+        formatActor(e.actor, e.model),
         e.ts
       );
       return 1;
@@ -225,7 +225,7 @@ function applyEvent(db, e, human, assignments) {
       db.prepare(
         `INSERT INTO ticket_comments (ticket_id, author, body, created_at)
          VALUES (?, ?, ?, ?)`
-      ).run(id, p.author ?? null, p.body, e.ts);
+      ).run(id, p.author == null ? null : formatActor(p.author, e.model), p.body, e.ts);
       return 1;
     }
 

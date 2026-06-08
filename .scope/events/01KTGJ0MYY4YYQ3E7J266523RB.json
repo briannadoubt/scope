@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJ0MYY4YYQ3E7J266523RB",
+  "ts": "2026-06-07T08:08:30.942Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEK",
+    "commentId": "01KTGJ0MYY4YYQ3E7J266523RA",
+    "author": "claude",
+    "body": "AGENT BRIEFING (read before investigating).\n\nFULL CONTEXT: read epic SCP-120 and validation spike SCP-121 first. Validation came back GO with confirmed willingness to pay, but the PRICING UNIT is still open (per-seat / per-agent / per-project / usage). This spike is gated behind real tenants existing (blocked-by relationship to SCP-121 is satisfied; depends in practice on multi-tenancy landing) — lower priority, capture so it isn't an afterthought.\n\nWHERE TO LOOK:\n- TREBUCHET security skill (rate-limiting patterns: token bucket / sliding window) — read it for the abuse/quota mechanics.\n- src/server.js (where per-tenant + per-principal limits would attach).\n\nSTILL OPEN (your job): rate-limiting strategy per tenant + per principal; quotas (events/day, projects, seats, storage, connection count) + how surfaced; abuse model (malicious/runaway client); pricing shape (informed by the agent-collision value story — colliding agents waste tokens, so usage/agent-based pricing may resonate); billing integration (Stripe?) + free-tier boundary.\n\nDELIVERABLE: comment a proposed quota + pricing model here, then spawn child stories once pricing is chosen."
+  }
+}

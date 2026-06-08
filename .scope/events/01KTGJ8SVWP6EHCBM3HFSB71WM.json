@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVWP6EHCBM3HFSB71WM",
+  "ts": "2026-06-07T08:12:58.108Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVWP6EHCBM3HFSB71WK",
+    "number": 155,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Structured logging, health checks & alerting",
+    "description": "Add JSON structured logging (pino) to the Express hub, a /healthz endpoint, and wire platform-native logs/metrics (Fly/Render) plus a basic uptime alert. Note the Trebuchet observability skill does not apply (Swift-only). Lays groundwork for production tracing once multi-node (SCP-125). Depends on o1. (From SCP-126.)",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

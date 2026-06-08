@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVTE0XED3PDT1Y7PG49",
+  "ts": "2026-06-07T08:12:58.106Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG48",
+    "number": 130,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Non-interactive credentials: per-user API keys for CLI & agents",
+    "description": "Add per-user, named, revocable API keys (hashed at rest, optionally project-scoped) that authenticate the human principal for CLI/agent traffic. The acting-model string is supplied per request, never embedded in the key. Add CLI commands to create/list/revoke keys and wire --model/env so agent calls stamp {principal, acting_model}. Coordinate the on-behalf-of check with SCP-128. (From SCP-122.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

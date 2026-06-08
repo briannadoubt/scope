@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVTE0XED3PDT1Y7PG4B",
+  "ts": "2026-06-07T08:12:58.106Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4A",
+    "number": 131,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Account / project / team membership & roles",
+    "description": "Model accounts joining projects with owner/member/viewer roles; project = sharing + realtime sync boundary. Add membership/role tables and an invite/accept flow. Replace client-supplied X-Scope-Workspace trust with server-enforced tenancy derived from the authenticated subject's project claims. (From SCP-122.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

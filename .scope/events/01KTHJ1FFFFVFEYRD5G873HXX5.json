@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTHJ1FFFFVFEYRD5G873HXX5",
+  "ts": "2026-06-07T17:28:12.527Z",
+  "actor": "Bri",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z2W",
+    "field": "status",
+    "value": "in_progress"
+  },
+  "model": "Opus 4.8"
+}

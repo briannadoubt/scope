@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTJ67DN7XE5M339T0RBXQ24G",
+  "ts": "2026-06-07T23:20:58.791Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTHZX42WJ52SN92TCAQF8WBH",
+    "commentId": "01KTJ67DN7XE5M339T0RBXQ24F",
+    "author": "Bri",
+    "body": "Milestone A DONE (commit): SCOPE_CLOUD mode makes the existing single-instance hub deployable + safe — binds 0.0.0.0, drops Bonjour/LAN-TLS, requires the bearer token on every request (no loopback bypass via new authMiddleware trustLoopback=false), /healthz open for the LB. Realtime works via the in-process bus. Integration-tested (test/cloud-mode.test.js).\n\nMilestone B REMAINING (the full module assembly this ticket also covers): wire the Postgres backend (pg/store + replay) gated on SCOPE_PG_URL, hosted OIDC auth middleware (auth_hosted/* — note the spec flagged a missing createHostedAuthMiddleware + OIDC routes), LISTEN/NOTIFY fan-out (realtime/bus) replacing the in-process bus for >1 instance, and quota middleware (quota/*). Keeping ticket in_review for the A-cut; B is the next phase."
+  },
+  "model": "Opus 4.8"
+}

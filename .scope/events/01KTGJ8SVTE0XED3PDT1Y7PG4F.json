@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVTE0XED3PDT1Y7PG4F",
+  "ts": "2026-06-07T08:12:58.106Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4E",
+    "number": 133,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "ADR: multi-tenant auth & identity model",
+    "description": "Write docs/adr capturing: OIDC + per-user API keys, JWT/refresh sessions, project-as-tenant boundary, LAN mTLS retained as a separate local trust domain, and the on-behalf-of attribution authz rule. Record rejected alternatives (per-agent identities; unifying mTLS with cloud auth; trusting the workspace header). (From SCP-122.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

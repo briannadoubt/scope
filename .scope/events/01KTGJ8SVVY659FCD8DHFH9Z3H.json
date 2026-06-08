@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z3H",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z3G",
+    "number": 150,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Connection-scale + bus-throughput load test",
+    "description": "Benchmark concurrent SSE connections per Node node (fd/memory ceilings, keepalive cost) and the Postgres LISTEN/NOTIFY backbone under realistic agent-fleet write rates. Establish the threshold to graduate from PG NOTIFY to NATS, and capture per-node limits to inform autoscaling + quotas (SCP-127). (From SCP-125.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVWP6EHCBM3HFSB71WJ",
+  "ts": "2026-06-07T08:12:58.108Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVWP6EHCBM3HFSB71WH",
+    "number": 154,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Event-log backup & disaster recovery",
+    "description": "Nightly off-host backup of the canonical append-only event log to S3/R2 with object versioning; treat the SQLite/replay cache as disposable (not backed up). Document and test the restore drill: pull the log, replay into a fresh cache, confirm the board matches. Coordinate the canonical-store decision with SCP-124. (From SCP-126.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

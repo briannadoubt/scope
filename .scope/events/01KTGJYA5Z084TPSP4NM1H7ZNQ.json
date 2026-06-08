@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJYA5Z084TPSP4NM1H7ZNQ",
+  "ts": "2026-06-07T08:24:42.943Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z3A",
+    "commentId": "01KTGJYA5Z084TPSP4NM1H7ZNP",
+    "author": "claude",
+    "body": "Scope note: this applies to BOTH clients, not just iOS. The web client (app.js EventSource) and iOS (EventStream.swift) both reconnect without Last-Event-ID. Web partially self-heals by re-fetching full board state on the next change event; iOS re-fetches on relation-version bump. Neither replays the disconnect gap from the server. Adding id: <cursor> + Last-Event-ID replay fixes both and removes the need for full-refresh-on-every-event at WAN scale."
+  }
+}

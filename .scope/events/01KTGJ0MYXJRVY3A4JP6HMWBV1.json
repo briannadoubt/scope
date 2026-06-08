@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJ0MYXJRVY3A4JP6HMWBV1",
+  "ts": "2026-06-07T08:08:30.941Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEH",
+    "commentId": "01KTGJ0MYXJRVY3A4JP6HMWBV0",
+    "author": "claude",
+    "body": "AGENT BRIEFING (read before investigating).\n\nFULL CONTEXT: read epic SCP-120 and validation spike SCP-121 first. We want a CHEAP phase-1 single-tenant deploy (existing Express hub on the public internet with real login) before multi-tenancy.\n\nWHERE TO LOOK:\n- src/server.js (Express hub — what gets deployed), src/hub.js (watchdog/Bonjour -> becomes LB/failover)\n- package.json (runtime + native deps like better-sqlite3 — native deps constrain platforms/serverless)\n- .github/ release tooling (tag-driven GitHub Actions release, see SCP-26)\n- TREBUCHET is in this project's toolbelt: read the trebuchet skill docs (cloud-deployment, aws-lambda, observability, streaming) and assess it honestly as a runtime for the realtime/streaming layer. Long-lived SSE/WS connections constrain serverless choices — weigh that.\n\nSTILL OPEN (your job): runtime/platform (containerized Express on Fly.io/Render/ECS vs serverless/Trebuchet); public TLS + custom domains + CORS (replacing self-signed local CA + scope.local); CI/CD (piggyback tag-driven Actions vs separate pipeline); observability; backup/restore + DR for the canonical event log; the MINIMAL phase-1 stack. Coordinate w/ SCP-125 (long-lived conns) and SCP-124 (storage).\n\nDELIVERABLE: comment a recommended phase-1 stack + sketch of eventual production topology, then spawn implementation child stories with parent=SCP-120."
+  }
+}

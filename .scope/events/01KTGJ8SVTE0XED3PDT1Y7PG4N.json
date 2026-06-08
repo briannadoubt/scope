@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVTE0XED3PDT1Y7PG4N",
+  "ts": "2026-06-07T08:12:58.106Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4M",
+    "number": 136,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "CLI: scope sync (pull/push against cloud relay)",
+    "description": "Add scope sync: pull events since the stored cursor, push the local log delta, print renumber notices, persist the new cursor. Honor --json. Reuse event-store.js + existing replay so a synced workspace is indistinguishable from a git-synced one. Safe no-op when already in sync (count+cursor match). (From SCP-123.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

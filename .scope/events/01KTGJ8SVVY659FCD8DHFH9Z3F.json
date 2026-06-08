@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVVY659FCD8DHFH9Z3F",
+  "ts": "2026-06-07T08:12:58.107Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVVY659FCD8DHFH9Z3E",
+    "number": 149,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Retire LAN hub self-healing; cloud healthcheck + LB topology",
+    "description": "Document and remove single-host self-healing in src/hub.js (port-race binding, probeHub, Bonjour/mDNS, startHubWatchdog, discovery file) for the cloud deployment. Add /healthz asserting DB reachability + live LISTEN connection. Specify LB requirements for long-lived SSE: no response buffering, idle timeout > 20s keepalive, no sticky sessions. Coordinate with SCP-126. (From SCP-125.)",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

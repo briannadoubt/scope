@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVTE0XED3PDT1Y7PG4H",
+  "ts": "2026-06-07T08:12:58.106Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4G",
+    "number": 134,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Sync protocol: /sync pull + push endpoints",
+    "description": "Add tenant-scoped GET /sync/pull?since=<ulid> and POST /sync/push to the hub. Pull returns events after the ULID watermark in compareEvents order with {cursor,count,more}. Push validates, unions onto the canonical log (atomic, dedupe by ULID), re-runs replayInto, returns {accepted,duplicates,renumbered,cursor}. Must reuse replay.js/identity.js unchanged so server state == local file-union replay. Calls the SCP-124 union-insert primitive. (From SCP-123.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

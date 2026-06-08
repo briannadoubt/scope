@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGJ8SVTE0XED3PDT1Y7PG4D",
+  "ts": "2026-06-07T08:12:58.106Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGJ8SVTE0XED3PDT1Y7PG4C",
+    "number": 132,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Event-upload authorization: verify on-behalf-of principal",
+    "description": "On the relay ingest path, reject any event whose actor.principal differs from the authenticated subject, or where the subject lacks write role on the target project. Define the rejection error contract jointly with the SCP-123 push protocol. Depends on SCP-128's {principal, acting_model} schema. (From SCP-122.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

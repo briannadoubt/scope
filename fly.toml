@@ -1,0 +1,77 @@
+# Fly.io config for the phase-1 single-tenant hosted Scope hub (SCP-151).
+#
+# Phase 1 = ONE instance. Do not scale to >1 yet: the in-process EventEmitter
+# fan-out (src/events.js) and the local SQLite replay cache are per-process, so
+# a second machine would have its own bus and its own cache. Multi-node fan-out
+# is a later epic (SCP-125). Keep `min_machines_running = 1` and a single
+# region, and DO NOT enable autostop/autoscale.
+#
+# Replace APP_NAME and the custom hostname before first deploy. After
+# `fly deploy`, attach the real domain + TLS cert (see docs/deploy.md).
+
+app = "scope-hub"          # <-- set your Fly app name
+primary_region = "iad"     # <-- pick the region closest to collaborators
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # The hub binds this port inside the container; the Fly proxy maps 443 -> it.
+  PORT = "8080"
+  # serve must listen on 0.0.0.0 in the container (see INTEGRATION INSTRUCTIONS).
+  HOST = "0.0.0.0"
+  NODE_ENV = "production"
+  LOG_LEVEL = "info"
+  # The hub stores its disposable SQLite cache on the persistent volume so a
+  # restart doesn't force a full replay from Postgres on every boot.
+  SCOPE_DIR = "/data/.scope"
+  # Cloud build: disable LAN-only machinery (Bonjour/mDNS, mTLS, loopback
+  # bypass). TLS is terminated by the Fly proxy; the app serves plain HTTP
+  # internally. See INTEGRATION INSTRUCTIONS for the server.js flags this maps to.
+  SCOPE_CLOUD = "1"
+  # SCOPE_PG_URL / DATABASE_URL and SCOPE_TOKEN are secrets, set via
+  # `fly secrets set` — never commit them here.
+
+# Persistent volume for the disposable SQLite cache + any local event-log
+# scratch. The CANONICAL log is in Postgres; this volume is a cache, so losing
+# it is non-fatal (replay rebuilds). Create it once:
+#   fly volumes create scope_data --size 1 --region iad
+[mounts]
+  source = "scope_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true        # redirect http -> https at the edge
+  auto_stop_machines = false   # phase 1: never idle-stop (would drop SSE + lose bus)
+  auto_start_machines = false
+  min_machines_running = 1
+
+  # --- SSE survival ---------------------------------------------------------
+  # /events is a long-lived Server-Sent Events stream. The default Fly proxy
+  # idle timeout would reap it. We raise both the request and idle timeouts well
+  # past the app's 20s SSE keepalive so an active stream is never considered
+  # idle. The app also sends `: keepalive` comments every 20s (server.js), which
+  # keeps bytes flowing; these timeouts are the belt to that suspenders.
+  [http_service.http_options.response]
+    [http_service.http_options.response.headers]
+
+  # Generous concurrency: SSE connections are cheap but long-lived, so allow
+  # plenty before the proxy sheds load.
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 200
+    hard_limit = 250
+
+# Platform health check hits the unauthenticated /healthz (SCP-155). Interval/
+# timeout are generous so a brief Postgres blip doesn't cycle the machine.
+[[http_service.checks]]
+  interval = "15s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGHP3NTBFEWQCDM35ZN6NV8",
+  "ts": "2026-06-07T08:02:45.562Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG6002B2Y0XQRBVKFM6306",
+    "commentId": "01KTGHP3NSS2MSV2HEM2QATK7B",
+    "author": "claude",
+    "body": "Round 3 + VERDICT: GO.\n\n- Willingness: confirmed YES. Pricing UNIT still open (per-seat / per-agent / per-project / usage) — willingness is clear, unit is a later decision, not a blocker.\n- Offline-first: REQUIRED for v1 (not deferrable). The full sync-cursor + reconciliation scope (SCP-123) stays full-weight.\n- Identity model DECIDED: authenticated principal = the HUMAN account. Agents authenticate AS that user and stamp the acting model. Attribution display = '{model} on behalf of {user}', e.g. 'Opus 4.8 moved SCP-42 to in_progress for Bri'. NOT per-agent/per-context/per-chat identities. -> resolves the central open question in SCP-122 (auth).\n\nVALIDATED THESIS: agent-operated multiplayer kanban. Differentiator = the native agent-control surface (CLI + --json everywhere + MCP, all ALREADY BUILT) made multiplayer via an auth-gated realtime relay. Primary value = preventing parallel-agent collisions, whose cost (wasted tokens + rework) is quantifiable. Buyer = small/remote dev teams running LLM agent fleets. Business = Scope-the-board-as-SaaS, not a resold backend.\n\nProceed with Path A (full offline-first relay). Next: refine epic SCP-120 + spawn phase-1 stories from the design-spike sweep, now re-pointed at the agent-collision thesis."
+  }
+}

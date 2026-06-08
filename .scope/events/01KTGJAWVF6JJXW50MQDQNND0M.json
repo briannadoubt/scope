@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTGJAWVF6JJXW50MQDQNND0M",
+  "ts": "2026-06-07T08:14:06.703Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTGG60037EEM58DKQ02JJVT6",
+    "commentId": "01KTGJAWVF6JJXW50MQDQNND0K",
+    "author": "claude",
+    "body": "PROPOSED ARCHITECTURE (design-sweep result): CONFIRM core, AMEND two details.\n\nCONFIRMED: Postgres for BOTH log and cache. events(tenant_id, event_id ULID, ts, kind, actor JSONB, payload JSONB, PK(tenant_id,event_id)), index (tenant_id, ts, event_id). Upload = INSERT ... ON CONFLICT DO NOTHING faithfully reproduces file-union + idempotency. Do NOT start with S3 (keep an S3-for-blobs escape hatch for future attachments only). Cache is derived/disposable, gated by applied_event_count.\n\nAMENDMENT 1 (replay timing): incremental 'apply only new events' is UNSAFE in general. resolveDisplayNumbers de-collides over the entire create-set; a late event with an earlier ts re-sorts the sequence and can cascade-renumber. Since the cache PKs on the derived KEY-N (not ULID), a renumber rewrites that row id + every FK (parent_id, relations, history, comments). So: incremental fast-path ONLY for tail-appends (batch min ts >= max applied ts) with no number collision; else full replay-in-transaction.\n\nAMENDMENT 2 (isolation): RLS keyed on a tenant_id session GUC is the enforcement floor, but TODAY THERE IS NO TENANT CONCEPT (isolation = path hash; resolveFromRequest trusts an unauthenticated header). tenant_id/claim shape is owned by SCP-122; consume it, and add app-layer scoping (fail closed) as defense-in-depth, not RLS alone.\n\nDeps: SCP-122 (claim shape, hard blocker), SCP-125 (consumes the newly-applied + renumbered set as fan-out source), SCP-128 (split actor).\n\nSUB-EPIC: SCP-139. CHILD TICKETS: SCP-140 (schema), SCP-141 (replay port + golden test), SCP-142 (idempotent upload primitive), SCP-143 (incremental replay w/ tail-append invariant), SCP-144 (RLS + app-layer isolation), SCP-145 (local-log migration)."
+  }
+}

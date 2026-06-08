@@ -14,7 +14,11 @@ import { signCsr } from './ca.js';
 import { addDevice } from './devices.js';
 import { createPairingContext } from './pair.js';
 import { reloadCrl, installCrlReloadSignal } from './revocation.js';
-import { bus, wsContext } from './events.js';
+import { bus, wsContext, emitChange } from './events.js';
+import { readAllEvents, appendEvent, eventsDirForDb } from './event-store.js';
+import { replayInto } from './replay.js';
+import { setMeta } from './db.js';
+import { validateEvent } from './event-schema.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -73,6 +77,14 @@ export async function startServer({
   quiet = false,
   silent = false,
   discoverable = true,
+  /**
+   * Hosted/cloud mode (SCP-161). When true: bind 0.0.0.0:$PORT (reachable by
+   * the platform proxy), skip Bonjour/mDNS and the LAN self-signed TLS (TLS
+   * terminates at the cloud edge), and require the bearer token on EVERY
+   * request (no loopback bypass — behind the proxy, requests can look like
+   * loopback). Defaults from the SCOPE_CLOUD env var so fly.toml controls it.
+   */
+  cloud = process.env.SCOPE_CLOUD === '1',
   /**
    * TLS configuration.
    *   - `undefined` (default): generate / load the local CA + leaf and serve
@@ -172,7 +184,18 @@ export async function startServer({
     res.status(201).json(payload);
   });
 
-  app.use(authMiddleware({ token, allowedHosts: lanHosts() }));
+  // Unauthenticated liveness probe for the platform load balancer (SCP-155/161).
+  // Mounted BEFORE auth so health checks need no credentials.
+  app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
+
+  // In cloud mode require the token on every request (no loopback bypass, and
+  // no LAN host allowlist — the edge proxy routes by host). On a LAN the
+  // loopback bypass + scope.local allowlist keep same-machine CLI use friction-free.
+  app.use(
+    cloud
+      ? authMiddleware({ token, allowedHosts: [], trustLoopback: false })
+      : authMiddleware({ token, allowedHosts: lanHosts() })
+  );
 
   /* ---------- workspace helpers ---------- */
 
@@ -261,6 +284,28 @@ export async function startServer({
     };
   }
 
+  /**
+   * Attribution context for a mutating request (SCP-128). `by` is the human
+   * principal, `model` the acting agent ("Opus 4.8"); history renders
+   * "{model} on behalf of {by}". Prefer the X-Scope-By / X-Scope-Model headers
+   * (set once per agent client); fall back to body `__by` / `__model`.
+   */
+  function actorCtx(req) {
+    const b = req.body || {};
+    return {
+      by: req.get('x-scope-by') || b.__by || null,
+      model: req.get('x-scope-model') || b.__model || null,
+    };
+  }
+
+  /** Strip attribution sentinels from a body before it reaches a repo writer. */
+  function cleanBody(body) {
+    const out = { ...(body || {}) };
+    delete out.__by;
+    delete out.__model;
+    return out;
+  }
+
   app.get('/api/workspaces', (_req, res) => res.json(enrichedWorkspaces()));
 
   app.post('/api/workspaces', (req, res) => {
@@ -281,7 +326,8 @@ export async function startServer({
     if (!w) return res.status(404).json({ error: 'unknown workspace' });
     try {
       wsContext.run(w.id, () => {
-        const updated = updateWorkspace(w.db, req.body || {});
+        const { by, model } = actorCtx(req);
+        const updated = updateWorkspace(w.db, cleanBody(req.body), by, model);
         res.json({
           id: w.id,
           scope_dir: w.scope_dir,
@@ -333,7 +379,8 @@ export async function startServer({
   }));
 
   app.patch('/api/projects/:idOrKey', ws((req, res, w) => {
-    const updated = updateWorkspace(w.db, req.body || {});
+    const { by, model } = actorCtx(req);
+    const updated = updateWorkspace(w.db, cleanBody(req.body), by, model);
     res.json({
       id: updated.key.toLowerCase(),
       key: updated.key,
@@ -376,25 +423,26 @@ export async function startServer({
   }));
 
   app.post('/api/tickets', ws((req, res, w) => {
-    const body = { ...(req.body || {}) };
+    const { by, model } = actorCtx(req);
+    const body = cleanBody(req.body);
     // Strip legacy v1 fields so they don't confuse createTicket().
     delete body.project;
     delete body.projectIdOrKey;
     delete body.workspace;
-    const t = createTicket(w.db, body);
+    const t = createTicket(w.db, { ...body, actor: by, model });
     res.status(201).json(t);
   }));
 
   app.patch('/api/tickets/:id', ws((req, res, w) => {
-    const body = { ...req.body };
-    const by = body.__by;
-    delete body.__by;
-    const t = updateTicket(w.db, req.params.id, body, by);
+    const { by, model } = actorCtx(req);
+    const body = cleanBody(req.body);
+    const t = updateTicket(w.db, req.params.id, body, by, model);
     res.json(t);
   }));
 
   app.delete('/api/tickets/:id', ws((req, res, w) => {
-    const ok = deleteTicket(w.db, req.params.id);
+    const { by, model } = actorCtx(req);
+    const ok = deleteTicket(w.db, req.params.id, by, model);
     if (!ok) return res.status(404).json({ error: 'not found' });
     res.json({ deleted: req.params.id });
   }));
@@ -407,12 +455,14 @@ export async function startServer({
 
   app.post('/api/tickets/:id/relations', ws((req, res, w) => {
     const { to, type } = req.body;
-    res.status(201).json(addRelation(w.db, req.params.id, to, type));
+    const { by, model } = actorCtx(req);
+    res.status(201).json(addRelation(w.db, req.params.id, to, type, by, model));
   }));
 
   app.delete('/api/tickets/:id/relations', ws((req, res, w) => {
     const { to, type } = req.body;
-    removeRelation(w.db, req.params.id, to, type);
+    const { by, model } = actorCtx(req);
+    removeRelation(w.db, req.params.id, to, type, by, model);
     res.json({ ok: true });
   }));
 
@@ -423,7 +473,8 @@ export async function startServer({
   }));
 
   app.post('/api/tickets/:id/comments', ws((req, res, w) => {
-    const c = addComment(w.db, req.params.id, req.body.body, req.body.author);
+    const { model } = actorCtx(req);
+    const c = addComment(w.db, req.params.id, req.body.body, req.body.author, model);
     res.status(201).json(c);
   }));
 
@@ -433,6 +484,71 @@ export async function startServer({
     const { limit, before, beforeId } = req.query;
     const rows = listWorkspaceHistory(w.db, { limit, before, beforeId });
     res.json({ entries: rows, limit: rows.length, before: before ?? null });
+  }));
+
+  /* ---------- sync (SCP-134) ----------
+   * Offline-first sync transport over the event log. The cloud node is "just
+   * another replica": clients keep their local logs and reconcile here. Pull
+   * streams events after a ULID high-water cursor; push unions uploaded events
+   * onto the log, re-replays (the SAME deterministic pipeline a local replica
+   * runs, so server state == local file-union replay), and reports renumber
+   * notices. Idempotent: re-pushing a known ULID is a no-op.
+   *
+   * Single-tenant per-workspace for now; multi-tenant isolation + on-upload
+   * actor authz arrive with SCP-122/SCP-124. */
+  const SYNC_MAX = 1000;
+
+  app.get('/api/sync/pull', ws((req, res, w) => {
+    const since = typeof req.query.since === 'string' ? req.query.since : null;
+    const limit = Math.min(Number(req.query.limit) || SYNC_MAX, SYNC_MAX);
+    const all = readAllEvents(eventsDirForDb(w.db));
+    // Paginate by the ULID high-water mark (id-sorted), independent of canonical
+    // (ts,id) order — the client replays canonically regardless, so send order
+    // doesn't affect correctness, and id-sorting keeps the cursor monotonic.
+    const ahead = all
+      .filter((e) => !since || e.id > since)
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const page = ahead.slice(0, limit);
+    res.json({
+      events: page,
+      cursor: page.length ? page[page.length - 1].id : since,
+      count: all.length, // count guard: lets a client detect late backfill below its cursor
+      more: ahead.length > limit,
+    });
+  }));
+
+  app.post('/api/sync/push', ws((req, res, w) => {
+    const incoming = Array.isArray(req.body?.events) ? req.body.events : null;
+    if (!incoming) return res.status(400).json({ error: 'body.events must be an array' });
+    // Validate the whole batch up front so a bad event lands nothing (atomic).
+    try {
+      for (const e of incoming) validateEvent(e);
+    } catch (e) {
+      return res.status(400).json({ error: `invalid event: ${e.message}` });
+    }
+    const dir = eventsDirForDb(w.db);
+    const existing = new Set(readAllEvents(dir).map((e) => e.id));
+    const accepted = [];
+    const duplicates = [];
+    for (const e of incoming) {
+      if (existing.has(e.id)) { duplicates.push(e.id); continue; }
+      appendEvent(dir, e); // atomic tmp+rename; ULID filename => union semantics
+      existing.add(e.id);
+      accepted.push(e.id);
+    }
+    const all = readAllEvents(dir);
+    let renumbered = [];
+    if (accepted.length) {
+      // Full re-replay (SCP-143 will make this incremental). Keep the cache's
+      // applied-count in step so a later open doesn't think it's stale.
+      ({ renumbered } = replayInto(w.db, all));
+      setMeta(w.db, 'applied_event_count', all.length);
+      // Coarse notify so connected viewers refresh (granular fan-out = SCP-146).
+      emitChange({ type: 'sync.applied', workspace: w.id, applied: accepted.length });
+    }
+    // Cursor = the max ULID now in the log (the client's new high-water mark).
+    const cursor = all.length ? all.reduce((m, e) => (e.id > m ? e.id : m), all[0].id) : null;
+    res.json({ accepted, duplicates, renumbered, cursor, count: all.length });
   }));
 
   /* ---------- board ---------- */
@@ -493,9 +609,10 @@ export async function startServer({
   });
 
   // Resolve TLS configuration. `tls === false` keeps the legacy HTTP path
-  // for tests; anything else (including undefined) means HTTPS on LAN.
+  // for tests; anything else (including undefined) means HTTPS on LAN. In cloud
+  // mode the edge proxy terminates TLS, so we never load a local CA/leaf.
   let tlsCtx = null;
-  if (tls !== false) {
+  if (tls !== false && !cloud) {
     if (tls && tls.ca && tls.leaf) {
       tlsCtx = tls;
     } else {
@@ -509,9 +626,12 @@ export async function startServer({
   // Auth middleware still enforces the bearer token for non-loopback requests,
   // but loopback bypasses auth entirely so `http://localhost` just works.
   const loopbackServer = http.createServer(app);
+  // Cloud: bind all interfaces so the platform proxy can reach us. LAN/local:
+  // bind loopback only and (below) add an HTTPS listener on the LAN IP.
+  const bindHost = cloud ? '0.0.0.0' : '127.0.0.1';
   await new Promise((res, rej) => {
     loopbackServer.once('error', rej);
-    loopbackServer.listen(port, '127.0.0.1', res);
+    loopbackServer.listen(port, bindHost, res);
   });
   const actualPort = loopbackServer.address().port;
 
@@ -551,7 +671,9 @@ export async function startServer({
   // Bonjour holds the event loop open and opens UDP multicast sockets, so
   // tests pass discoverable: false to skip it. In prod, the default flow
   // publishes both the scope.local hostname and the _scope._tcp service.
-  const bonjour = discoverable ? new Bonjour() : null;
+  // No LAN discovery in cloud mode (no mDNS on a public host; the platform
+  // routes by DNS/domain, not Bonjour).
+  const bonjour = (discoverable && !cloud) ? new Bonjour() : null;
   // TXT record:
   //   path=/       — where the UI / API lives
   //   auth=...     — comma-separated supported auth schemes. We always

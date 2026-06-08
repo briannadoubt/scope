@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTGG6006KBN3NK8ZERR0MMEG",
+  "ts": "2026-06-07T07:36:28.934Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTGG6006KBN3NK8ZERR0MMEF",
+    "number": 125,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Spike: realtime fan-out across multiple app servers",
+    "description": "OPEN QUESTION: How does a mutation accepted on app-server A reach an SSE/WS subscriber connected to app-server B?\n\nToday: an in-process EventEmitter bus ([[21]]) drives SSE; a single process sees every mutation. The moment we run >1 app server behind a load balancer this breaks — the single biggest 'it's not local anymore' change.\n\nQuestions to resolve:\n- External pub/sub choice: Redis pub/sub, NATS, Postgres LISTEN/NOTIFY, a managed bus? Tradeoffs for our scale + ops burden.\n- Keep SSE (unidirectional, simple, what we ship today) or move to WebSocket (bidirectional — needed if push uses the same channel)? SSE-over-WAN reconnect behavior is a known unknown — test it.\n- Per-tenant / per-workspace topic routing so a subscriber only gets its own events.\n- Connection scale: how many concurrent SSE/WS connections per node, and how the LB handles long-lived connections (sticky? keepalive tuning?).\n- What happens to the existing hub watchdog / Bonjour discovery / port-race self-healing ([[49]]) — it becomes LB + failover + health checks; document what we drop.\n\nDeliverable: comment with a proposed fan-out architecture. Likely spawns: 'External pub/sub bus integration', 'WAN SSE reconnect hardening', and possibly 'WebSocket transport' if we decide to switch.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTGG6002B2Y0XQRBVKFM6304",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}
