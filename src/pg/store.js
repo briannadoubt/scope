@@ -101,3 +101,33 @@ export async function pullEvents(pool, tenantId, { since = null, limit = 1000 } 
     more,
   };
 }
+
+/**
+ * Snapshot bootstrap (SCP-137) — a compacted starting point for a fresh client,
+ * so it doesn't have to download and replay the entire event log. Returns the
+ * already-materialized board (the replay cache) for a tenant plus the tail
+ * `cursor`: the client applies `state` directly, then pulls events after
+ * `cursor` (pullEvents) to catch the tail.
+ *
+ * The snapshot is strictly an OPTIMIZATION, never the source of truth — it is by
+ * construction exactly what replaying the whole log yields (the cache IS that
+ * projection), so it is reproducible by replay (ADR 0002 invariant).
+ *
+ * @returns {Promise<{cursor: string|null, count: number, state: {workspace, tickets, relations, comments, history}}>}
+ */
+export async function snapshotState(pool, tenantId) {
+  const q = (sql) => pool.query(sql, [tenantId]).then((r) => r.rows);
+  const [agg, workspace, tickets, relations, comments, history] = await Promise.all([
+    pool.query('SELECT max(event_id) AS cursor, count(*)::int AS count FROM events WHERE tenant_id=$1', [tenantId]),
+    q('SELECT key, name, description, overview, next_ticket_number FROM workspace WHERE tenant_id=$1'),
+    q('SELECT id, uid, number, type, title, description, status, priority, parent_id, branch, pr_url, assignee, labels, created_at, updated_at FROM tickets WHERE tenant_id=$1 ORDER BY number'),
+    q('SELECT from_ticket_id, to_ticket_id, type, created_at FROM ticket_relations WHERE tenant_id=$1'),
+    q('SELECT ticket_id, author, body, created_at FROM ticket_comments WHERE tenant_id=$1 ORDER BY id'),
+    q('SELECT ticket_id, field, old_value, new_value, changed_by, changed_at FROM ticket_history WHERE tenant_id=$1 ORDER BY id'),
+  ]);
+  return {
+    cursor: agg.rows[0].cursor,
+    count: agg.rows[0].count,
+    state: { workspace: workspace[0] ?? null, tickets, relations, comments, history },
+  };
+}
