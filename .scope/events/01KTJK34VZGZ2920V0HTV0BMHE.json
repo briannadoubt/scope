@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTJK34VZGZ2920V0HTV0BMHE",
+  "ts": "2026-06-08T03:05:50.207Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTJDSJ4J828MN859C0JAWZ16",
+    "commentId": "01KTJK34VZGZ2920V0HTV0BMHD",
+    "author": "Bri",
+    "body": "VERIFIED via xcodebuild (iOS simulator, generic destination): BUILD SUCCEEDED. SCP-104 path is concurrency-clean — making HubClient @MainActor resolved all 8 'sending client' warnings under SWIFT_STRICT_CONCURRENCY=complete. SCP-135 sync engine compiles. Compile-only verification (not a runtime device/sim run). Residual project-wide Swift-6 warnings (decoder formatters, KeychainStore.shared, delegate mutable props) are unrelated to 104/135 and tracked in SCP-166."
+  },
+  "model": "Opus 4.8"
+}

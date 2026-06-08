@@ -91,6 +91,7 @@ private final class HubTrustDelegate: NSObject, URLSessionDelegate {
 // MARK: - HubClient
 
 @Observable
+@MainActor
 final class HubClient {
     var baseURL: URL
     var workspaceId: String?
