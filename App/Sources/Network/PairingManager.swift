@@ -53,8 +53,11 @@ enum PairingError: LocalizedError {
 
 // MARK: - PairingManager
 
+// @unchecked Sendable: the @Observable UI state (isPairing/error/isPaired) is
+// only mutated from the MainActor (the pairing UI flow); the URLSessionDelegate
+// callback runs on the session queue but reads only the immutable `hub`.
 @Observable
-final class PairingManager: NSObject {
+final class PairingManager: NSObject, @unchecked Sendable {
 
     var isPairing: Bool = false
     var error: String? = nil

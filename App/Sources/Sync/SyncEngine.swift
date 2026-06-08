@@ -44,16 +44,16 @@ protocol SyncTransport: Sendable {
 struct SyncHandlers: Sendable {
     /// Newly-applied events (from a pull, or a local enqueue) that the app
     /// should fold into its projections. Already deduped by ULID.
-    let didApply: @MainActor ([SyncEvent]) -> Void
+    let didApply: @MainActor @Sendable ([SyncEvent]) -> Void
 
     /// Display-number reassignments from a push. The app must rewrite the
     /// rendered key (`KEY-from` → `KEY-to`) for the ticket identified by
     /// `notice.ticketId` WITHOUT changing its ULID identity.
-    let didRenumber: @MainActor ([RenumberNotice]) -> Void
+    let didRenumber: @MainActor @Sendable ([RenumberNotice]) -> Void
 
     init(
-        didApply: @escaping @MainActor ([SyncEvent]) -> Void = { _ in },
-        didRenumber: @escaping @MainActor ([RenumberNotice]) -> Void = { _ in }
+        didApply: @escaping @MainActor @Sendable ([SyncEvent]) -> Void = { _ in },
+        didRenumber: @escaping @MainActor @Sendable ([RenumberNotice]) -> Void = { _ in }
     ) {
         self.didApply = didApply
         self.didRenumber = didRenumber

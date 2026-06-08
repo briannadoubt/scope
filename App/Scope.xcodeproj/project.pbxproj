@@ -10,6 +10,7 @@
 		1509544C7CE4B73EBB204E21 /* HubDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3844D21AB160670552A5305C /* HubDiscovery.swift */; };
 		219D6D0D408DD127BAE08929 /* OfflineBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A265EFC4311C26324A1DC17 /* OfflineBanner.swift */; };
 		303892B0CAFC5E56B617A610 /* HubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02AC61CBB90D96A4965C239A /* HubClient.swift */; };
+		36546A171A0F3B00C14AD608 /* ISODates.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDEACFA4328833A01708040B /* ISODates.swift */; };
 		37CCE29C5AC17F89D8D743A5 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F1C89F5E60A5A7ECBEA925D /* AppStore.swift */; };
 		4902A14AD2F8B7AFFA094660 /* Ticket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B7E10A471A8B56FE4335B38 /* Ticket.swift */; };
 		4D60D45DB0792633954A7347 /* SwipeCardContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE806848D6BD92A8DF6F8F45 /* SwipeCardContainer.swift */; };
@@ -76,6 +77,7 @@
 		CE806848D6BD92A8DF6F8F45 /* SwipeCardContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeCardContainer.swift; sourceTree = "<group>"; };
 		D049636D68A35D0D64EDE16E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E2EE3A960B5B553371CE8C2C /* ColumnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColumnView.swift; sourceTree = "<group>"; };
+		EDEACFA4328833A01708040B /* ISODates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISODates.swift; sourceTree = "<group>"; };
 		F891BDC308203A67B7BBC5DA /* TicketDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TicketDetailView.swift; sourceTree = "<group>"; };
 		FA4D3B8D4E8639EB8939C83D /* SyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -142,6 +144,7 @@
 				2EBA788CAED4C40F24C4C65C /* EventStream.swift */,
 				02AC61CBB90D96A4965C239A /* HubClient.swift */,
 				3844D21AB160670552A5305C /* HubDiscovery.swift */,
+				EDEACFA4328833A01708040B /* ISODates.swift */,
 				39A28FF80944B72144EA7E75 /* KeychainStore.swift */,
 				8CF372EC40975FF65E9AE6C7 /* NetworkPathMonitor.swift */,
 				53DBBED92209D089DFD2B325 /* PairingManager.swift */,
@@ -311,6 +314,7 @@
 				1509544C7CE4B73EBB204E21 /* HubDiscovery.swift in Sources */,
 				651C9EA582A5F3D65D8E5336 /* HubRowView.swift in Sources */,
 				F20C6A7AE4A6C71D32EEF831 /* HubSyncTransport.swift in Sources */,
+				36546A171A0F3B00C14AD608 /* ISODates.swift in Sources */,
 				AD07E6A746BDC1453EBC4DDC /* JSONValue.swift in Sources */,
 				D2AFD13BD5CBAC8EA3514C49 /* KeychainStore.swift in Sources */,
 				D2D12A83220C74C3E3AFC0CA /* MarkdownView.swift in Sources */,
@@ -390,7 +394,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.10;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -456,7 +460,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.10;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};

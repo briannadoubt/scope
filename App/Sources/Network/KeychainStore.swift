@@ -25,7 +25,9 @@ enum KeychainError: LocalizedError {
 
 // MARK: - KeychainStore
 
-final class KeychainStore {
+// Stateless wrapper around the Security framework (no mutable stored state), so
+// the shared singleton is safe to use concurrently.
+final class KeychainStore: Sendable {
 
     static let shared = KeychainStore()
 
