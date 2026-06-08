@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "id": "01KTJK34R0X1K12GVK6ZMXRC1N",
+  "ts": "2026-06-08T03:05:50.080Z",
+  "actor": "Bri",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTJK34QZP9YZ58QEHWBX14DM",
+    "number": 166,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Swift-6 strict-concurrency hardening (residual warnings)",
+    "description": "Under SWIFT_STRICT_CONCURRENCY=complete the app builds but emits residual warnings unrelated to SCP-104/135, which become errors in the Swift-6 language mode: (1) HubClient static ISO8601DateFormatter instances captured in @Sendable decoder/encoder closures; (2) KeychainStore.shared static is not concurrency-safe; (3) HubTrustDelegate.caFingerprint, EventStream.StreamDelegate.stream, PairingManager._isPairing are mutable on Sendable-conforming classes. Fix each (immutable/locked state, or isolate) so the app compiles cleanly in Swift-6 language mode, then bump SWIFT_VERSION to 6.",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "model": "Opus 4.8"
+}

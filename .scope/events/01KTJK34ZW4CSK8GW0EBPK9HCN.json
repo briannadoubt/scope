@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTJK34ZW4CSK8GW0EBPK9HCN",
+  "ts": "2026-06-08T03:05:50.332Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W82",
+    "commentId": "01KTJK34ZW4CSK8GW0EBPK9HCM",
+    "author": "Bri",
+    "body": "Follow-up improvement landed: HubClient is now @MainActor (Sendable), which (with the earlier serialize fix) eliminates the data race AND all strict-concurrency 'sending client' warnings, verified by build. See SCP-166 for the remaining unrelated Swift-6 warnings."
+  },
+  "model": "Opus 4.8"
+}

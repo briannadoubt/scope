@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTJJJYSBBCHW7DH2EB46QH4E",
+  "ts": "2026-06-08T02:56:59.691Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W7T",
+    "commentId": "01KTJJJYSBBCHW7DH2EB46QH4D",
+    "author": "Bri",
+    "body": "Verified already implemented: the workspace table carries key/name/description/overview (db.js:122-131), and migrate() (db.js:447-580) performs exactly the described idempotent v1->v2 startup migration — detects the legacy projects table, backfills the workspace singleton from the first projects row, rebuilds tickets without project_id, and drops the projects table, guarded by schema_version so it runs once. Covered by the green suite (236/236). Marking done."
+  },
+  "model": "Opus 4.8"
+}
