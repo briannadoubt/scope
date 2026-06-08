@@ -159,17 +159,16 @@ final class AppStore {
     func loadRelationEdges(for ids: [String]) async -> [RelationEdge] {
         guard let client else { return [] }
         var relationsByTicket: [String: [TicketRelation]] = [:]
-        await withTaskGroup(of: (String, [TicketRelation]).self) { group in
-            for id in ids {
-                group.addTask {
-                    let relations: [TicketRelation] =
-                        (try? await client.get("/api/tickets/\(id)/relations")) ?? []
-                    return (id, relations)
-                }
-            }
-            for await (id, relations) in group {
-                if !relations.isEmpty { relationsByTicket[id] = relations }
-            }
+        // Fetch sequentially. The previous withTaskGroup fan-out captured the
+        // non-Sendable `HubClient` into N concurrent @Sendable tasks — a Swift-6
+        // strict-concurrency violation and a real concurrent-use-of-one-client
+        // data race (SCP-104). Serializing removes both; relation fan-out per
+        // ticket is small, so the latency cost is negligible. (To restore
+        // concurrency later, make HubClient Sendable / an actor first.)
+        for id in ids {
+            let relations: [TicketRelation] =
+                (try? await client.get("/api/tickets/\(id)/relations")) ?? []
+            if !relations.isEmpty { relationsByTicket[id] = relations }
         }
         return RelationEdge.dedupe(from: relationsByTicket)
     }

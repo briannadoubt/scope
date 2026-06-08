@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "id": "01KTJDSJ4J828MN859C0JAWZ17",
+  "ts": "2026-06-08T01:33:13.234Z",
+  "actor": "Bri",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTJDSJ4J828MN859C0JAWZ16",
+    "number": 164,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Verify iOS in Xcode: sync engine (SCP-135) + HubClient concurrency fix (SCP-104)",
+    "description": "Several iOS changes are code-complete but UNVERIFIED because there is no Xcode build in the dev environment: the offline sync engine (SCP-135) and the HubClient concurrent-use fix (SCP-104). Build the app under Swift-6 strict concurrency, run it against a running hub, and confirm: no Sendable diagnostics, relation-edge fetch works, sync engine pulls/pushes + handles renumber notices.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "model": "Opus 4.8"
+}

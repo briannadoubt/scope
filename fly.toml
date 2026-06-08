@@ -32,9 +32,11 @@ primary_region = "iad"     # <-- pick the region closest to collaborators
   # SCOPE_PG_URL / DATABASE_URL and SCOPE_TOKEN are secrets, set via
   # `fly secrets set` — never commit them here.
 
-# Persistent volume for the disposable SQLite cache + any local event-log
-# scratch. The CANONICAL log is in Postgres; this volume is a cache, so losing
-# it is non-fatal (replay rebuilds). Create it once:
+# Persistent volume holding SCOPE_DIR (/data/.scope) — the event log + SQLite
+# cache. IMPORTANT: in Milestone A (no SCOPE_PG_URL set) this volume holds the
+# CANONICAL event log, so BACK IT UP — losing it loses the board. Only once
+# Milestone B's Postgres is the canonical store does this volume become a
+# disposable cache (rebuildable by replay). Create it once:
 #   fly volumes create scope_data --size 1 --region iad
 [mounts]
   source = "scope_data"

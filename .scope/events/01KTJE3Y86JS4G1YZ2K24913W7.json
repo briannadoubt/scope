@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KTJE3Y86JS4G1YZ2K24913W7",
+  "ts": "2026-06-08T01:38:53.318Z",
+  "actor": "Bri",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KT3RXMX2D7PSQSVDTEE08W82",
+    "commentId": "01KTJE3Y86JS4G1YZ2K24913W6",
+    "author": "Bri",
+    "body": "Fix applied: loadRelationEdges no longer fans out across a withTaskGroup capturing the non-Sendable HubClient — it fetches sequentially, which removes both the Swift-6 Sendable diagnostic and the concurrent-use data race. NOTE: code-complete but UNVERIFIED here (no Xcode build); compile + Swift-6 strict-concurrency check tracked in SCP-164."
+  },
+  "model": "Opus 4.8"
+}

@@ -56,6 +56,10 @@ export async function startTestServer() {
     scope,
     async close() {
       await new Promise((r) => server.close(() => r()));
+      // Detach to close the fs.watch watcher that mgr.attach() opened (SCP-105).
+      // Without this, every server-backed test leaks a live watcher + file
+      // handle on the temp dir we're about to delete.
+      mgr.detach(ws.id, { persist: false, broadcast: false });
       scope.cleanup();
     },
   };
