@@ -199,8 +199,9 @@ final class EventStream {
 // NSObject subclass that receives URLSession callbacks on a background thread
 // and hops to the MainActor to call back into EventStream.
 
-private final class StreamDelegate: NSObject, URLSessionDataDelegate {
+private final class StreamDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
 
+    // Set once at init; callbacks only read it (and hop to the MainActor).
     private weak var stream: EventStream?
 
     init(stream: EventStream) {

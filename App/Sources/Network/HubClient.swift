@@ -1,6 +1,9 @@
 import CryptoKit
 import Foundation
 import Security
+import os
+
+// ISO-8601 coding helper (`isoDates`) lives in ISODates.swift, shared with SyncWire.
 
 // MARK: - HubClientError
 
@@ -34,11 +37,18 @@ enum HubClientError: LocalizedError {
 ///   issuers) must match before the connection proceeds.
 /// - If no fingerprint is configured, any server cert is accepted
 ///   (trust-on-first-use for local hubs that haven't been paired yet).
-private final class HubTrustDelegate: NSObject, URLSessionDelegate {
+private final class HubTrustDelegate: NSObject, URLSessionDelegate, @unchecked Sendable {
 
-    var caFingerprint: String?
+    // Lock-guarded: the delegate callback runs on the URLSession queue while
+    // HubClient (MainActor) updates the pinned fingerprint — guard against a race.
+    private let _caFingerprint = OSAllocatedUnfairLock<String?>(initialState: nil)
+    var caFingerprint: String? {
+        get { _caFingerprint.withLock { $0 } }
+        set { _caFingerprint.withLock { $0 = newValue } }
+    }
 
     init(caFingerprint: String? = nil) {
+        super.init()
         self.caFingerprint = caFingerprint
     }
 
@@ -109,16 +119,11 @@ final class HubClient {
 
     static let decoder: JSONDecoder = {
         let d = JSONDecoder()
-        // Try fractional-seconds first, fall back to whole-seconds.
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
+        // Fractional-seconds first, fall back to whole-seconds (see ISODates).
         d.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let str = try container.decode(String.self)
-            if let date = fractional.date(from: str) { return date }
-            if let date = plain.date(from: str)       { return date }
+            if let date = isoDates.parse(str) { return date }
             throw DecodingError.dataCorruptedError(
                 in: container,
                 debugDescription: "Cannot parse date: \(str)"
@@ -130,11 +135,9 @@ final class HubClient {
     static let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.keyEncodingStrategy = .convertToSnakeCase
-        let fmt = ISO8601DateFormatter()
-        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         e.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
-            try container.encode(fmt.string(from: date))
+            try container.encode(isoDates.format(date))
         }
         return e
     }()

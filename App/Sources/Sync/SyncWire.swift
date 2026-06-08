@@ -170,18 +170,12 @@ extension SyncWire {
     /// an ISO-8601 date strategy matching `HubClient`'s (fractional seconds,
     /// falling back to whole seconds on decode).
     static let coder: (encoder: JSONEncoder, decoder: JSONDecoder) = {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-
         let decoder = JSONDecoder()
-        // Verbatim keys — do NOT convert from snake_case.
+        // Verbatim keys — do NOT convert from snake_case. (isoDates: ISODates.swift)
         decoder.dateDecodingStrategy = .custom { dec in
             let container = try dec.singleValueContainer()
             let str = try container.decode(String.self)
-            if let d = fractional.date(from: str) { return d }
-            if let d = plain.date(from: str) { return d }
+            if let d = isoDates.parse(str) { return d }
             throw DecodingError.dataCorruptedError(
                 in: container, debugDescription: "Cannot parse date: \(str)")
         }
@@ -190,7 +184,7 @@ extension SyncWire {
         // Verbatim keys — do NOT convert to snake_case.
         encoder.dateEncodingStrategy = .custom { date, enc in
             var container = enc.singleValueContainer()
-            try container.encode(fractional.string(from: date))
+            try container.encode(isoDates.format(date))
         }
         return (encoder, decoder)
     }()
