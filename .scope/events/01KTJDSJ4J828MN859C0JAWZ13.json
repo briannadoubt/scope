@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "id": "01KTJDSJ4J828MN859C0JAWZ13",
+  "ts": "2026-06-08T01:33:13.234Z",
+  "actor": "Bri",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTJDSJ4EG26GVA9F7KRFN29Z",
+    "number": 162,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "PG tests flake under parallel shared-DB schema setup",
+    "description": "The Postgres test files (pg-schema/replay/store/snapshot) run in parallel processes against one shared database. Concurrent ensureSchema (CREATE TABLE IF NOT EXISTS) DDL can transiently fail (e.g. 'tuple concurrently updated' in the catalog), causing an intermittent 1-test failure in the full suite. PG-only, so CI without SCOPE_PG_URL skips it and stays deterministic. Fix: serialize the schema DDL across connections via a pg advisory lock so concurrent ensureSchema calls can't race.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "model": "Opus 4.8"
+}

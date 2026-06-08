@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "id": "01KTJDSJ4J828MN859C0JAWZ19",
+  "ts": "2026-06-08T01:33:13.234Z",
+  "actor": "Bri",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTJDSJ4J828MN859C0JAWZ18",
+    "number": 165,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Milestone B: assemble multi-tenant hosted modules into the running server",
+    "description": "The hosted modules exist (auth_hosted/, quota/, realtime/, pg/) but are NOT wired into the running server — SCP-161 shipped only the Milestone-A single-instance cloud mode. Milestone B: under SCOPE_PG_URL, wire the Postgres-backed store + replay, the hosted OIDC/API-key auth middleware (note: createHostedAuthMiddleware + OIDC routes still need writing per the SCP-161 spec), LISTEN/NOTIFY fan-out replacing the in-process bus, and the quota middleware — turning the single-instance hub into a horizontally-scalable multi-tenant SaaS. Large; needs a Fly Postgres + OIDC app.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "model": "Opus 4.8"
+}

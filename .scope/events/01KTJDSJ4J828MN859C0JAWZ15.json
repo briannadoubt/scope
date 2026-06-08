@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "id": "01KTJDSJ4J828MN859C0JAWZ15",
+  "ts": "2026-06-08T01:33:13.234Z",
+  "actor": "Bri",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTJDSJ4J828MN859C0JAWZ14",
+    "number": 163,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Deploy hardening: first-boot init on fresh volume + correct fly.toml volume semantics",
+    "description": "Two Milestone-A deploy gaps: (1) the container runs `scope serve`, which requires an initialized .scope at SCOPE_DIR; on a fresh Fly volume it is empty, so the entrypoint must `scope init` if missing. (2) In Milestone A (no Postgres) the /data volume holds the CANONICAL event log, but fly.toml's comment calls it a disposable cache — misleading and dangerous (someone could destroy real data). Fix the entrypoint + the comment, and document backup.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "model": "Opus 4.8"
+}

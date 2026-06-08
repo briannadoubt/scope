@@ -52,6 +52,8 @@ EXPOSE 8080
 # internal_port wiring; the serve command takes --port. We pass it explicitly
 # from the env so the platform controls the bind port.
 #
-# NOTE: serve must bind 0.0.0.0 inside the container (not just loopback) so the
-# Fly proxy can reach it — see the INTEGRATION INSTRUCTIONS about HOST/0.0.0.0.
-CMD ["sh", "-c", "node bin/scope.js serve --port ${PORT:-8080} --no-open"]
+# SCOPE_CLOUD=1 (from fly.toml) makes serve bind 0.0.0.0 and require auth on
+# every request. On a fresh volume there's no workspace yet, so init one at
+# SCOPE_DIR first (idempotent: skipped if it already exists) — otherwise serve
+# would exit with "No .scope directory found" (SCP-163).
+CMD ["sh", "-c", "[ -d \"${SCOPE_DIR:-/data/.scope}\" ] || node bin/scope.js init --key SCOPE --name Scope; node bin/scope.js serve --port ${PORT:-8080} --no-open"]

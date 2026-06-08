@@ -102,9 +102,41 @@ CREATE TABLE IF NOT EXISTS ticket_history (
 CREATE INDEX IF NOT EXISTS idx_history_ticket ON ticket_history (tenant_id, ticket_id);
 `;
 
-/** Create every table/index if absent. Idempotent; safe on every boot. */
+/**
+ * Create every table/index if absent. Idempotent; safe on every boot.
+ *
+ * Wrapped in a transaction-scoped pg advisory lock so concurrent callers
+ * (e.g. parallel test files sharing one database) serialize the DDL instead of
+ * racing on `CREATE TABLE IF NOT EXISTS` — which can otherwise transiently fail
+ * with "tuple concurrently updated" in the catalog (SCP-162). The lock is taken
+ * on a dedicated client so BEGIN/lock/DDL/COMMIT share one connection.
+ */
 export async function ensureSchema(clientOrPool) {
-  await clientOrPool.query(SCHEMA_SQL);
+  const isPool = typeof clientOrPool.connect === 'function'; // a Pool
+  for (let attempt = 1; ; attempt++) {
+    const db = isPool ? await clientOrPool.connect() : clientOrPool;
+    try {
+      await db.query('BEGIN');
+      // Stable advisory lock serializes concurrent ensureSchema DDL.
+      await db.query('SELECT pg_advisory_xact_lock(826349001)');
+      await db.query(SCHEMA_SQL);
+      await db.query('COMMIT');
+      return;
+    } catch (err) {
+      try { await db.query('ROLLBACK'); } catch {}
+      // The advisory lock can't prevent this DDL from deadlocking (40P01) with a
+      // *different* tenant's concurrent data writes on shared tables (parallel
+      // test files share one DB), nor a serialization failure (40001). Both are
+      // transient — back off and retry (SCP-162).
+      if ((err.code === '40P01' || err.code === '40001') && attempt < 6) {
+        await new Promise((r) => setTimeout(r, 25 * attempt));
+        continue;
+      }
+      throw err;
+    } finally {
+      if (isPool) db.release();
+    }
+  }
 }
 
 /** Drop everything (tests only). */

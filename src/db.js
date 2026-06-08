@@ -43,6 +43,12 @@ export function ensureScopeGitignore(scopeDir) {
  * Returns the absolute path to the .scope directory, or null.
  */
 export function findScopeDir(start = process.cwd()) {
+  // An explicit SCOPE_DIR (hosted deploys point this at the persistent volume,
+  // e.g. /data/.scope) is authoritative and short-circuits the upward walk
+  // (SCP-163). Only honored when it already exists, so `init` can still create it.
+  const env = process.env.SCOPE_DIR;
+  if (env && existsSync(env)) return resolve(env);
+
   let dir = resolve(start);
   const root = resolve('/');
   while (true) {
@@ -56,6 +62,9 @@ export function findScopeDir(start = process.cwd()) {
 }
 
 export function defaultScopeDir(cwd = process.cwd()) {
+  // Honor SCOPE_DIR so `scope init` targets the configured location (the volume
+  // in a hosted deploy) rather than the container's working directory.
+  if (process.env.SCOPE_DIR) return resolve(process.env.SCOPE_DIR);
   return join(resolve(cwd), SCOPE_DIR_NAME);
 }
 
