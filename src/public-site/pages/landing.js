@@ -13,22 +13,25 @@ export function renderLanding(ctx) {
   const body = `
   <section class="hero">
     <div class="hero-inner">
-      <p class="eyebrow">CLI &middot; Web &middot; iOS &middot; Hosted hub</p>
-      <h1 class="hero-title">${SITE_TAGLINE}</h1>
+      <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>CLI &middot; Web &middot; iOS &middot; Hosted hub</p>
+      <h1 class="hero-title">The local-first kanban for<br><span class="grad">engineers and their agents</span></h1>
       <p class="hero-sub">
-        Scope is a local-first kanban for epics, stories, and bugs. It works offline,
-        syncs through git or any dumb file sync, and streams realtime updates over SSE
-        the moment you bring a hub online. Plan and track work from the terminal, the
-        browser, or your phone &mdash; alongside the agents doing the work.
+        A kanban for epics, stories, and bugs that works offline, syncs through git or any
+        dumb file sync, and streams realtime updates over SSE the moment you bring a hub
+        online. Plan and track work from the terminal, the browser, or your phone &mdash;
+        alongside the agents doing the work.
       </p>
       <div class="hero-cta">
         <a class="btn-cta lg" href="${ctx.githubLoginPath}">Sign in with GitHub</a>
         <a class="btn-secondary lg" href="/docs">Read the docs</a>
       </div>
-      <pre class="hero-code"><code>$ brew install briannadoubt/tap/scope
-$ scope init
-$ scope ticket create "Auth refactor" -t epic -p high
-$ scope serve            <span class="cmt"># → realtime board over SSE</span></code></pre>
+      <div class="hero-terminal" aria-hidden="true">
+        <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><em>zsh — scope</em></div>
+        <pre class="hero-code"><code><span class="prompt">$</span> brew install briannadoubt/tap/scope
+<span class="prompt">$</span> scope init
+<span class="prompt">$</span> scope ticket create <span class="str">"Auth refactor"</span> -t epic -p high
+<span class="prompt">$</span> scope serve            <span class="cmt"># → realtime board over SSE</span></code></pre>
+      </div>
     </div>
   </section>
 

@@ -41,8 +41,11 @@ test('GET / returns the landing page with the hero headline', async () => {
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type') || '', /text\/html/);
     const body = await res.text();
-    // Hero headline / positioning line.
-    assert.match(body, /The local-first kanban for engineers and their agents\./);
+    // Hero headline / positioning line. The headline is split across a line
+    // break + a gradient <span>, so assert the two fragments rather than the
+    // exact run-on string.
+    assert.match(body, /The local-first kanban for/);
+    assert.match(body, /engineers and their agents/);
     // Primary + secondary CTAs are present.
     assert.match(body, /Sign in with GitHub/);
     assert.match(body, /Read the docs/);

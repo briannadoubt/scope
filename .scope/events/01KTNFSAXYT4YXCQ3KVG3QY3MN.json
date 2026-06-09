@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "id": "01KTNFSAXYT4YXCQ3KVG3QY3MN",
+  "ts": "2026-06-09T06:05:46.302Z",
+  "actor": "ui",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01KTNCQQHGG1CRKFYYJ90AC0CD",
+    "field": "assignee",
+    "value": "bri"
+  }
+}

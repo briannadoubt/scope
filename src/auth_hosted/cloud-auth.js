@@ -153,15 +153,58 @@ async function issueSession(pool, res, accountId) {
 /* ------------------------------ public routes ----------------------------- */
 
 /**
+ * A small, styled "sign-in isn't enabled here yet" page. Served when a visitor
+ * clicks "Sign in" on a hub that hasn't finished provisioning (no Postgres / no
+ * JWT secret / no OAuth app) — far friendlier than a bare 401/501, and it hits
+ * both the un-provisioned production hub and the local cloud preview.
+ */
+function signinUnavailablePage() {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign-in not enabled — Scope</title>
+<style>
+  :root { --bg:#0d1117; --text:#e6edf3; --muted:#8b949e; --accent:#2f81f7; --border:#30363d; }
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:radial-gradient(900px 420px at 50% -120px,rgba(47,129,247,.18),transparent 70%);}
+  .card{max-width:460px;text-align:center;border:1px solid var(--border);border-radius:12px;
+    background:#161b22;padding:36px 30px;}
+  .mark{color:var(--accent);font-size:26px;}
+  h1{font-size:21px;margin:14px 0 10px;}
+  p{color:var(--muted);margin:0 0 20px;}
+  a.btn{display:inline-block;padding:10px 18px;border-radius:8px;background:var(--accent);
+    color:#fff;text-decoration:none;font-weight:600;}
+  a.alt{color:var(--muted);text-decoration:none;display:inline-block;margin-top:14px;font-size:14px;}
+</style></head>
+<body><div class="wrap"><div class="card">
+  <div class="mark">◆</div>
+  <h1>Sign-in isn't enabled on this hub yet</h1>
+  <p>This Scope hub is running without an identity provider configured.
+     GitHub sign-in turns on once the hub has Postgres, a session secret, and a
+     GitHub OAuth app set up.</p>
+  <a class="btn" href="/">Back to home</a>
+  <div><a class="alt" href="/docs/self-hosting">Read the self-hosting docs →</a></div>
+</div></div></body></html>`;
+}
+
+/**
  * The unauthenticated auth routes (login/callback/refresh/logout). Mounted
- * BEFORE the credential gate. Returns an express.Router.
+ * BEFORE the credential gate, in ALL cloud modes — when hosted auth isn't fully
+ * enabled (no pool / no provider) /auth/login serves a friendly "not enabled"
+ * page instead of falling through to the gate's 401. Returns an express.Router.
  */
 export function publicAuthRouter({ pool, appPath = '/app' }) {
   const r = express.Router();
 
   // Kick off interactive login. GitHub first (it's the configured default);
-  // generic OIDC as a fallback for Google/Apple etc.
+  // generic OIDC as a fallback for Google/Apple etc. If the hub can't actually
+  // complete a login (no DB to upsert accounts, or no provider), show the
+  // friendly unavailable page rather than starting a flow that would dead-end.
   r.get('/auth/login', async (req, res) => {
+    if (!pool || !loginProviderConfigured()) {
+      return res.status(200).type('html').send(signinUnavailablePage());
+    }
     try {
       if (githubConfigured()) {
         const { url, state } = buildGithubAuthUrl();
@@ -174,7 +217,7 @@ export function publicAuthRouter({ pool, appPath = '/app' }) {
         appendCookie(res, cookie(STATE_COOKIE, `oidc:${state}:${codeVerifier}`, { maxAge: 600 }));
         return res.redirect(url);
       }
-      return res.status(501).json({ error: 'no login provider configured' });
+      return res.status(200).type('html').send(signinUnavailablePage());
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }

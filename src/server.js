@@ -224,10 +224,12 @@ export async function startServer({
     } catch (e) {
       if (!quiet) process.stderr.write(`[hub] public site not mounted: ${e.message}\n`);
     }
+    // Login flow, mounted BEFORE the gate in every cloud mode. When hosted auth
+    // isn't fully provisioned (no pool/provider) it serves a friendly
+    // "sign-in not enabled" page instead of letting /auth/login hit the 401 gate.
+    app.use(publicAuthRouter({ pool, appPath: '/app' }));
   }
   if (hostedAuth) {
-    // Unauthenticated login flow (sets req nothing; issues the session).
-    app.use(publicAuthRouter({ pool, appPath: '/app' }));
     // The credential gate: every request below needs a session JWT or API key.
     app.use(hostedAuthMiddleware({ pool }));
     // Authenticated API-key management (needs req.principal).

@@ -7,6 +7,13 @@
       "runtimeArgs": ["bin/scope.js", "preview", "--port", "4322"],
       "port": 4322,
       "autoPort": false
+    },
+    {
+      "name": "scope-cloud-site",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/preview-cloud.mjs", "4400"],
+      "port": 4400,
+      "autoPort": false
     }
   ]
 }
