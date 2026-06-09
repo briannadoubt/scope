@@ -46,10 +46,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_provider
 
 -- a project IS a tenant (the sync boundary; tenant_id == event-log tenant_id) -
 CREATE TABLE IF NOT EXISTS projects (
-  tenant_id  text PRIMARY KEY,           -- shared with src/pg/* event tables
-  name       text NOT NULL,
-  created_by text NOT NULL REFERENCES accounts(id),
-  created_at text NOT NULL
+  tenant_id   text PRIMARY KEY,          -- shared with src/pg/* event tables
+  name        text NOT NULL,
+  created_by  text NOT NULL REFERENCES accounts(id),
+  created_at  text NOT NULL,
+  archived_at text                       -- non-null => archived (soft delete, SCP-192)
 );
 
 -- account × project membership with a role -----------------------------------
@@ -86,16 +87,68 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   revoked_at  text                       -- non-null => logged out / reuse-detected
 );
 CREATE INDEX IF NOT EXISTS idx_refresh_account ON refresh_tokens (account_id);
+
+-- single-use project invites (SCP-190) ---------------------------------------
+-- An owner mints a code; anyone presenting the code joins at the invite's role.
+-- Like api_keys, only sha-256(code) is stored — the plaintext is shown ONCE.
+CREATE TABLE IF NOT EXISTS invites (
+  id          text PRIMARY KEY,
+  tenant_id   text NOT NULL REFERENCES projects(tenant_id) ON DELETE CASCADE,
+  email       text,                      -- advisory addressing; the CODE is the credential
+  role        text NOT NULL CHECK (role IN ('owner','member','viewer')),
+  code_hash   text NOT NULL UNIQUE,      -- sha-256(code) hex; NEVER the plaintext
+  created_by  text NOT NULL REFERENCES accounts(id),
+  created_at  text NOT NULL,
+  expires_at  text NOT NULL,
+  revoked_at  text,                      -- non-null => revoked, accept rejected
+  accepted_at text,                      -- non-null => consumed (single-use)
+  accepted_by text                       -- account that redeemed the code
+);
+CREATE INDEX IF NOT EXISTS idx_invites_tenant ON invites (tenant_id);
 `;
 
-/** Create every hosted-auth table/index if absent. Idempotent; safe on boot. */
+/**
+ * Create every hosted-auth table/index if absent. Idempotent; safe on boot.
+ *
+ * Serialized under the same advisory-lock + transient-retry pattern as
+ * src/pg/schema.js ensureSchema: many processes boot servers concurrently in
+ * the test suite (and multi-instance deploys will too), and concurrent DDL on
+ * shared tables can deadlock (40P01) with another process's data writes.
+ * Upgrade ALTERs run only when actually needed so steady-state boots take no
+ * exclusive locks at all.
+ */
 export async function ensureAuthSchema(clientOrPool) {
-  await clientOrPool.query(AUTH_SCHEMA_SQL);
+  const isPool = typeof clientOrPool.connect === 'function';
+  for (let attempt = 1; ; attempt++) {
+    const db = isPool ? await clientOrPool.connect() : clientOrPool;
+    try {
+      await db.query('BEGIN');
+      await db.query('SELECT pg_advisory_xact_lock(826349002)');
+      await db.query(AUTH_SCHEMA_SQL);
+      // Conditional upgrades for deployments created before a column existed.
+      const hasArchived = (await db.query(
+        `SELECT 1 FROM information_schema.columns
+          WHERE table_name='projects' AND column_name='archived_at'`
+      )).rowCount > 0;
+      if (!hasArchived) await db.query('ALTER TABLE projects ADD COLUMN archived_at text');
+      await db.query('COMMIT');
+      return;
+    } catch (err) {
+      try { await db.query('ROLLBACK'); } catch {}
+      if ((err.code === '40P01' || err.code === '40001') && attempt < 6) {
+        await new Promise((r) => setTimeout(r, 25 * attempt));
+        continue;
+      }
+      throw err;
+    } finally {
+      if (isPool) db.release();
+    }
+  }
 }
 
 /** Drop every hosted-auth table (tests only). */
 export async function dropAuthSchema(clientOrPool) {
   await clientOrPool.query(`
-    DROP TABLE IF EXISTS refresh_tokens, api_keys, memberships, projects, accounts CASCADE;
+    DROP TABLE IF EXISTS invites, refresh_tokens, api_keys, memberships, projects, accounts CASCADE;
   `);
 }

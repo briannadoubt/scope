@@ -15,13 +15,20 @@
  */
 import { hasRole, getRole } from './membership.js';
 
-/** The board the request is asking for: explicit selector, else the claim default. */
+/**
+ * The board the request is asking for: explicit selector, else the claim
+ * default. The legacy X-Scope-Workspace header / ?workspace= param double as
+ * selectors so the existing web app works per-tenant unchanged — accepting
+ * them is safe because they only SELECT among boards; membership is always
+ * validated against the authenticated subject (never header-derived tenancy).
+ */
 export function requestedTenant(req) {
-  const header = req.headers['x-scope-project'];
-  const query = req.query && req.query.project;
+  const pick = (v) => (typeof v === 'string' && v ? v : null);
   return (
-    (typeof header === 'string' && header) ||
-    (typeof query === 'string' && query) ||
+    pick(req.headers['x-scope-project']) ||
+    pick(req.query && req.query.project) ||
+    pick(req.headers['x-scope-workspace']) ||
+    pick(req.query && req.query.workspace) ||
     req.principal?.tenantId ||
     null
   );

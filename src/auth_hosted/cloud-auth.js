@@ -21,13 +21,15 @@ import express from 'express';
 
 import { pgConfigured, getPool } from '../pg/pool.js';
 import { ensureSchema } from '../pg/schema.js';
+import { ensureRls } from '../pg/rls.js';
 import { ensureAuthSchema } from './schema.js';
 import {
   mintAccessToken, verifyAccessToken,
   issueRefreshToken, storeRefreshToken, rotateRefreshToken, revokeRefreshToken,
 } from './sessions.js';
 import { authenticateApiKey, createApiKey, listApiKeys, revokeApiKey } from './apikeys.js';
-import { upsertAccount, createProject, listMemberships } from './membership.js';
+import { upsertAccount, listMemberships } from './membership.js';
+import { createProjectBoard } from './tenant-board.js';
 import { githubConfigured, buildGithubAuthUrl, handleGithubCallback } from './github.js';
 import { oidcConfigured, buildAuthUrl, discover, handleCallback } from './oidc.js';
 
@@ -249,11 +251,15 @@ export function publicAuthRouter({ pool, appPath = '/app' }) {
       if (!identity.email) return res.status(400).json({ error: 'provider did not return an email' });
       const accountId = await upsertAccount(pool, identity);
 
-      // First login with no project: give the user a personal project so the
-      // session has a tenant to scope to. Project picker/UI is SCP-174.
+      // First login with no project: provision a real, served project BOARD
+      // (project row + owner membership + seeded workspace.init), not an
+      // orphan projects row — the user lands on a working board (SCP-192).
       const memberships = await listMemberships(pool, accountId);
       if (memberships.length === 0) {
-        await createProject(pool, { name: `${identity.name || identity.email}'s project`, ownerAccountId: accountId });
+        await createProjectBoard(pool, {
+          accountId,
+          name: `${identity.name || identity.email}'s project`,
+        });
       }
 
       await issueSession(pool, res, accountId);
@@ -344,6 +350,8 @@ export async function ensureHostedAuthReady() {
   const pool = getPool();
   await ensureAuthSchema(pool);   // accounts/projects/memberships/api_keys/refresh_tokens
   await ensureSchema(pool);       // tenant event log + replayed cache (per-project boards)
+  await ensureRls(pool);          // row-level security on the tenant tables (SCP-189);
+                                  // binds when SCOPE_PG_APP_ROLE names a non-superuser role
   return pool;
 }
 

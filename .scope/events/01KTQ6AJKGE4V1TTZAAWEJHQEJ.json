@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ6AJKGE4V1TTZAAWEJHQEJ",
+  "ts": "2026-06-09T21:58:54.320Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTJDSJ4J828MN859C0JAWZ18",
+    "commentId": "01KTQ6AJKGE4V1TTZAAWEJHQEH",
+    "author": "claude",
+    "body": "Mostly landed by the SCP-167/185 work: PG store+replay now back the serving path (tenant replicas), hosted OIDC/API-key auth middleware is live, schema/RLS on boot. REMAINING to close Milestone B: (1) LISTEN/NOTIFY fan-out - bridge src/realtime/bus.js makePgBus into emitChange/SSE when PG is configured so a second app instance fans out; (2) quota middleware - wire src/quota (event quota on push, connection tracker on SSE, rate limiter) into the hosted path."
+  }
+}

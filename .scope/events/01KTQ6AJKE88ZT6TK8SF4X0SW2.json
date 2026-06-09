@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ6AJKE88ZT6TK8SF4X0SW2",
+  "ts": "2026-06-09T21:58:54.318Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNB",
+    "commentId": "01KTQ6AJKE88ZT6TK8SF4X0SW1",
+    "author": "claude",
+    "body": "DONE, verified vs real Postgres. Second increment landed: the ENTIRE existing REST surface (tickets/relations/comments/history/search/batch) now serves hosted tenants via per-tenant replica workspaces (src/auth_hosted/tenant-replica.js) - the hub keeps a local SQLite replica of each tenant PG event log (ADR 0002: the cloud node is just another replica), so every repo.js handler works unchanged. Reads refresh (pull since cursor) before the handler; mutations flush (idempotent uploadEvents) after responding. Replicas are durable under SCOPE_TENANT_DIR beside the volume SCOPE_DIR. /api/workspaces in hosted mode returns the caller projects shaped as workspaces, so the existing web switcher works per-tenant unchanged. Proven in test/multi-tenant-pg.test.js: ticket CRUD through generic handlers, per-tenant ids (ALPHA-1), flush reaches the PG log, cross-tenant REST read 404."
+  }
+}

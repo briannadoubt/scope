@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ6AJKFFQSFFQSJGHF4R27G",
+  "ts": "2026-06-09T21:58:54.319Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNK",
+    "commentId": "01KTQ6AJKFFQSFFQSJGHF4R27F",
+    "author": "claude",
+    "body": "DONE (subagent + integrated). src/auth_hosted/invites.js membersRouter mounted in the cloud server before the replica gate (so /api/invites/accept works for not-yet-members). Members list/role-change/remove with LAST_OWNER guard + self-leave; invites: owner-only create (sha-256 code hash stored, plaintext shown once, 7-day expiry), list pending, revoke, single-use atomic accept that never downgrades an existing role. Verified end-to-end through the real server: invite -> accept -> viewer can read, cannot write."
+  }
+}

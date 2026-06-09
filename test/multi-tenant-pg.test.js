@@ -131,6 +131,91 @@ test('foundation: role gate — viewer reads, only member writes', { skip }, asy
   } finally { await hub.close(); }
 });
 
+test('replica REST: full ticket surface is tenant-scoped through the existing handlers', { skip }, async () => {
+  const hub = await startHostedHub();
+  try {
+    const A = await upsertAccount(hub.pool, { email: uniq('a') + '@t.test', provider: 'github', providerSub: uniq('a') });
+    const B = await upsertAccount(hub.pool, { email: uniq('b') + '@t.test', provider: 'github', providerSub: uniq('b') });
+    const tokA = sess(A), tokB = sess(B);
+    const pa = await (await authPost(hub.base, '/api/projects', tokA, { name: 'Alpha' })).json();
+    const pb = await (await authPost(hub.base, '/api/projects', tokB, { name: 'Bravo' })).json();
+
+    // A creates a ticket via the EXISTING REST handler (repo.js over the replica).
+    const create = await fetch(`${hub.base}/api/tickets`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `scope_session=${tokA}`,
+        'X-Scope-Workspace': pa.tenantId, // legacy selector — validated, not trusted
+      },
+      body: JSON.stringify({ type: 'story', title: 'replica ticket', by: A }),
+    });
+    assert.equal(create.status, 201, 'POST /api/tickets works against the tenant replica');
+    const ticket = await create.json();
+    assert.match(ticket.id, /^A/, 'ticket id uses the project-derived key');
+
+    // Comment + read back through the generic surface.
+    const comment = await fetch(`${hub.base}/api/tickets/${ticket.id}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: `scope_session=${tokA}`, 'X-Scope-Workspace': pa.tenantId },
+      body: JSON.stringify({ body: 'hello from a tenant', author: A }),
+    });
+    assert.equal(comment.status, 201);
+    const list = await (await fetch(`${hub.base}/api/tickets?workspace=${pa.tenantId}`, {
+      headers: { Cookie: `scope_session=${tokA}` },
+    })).json();
+    assert.equal(list.length, 1);
+    assert.equal(list[0].title, 'replica ticket');
+
+    // The write was flushed to the canonical PG log: it shows in tenant sync pull.
+    const pulled = await (await authGet(hub.base, `/api/sync/pull?project=${pa.tenantId}`, tokA)).json();
+    assert.ok(pulled.events.some((e) => e.kind === 'ticket.create'), 'replica flush reached the PG log');
+
+    // B's tenant sees none of it through the same generic surface…
+    const bList = await (await fetch(`${hub.base}/api/tickets?workspace=${pb.tenantId}`, {
+      headers: { Cookie: `scope_session=${tokB}` },
+    })).json();
+    assert.equal(bList.length, 0, 'tenant B sees no tenant-A tickets');
+
+    // …and B cannot read A's board through it either (404, no disclosure).
+    const cross = await fetch(`${hub.base}/api/tickets?workspace=${pa.tenantId}`, {
+      headers: { Cookie: `scope_session=${tokB}` },
+    });
+    assert.equal(cross.status, 404, 'cross-tenant REST read denied');
+  } finally { await hub.close(); }
+});
+
+test('replica REST: invite grants access through the real server; viewer still cannot write', { skip }, async () => {
+  const hub = await startHostedHub();
+  try {
+    const A = await upsertAccount(hub.pool, { email: uniq('a') + '@t.test', provider: 'github', providerSub: uniq('a') });
+    const C = await upsertAccount(hub.pool, { email: uniq('c') + '@t.test', provider: 'github', providerSub: uniq('c') });
+    const tokA = sess(A), tokC = sess(C);
+    const pa = await (await authPost(hub.base, '/api/projects', tokA, { name: 'Alpha' })).json();
+
+    // Owner invites C as viewer; C accepts — all over the wired server.
+    const inv = await (await authPost(hub.base, `/api/projects/${pa.tenantId}/invites`, tokA, { role: 'viewer' })).json();
+    assert.ok(inv.code, 'invite code issued once');
+    const accept = await authPost(hub.base, '/api/invites/accept', tokC, { code: inv.code });
+    assert.equal(accept.status, 200);
+    assert.equal((await accept.json()).tenantId, pa.tenantId);
+
+    // C can now read A's board via the generic REST surface…
+    const read = await fetch(`${hub.base}/api/tickets?workspace=${pa.tenantId}`, {
+      headers: { Cookie: `scope_session=${tokC}` },
+    });
+    assert.equal(read.status, 200, 'accepted invite grants read');
+
+    // …but cannot mutate it (viewer).
+    const write = await fetch(`${hub.base}/api/tickets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: `scope_session=${tokC}`, 'X-Scope-Workspace': pa.tenantId },
+      body: JSON.stringify({ type: 'story', title: 'nope', by: C }),
+    });
+    assert.equal(write.status, 403, 'viewer cannot write through the replica gate');
+  } finally { await hub.close(); }
+});
+
 test('foundation: actor authz — cannot push events attributed to another principal', { skip }, async () => {
   const hub = await startHostedHub();
   try {

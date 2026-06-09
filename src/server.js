@@ -52,7 +52,12 @@ import {
 } from './auth_hosted/cloud-auth.js';
 import { authorizeUploadActors, statusForReject } from './auth_hosted/authz.js';
 import { requireTenantRole } from './auth_hosted/tenancy.js';
-import { listProjects, createProjectBoard, readBoard } from './auth_hosted/tenant-board.js';
+import { getRole } from './auth_hosted/membership.js';
+import {
+  listProjects, listProjectBoards, createProjectBoard, readBoard,
+  renameProject, archiveProject,
+} from './auth_hosted/tenant-board.js';
+import { ensureReplica, refreshReplica, flushReplica, closeAllReplicas, evictReplica } from './auth_hosted/tenant-replica.js';
 import { uploadEvents, pullEvents } from './pg/store.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -237,6 +242,12 @@ export async function startServer({
     app.use(hostedAuthMiddleware({ pool }));
     // Authenticated API-key management (needs req.principal).
     app.use(apiKeyRouter({ pool }));
+    // Members + invites (SCP-190): per-project member list / role management /
+    // invite create-accept-revoke. Self-gated per route; mounted BEFORE the
+    // replica gate so /api/invites/accept works for principals who don't hold
+    // a role on the target board yet (accepting is how they get one).
+    const { membersRouter } = await import('./auth_hosted/invites.js');
+    app.use(membersRouter({ pool }));
 
     // Tenant-scoped board API (SCP-186/187/188): a project IS a board, stored
     // per-tenant in Postgres. Mounted BEFORE the generic file/SQLite handlers so
@@ -256,6 +267,32 @@ export async function startServer({
       try { res.status(201).json(await createProjectBoard(pool, { accountId: req.principal.accountId, name })); }
       catch (e) { res.status(400).json({ error: e.message }); }
     });
+    // Project lifecycle (SCP-192): rename / archive, owner only. The tenant
+    // comes from the route param; ownership is validated against membership
+    // (mirrors tenancy.js semantics: non-member 404, insufficient role 403).
+    const ownerOf = (param) => async (req, res, next) => {
+      try {
+        const tenantId = req.params[param];
+        const role = await getRole(pool, tenantId, req.principal.accountId);
+        if (!role) return res.status(404).json({ error: 'no such project', code: 'NO_PROJECT' });
+        if (role !== 'owner') return res.status(403).json({ error: 'insufficient role', code: 'FORBIDDEN_ROLE' });
+        req.tenantId = tenantId;
+        next();
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    };
+    tApi.patch('/api/projects/:tenantId', ownerOf('tenantId'), async (req, res) => {
+      const name = req.body && req.body.name;
+      if (!name) return res.status(400).json({ error: 'name required' });
+      try { res.json(await renameProject(pool, req.tenantId, { accountId: req.principal.accountId, name })); }
+      catch (e) { res.status(400).json({ error: e.message }); }
+    });
+    tApi.delete('/api/projects/:tenantId', ownerOf('tenantId'), async (req, res) => {
+      try {
+        const out = await archiveProject(pool, req.tenantId);
+        evictReplica(req.tenantId); // drop the serving replica; data stays in PG
+        res.json(out);
+      } catch (e) { res.status(400).json({ error: e.message }); }
+    });
     // Read the active board (>= viewer).
     tApi.get('/api/board', requireTenantRole(pool, 'viewer'), async (req, res) => {
       try { res.json(await readBoard(pool, req.tenantId)); }
@@ -272,10 +309,63 @@ export async function startServer({
       // Actor authz (SCP-172): every event's actor must be the authenticated principal.
       const verdict = authorizeUploadActors(events, req.principal.accountId);
       if (!verdict.ok) return res.status(statusForReject(verdict.code)).json({ error: verdict.message, code: verdict.code });
-      try { res.json(await uploadEvents(pool, req.tenantId, events)); }
+      try {
+        const out = await uploadEvents(pool, req.tenantId, events);
+        if (out.accepted.length) {
+          // Surface to live viewers; the serving replica catches up on its
+          // next refresh-on-read.
+          emitChange({ type: 'sync.applied', workspace: req.tenantId, applied: out.accepted.length });
+        }
+        res.json(out);
+      }
       catch (e) { res.status(400).json({ error: `invalid event: ${e.message}` }); }
     });
+
+    // The web app's workspace switcher reads /api/workspaces — in hosted mode a
+    // "workspace" IS one of the caller's project boards (SCP-186/191). Server-
+    // side dir attach/detach is meaningless (and unsafe) for hosted tenants.
+    tApi.get('/api/workspaces', async (req, res) => {
+      try { res.json(await listProjectBoards(pool, req.principal.accountId)); }
+      catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    tApi.post('/api/workspaces', (_req, res) =>
+      res.status(403).json({ error: 'hosted boards are projects — create via POST /api/projects' }));
+    tApi.delete('/api/workspaces/:id', (_req, res) =>
+      res.status(403).json({ error: 'hosted boards are projects — manage via /api/projects' }));
     app.use(tApi);
+
+    // Replica gate (SCP-186): every OTHER /api route — the entire existing REST
+    // surface (tickets, relations, comments, history, search, board variants,
+    // batch) — serves the caller's tenant via a local replica of the tenant's
+    // canonical PG event log. GET needs >=viewer, mutations >=member. The
+    // replica is refreshed (pull) before the handler and flushed (push) after a
+    // mutation responds; uploadEvents' idempotency makes crash-retries safe.
+    app.use('/api', (req, res, next) => {
+      if (req.path === '/meta') return next(); // tenant-free: served generically
+      const min = req.method === 'GET' ? 'viewer' : 'member';
+      requireTenantRole(pool, min)(req, res, async () => {
+        try {
+          const rep = await ensureReplica(pool, req.tenantId);
+          await refreshReplica(pool, rep);
+          req.tenantReplica = { id: req.tenantId, scope_dir: rep.scopeDir, db: rep.db, label: 'project' };
+          if (req.method !== 'GET') {
+            res.on('finish', () => {
+              flushReplica(pool, rep).catch((e) => {
+                if (!quiet) process.stderr.write(`[hub] tenant flush failed (${req.tenantId}): ${e.message}\n`);
+              });
+            });
+          }
+          next();
+        } catch (e) {
+          res.status(500).json({ error: e.message });
+        }
+      });
+    });
+
+    // SSE: a hosted viewer may only stream a board they belong to. The guard
+    // validates the ?workspace= selector (a tenant id) before the generic
+    // /events handler attaches the stream.
+    app.use('/events', (req, res, next) => requireTenantRole(pool, 'viewer')(req, res, next));
 
     if (!quiet && !loginProviderConfigured()) {
       process.stderr.write('[hub] hosted auth on, but no login provider configured (API keys only)\n');
@@ -295,6 +385,9 @@ export async function startServer({
    * Caller should `if (!ws) return;`
    */
   function resolveWs(req, res) {
+    // Hosted requests already resolved + authorized their tenant board; the
+    // replica IS the workspace for every downstream handler (SCP-186).
+    if (req.tenantReplica) return req.tenantReplica;
     try { return mgr.resolveFromRequest(req); }
     catch (e) { res.status(404).json({ error: e.message }); return null; }
   }
@@ -326,7 +419,9 @@ export async function startServer({
       priorities: SCHEMA_PRIORITIES,
       ticket_types: SCHEMA_TICKET_TYPES,
       relation_types: SCHEMA_RELATION_TYPES,
-      hub: { port, workspaces: enrichedWorkspaces() },
+      // Hosted: the hub's own volume workspaces are private plumbing — a
+      // tenant's boards come from /api/workspaces (their projects) instead.
+      hub: { port, workspaces: hostedAuth ? [] : enrichedWorkspaces() },
       security,
       // True when per-user hosted auth is active — the web UI uses this to show
       // the API-keys panel + sign-out (SCP-174). False on the local/LAN path.
@@ -675,7 +770,7 @@ export async function startServer({
     });
     res.write('retry: 2000\n');
     res.write(
-      `event: hello\ndata: ${JSON.stringify({ workspaces: enrichedWorkspaces() })}\n\n`
+      `event: hello\ndata: ${JSON.stringify({ workspaces: hostedAuth ? [] : enrichedWorkspaces() })}\n\n`
     );
 
     // Optional filter — UI can pass ?workspace=<id> to only receive that
@@ -855,6 +950,7 @@ export async function startServer({
     try { advert?.stop?.(); } catch {}
     try { bonjour?.unpublishAll(() => bonjour.destroy()); } catch {}
     try { lanServer?.close(); } catch {}
+    if (hostedAuth) { try { closeAllReplicas(); } catch {} }
     return origClose(cb);
   };
   return server;

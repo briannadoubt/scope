@@ -130,11 +130,13 @@ export async function hasRole(pool, tenantId, accountId, minRole) {
   return roleSatisfies(role, minRole);
 }
 
-/** Projects the account belongs to, with role. Used to populate JWT claims. */
+/** Projects the account belongs to, with role. Used to populate JWT claims.
+ * Archived projects are excluded — they keep their data (soft delete,
+ * SCP-192) but stop being selectable boards or session defaults. */
 export async function listMemberships(pool, accountId) {
   return (await pool.query(
     `SELECT m.tenant_id, m.role, p.name
        FROM memberships m JOIN projects p ON p.tenant_id=m.tenant_id
-      WHERE m.account_id=$1 ORDER BY p.created_at`, [accountId]
+      WHERE m.account_id=$1 AND p.archived_at IS NULL ORDER BY p.created_at`, [accountId]
   )).rows;
 }

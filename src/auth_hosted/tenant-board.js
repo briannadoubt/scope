@@ -11,11 +11,15 @@ import { SCHEMA_STATUSES } from '../repo.js';
 import { uploadEvents, snapshotState } from '../pg/store.js';
 import { createProject, listMemberships } from './membership.js';
 
-/** Derive a short workspace key from a project name (e.g. "Hosted Scope" -> "HS"). */
+/** Derive a short workspace key from a project name (e.g. "Hosted Scope" -> "HS").
+ * The event schema requires 2-10 uppercase alnum chars, so single-word names
+ * fall back to their leading letters ("Alpha" -> "ALPHA"). */
 function deriveKey(name) {
   const letters = String(name || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '');
+  const squashed = letters.replace(/\s/g, '');
   const initials = letters.split(/\s+/).filter(Boolean).map((w) => w[0]).join('');
-  const key = (initials || letters.replace(/\s/g, '')).slice(0, 5);
+  let key = (initials.length >= 2 ? initials : squashed).slice(0, 5);
+  if (key.length < 2) key = (key + 'XX').slice(0, 2);
   return key || 'SCOPE';
 }
 
@@ -23,6 +27,33 @@ function deriveKey(name) {
 export async function listProjects(pool, accountId) {
   const rows = await listMemberships(pool, accountId);
   return rows.map((r) => ({ id: r.tenant_id, tenant_id: r.tenant_id, role: r.role, name: r.name }));
+}
+
+/**
+ * The caller's boards shaped like the /api/workspaces payload the web app
+ * already consumes ({id, key, name, …}) — id is the tenant id, so the app's
+ * existing workspace switcher + X-Scope-Workspace threading selects boards
+ * with zero client changes (SCP-186/191).
+ */
+export async function listProjectBoards(pool, accountId) {
+  const rows = (await pool.query(
+    `SELECT m.tenant_id, m.role, p.name AS project_name, w.key, w.name
+       FROM memberships m
+       JOIN projects p ON p.tenant_id = m.tenant_id
+       LEFT JOIN workspace w ON w.tenant_id = m.tenant_id
+      WHERE m.account_id = $1 AND p.archived_at IS NULL
+      ORDER BY p.created_at`, [accountId]
+  )).rows;
+  return rows.map((r) => ({
+    id: r.tenant_id,
+    scope_dir: null,
+    label: r.project_name,
+    key: r.key ?? deriveKey(r.project_name),
+    name: r.name ?? r.project_name,
+    description: '',
+    overview: '',
+    role: r.role,
+  }));
 }
 
 /**
@@ -38,6 +69,31 @@ export async function createProjectBoard(pool, { accountId, name, key } = {}) {
   const evt = makeEvent('workspace.init', { key: k, name }, { actor: accountId });
   await uploadEvents(pool, tenantId, [evt]);
   return { tenantId, key: k, name };
+}
+
+/**
+ * Rename a project (SCP-192): the projects row AND the board's workspace name
+ * move together — the latter via a workspace.set event so the rename is part
+ * of the board's canonical history like any other change.
+ */
+export async function renameProject(pool, tenantId, { accountId, name } = {}) {
+  if (!name) throw new Error('renameProject: name required');
+  await pool.query('UPDATE projects SET name=$2 WHERE tenant_id=$1', [tenantId, name]);
+  const evt = makeEvent('workspace.set', { name }, { actor: accountId });
+  await uploadEvents(pool, tenantId, [evt]);
+  return { tenantId, name };
+}
+
+/**
+ * Archive a project (soft delete, SCP-192). The tenant's event log and cache
+ * stay intact — the board just stops being listable/selectable. Idempotent.
+ */
+export async function archiveProject(pool, tenantId, { now } = {}) {
+  await pool.query(
+    'UPDATE projects SET archived_at=$2 WHERE tenant_id=$1 AND archived_at IS NULL',
+    [tenantId, new Date(Number.isFinite(now) ? now : Date.now()).toISOString()]
+  );
+  return { tenantId, archived: true };
 }
 
 /**

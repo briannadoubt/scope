@@ -97,9 +97,11 @@ test('cloud+PG: /api/sync/push rejects events whose actor != authenticated princ
     const theirs = events.find((e) => e.actor === 'someone-else');
     assert.ok(mine && theirs, 'have both fixture events');
 
-    const push = (evts) => fetch(`${hub.base}/api/sync/push?workspace=${hub.wsId}`, {
+    // Tenant-scoped push (SCP-186): the target is the session's project board,
+    // not a server workspace id — the volume workspace is private plumbing now.
+    const push = (evts) => fetch(`${hub.base}/api/sync/push?project=${hub.tenantId}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${hub.session}`, 'X-Scope-Workspace': hub.wsId },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${hub.session}` },
       body: JSON.stringify({ events: evts }),
     });
 

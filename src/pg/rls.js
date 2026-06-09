@@ -67,6 +67,74 @@ export async function applyRls(clientOrPool) {
 }
 
 /**
+ * Optional dedicated app role (SCP-189). Postgres SUPERUSER and BYPASSRLS roles
+ * bypass RLS unconditionally — FORCE ROW LEVEL SECURITY cannot touch them. When
+ * the pool connects as such a role (e.g. the docker-compose `scope` user, which
+ * is both), RLS is silently inert. Setting SCOPE_PG_APP_ROLE to a non-superuser,
+ * non-BYPASSRLS role makes `withTenant` SET LOCAL ROLE to it inside every tenant
+ * transaction, so the live query paths actually run under the policies.
+ * `ensureRls` grants that role the table privileges it needs at boot.
+ *
+ * Unset (the default) preserves prior behavior: no SET ROLE, and isolation rests
+ * on the explicit WHERE tenant_id clauses (plus RLS, if the pool role is one it
+ * applies to). The role NAME is interpolated into SET ROLE / GRANT (it cannot be
+ * a bind parameter), so it is validated as a strict SQL identifier first.
+ *
+ * @returns {string|null} the configured app role, or null
+ */
+export function appRole() {
+  const role = process.env.SCOPE_PG_APP_ROLE || null;
+  if (role && !/^[a-zA-Z_][a-zA-Z0-9_$]*$/.test(role)) {
+    throw new Error(`SCOPE_PG_APP_ROLE is not a valid Postgres identifier: ${JSON.stringify(role)}`);
+  }
+  return role;
+}
+
+/**
+ * One-call boot setup (SCP-189): install/refresh the RLS policies on every
+ * tenant-scoped table and, when SCOPE_PG_APP_ROLE is configured, grant that role
+ * the table privileges the live paths need. Idempotent — run on every boot,
+ * right after ensureSchema().
+ *
+ * Wrapped in the same advisory lock ensureSchema() uses, so concurrent booters
+ * (parallel test files sharing one database) serialize the DDL instead of racing
+ * DROP/CREATE POLICY in the catalog; transient deadlock/serialization failures
+ * retry, mirroring ensureSchema (SCP-162).
+ *
+ * @param {import('pg').Pool|import('pg').PoolClient} clientOrPool
+ */
+export async function ensureRls(clientOrPool) {
+  const role = appRole();
+  const isPool = typeof clientOrPool.connect === 'function'; // a Pool
+  for (let attempt = 1; ; attempt++) {
+    const db = isPool ? await clientOrPool.connect() : clientOrPool;
+    try {
+      await db.query('BEGIN');
+      // Same lock id as ensureSchema — RLS DDL serializes with schema DDL too.
+      await db.query('SELECT pg_advisory_xact_lock(826349001)');
+      await db.query(RLS_SQL);
+      if (role) {
+        await db.query(`GRANT USAGE ON SCHEMA public TO "${role}"`);
+        for (const t of RLS_TABLES) {
+          await db.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${t} TO "${role}"`);
+        }
+      }
+      await db.query('COMMIT');
+      return;
+    } catch (err) {
+      try { await db.query('ROLLBACK'); } catch {}
+      if ((err.code === '40P01' || err.code === '40001') && attempt < 6) {
+        await new Promise((r) => setTimeout(r, 25 * attempt));
+        continue;
+      }
+      throw err;
+    } finally {
+      if (isPool) db.release();
+    }
+  }
+}
+
+/**
  * Remove RLS (tests / rollback). Disables RLS and drops the policies. Idempotent.
  * @param {import('pg').Pool|import('pg').PoolClient} clientOrPool
  */
@@ -94,6 +162,12 @@ ALTER TABLE ${t} DISABLE  ROW LEVEL SECURITY;`
  * be passed as a bound parameter (SET LOCAL takes only literals) — no string
  * interpolation of the (authenticated, but still) tenant id into SQL.
  *
+ * When SCOPE_PG_APP_ROLE is configured (SCP-189, see appRole), the transaction
+ * also runs SET LOCAL ROLE to that role, so the statements execute under a role
+ * RLS actually applies to even when the pool connects as a superuser/BYPASSRLS
+ * role. SET LOCAL ROLE reverts on COMMIT/ROLLBACK, exactly like the GUC, so the
+ * role never leaks to the next user of the pooled connection.
+ *
  * @template T
  * @param {import('pg').Pool} pool
  * @param {string} tenantId
@@ -104,9 +178,13 @@ export async function withTenant(pool, tenantId, fn) {
   if (typeof tenantId !== 'string' || !tenantId) {
     throw new Error('withTenant requires a non-empty tenantId');
   }
+  const role = appRole();
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // SCP-189: drop superuser/BYPASSRLS privileges for the duration of the txn
+    // so the RLS policies below actually bind. Identifier validated in appRole().
+    if (role) await client.query(`SET LOCAL ROLE "${role}"`);
     // set_config(name, value, is_local=true) == SET LOCAL, but parameterized.
     await client.query('SELECT set_config($1, $2, true)', [TENANT_GUC, tenantId]);
     const result = await fn(client);

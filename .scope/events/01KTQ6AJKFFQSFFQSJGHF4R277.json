@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ6AJKFFQSFFQSJGHF4R277",
+  "ts": "2026-06-09T21:58:54.319Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXND",
+    "commentId": "01KTQ6AJKFFQSFFQSJGHF4R276",
+    "author": "claude",
+    "body": "DONE. tenancy.js resolves the active board from the authenticated subject only: X-Scope-Project / ?project / legacy X-Scope-Workspace+?workspace accepted purely as SELECTORS (membership always validated; non-member gets 404 no-disclosure), else the session tenant claim. The replica gate applies it to every /api route (GET>=viewer, mutation>=member); /events SSE gated viewer. The volume workspace is no longer reachable by hosted clients (meta.hub.workspaces empty, SSE hello empty, workspace attach/detach 403)."
+  }
+}

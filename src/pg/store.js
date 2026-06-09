@@ -10,11 +10,19 @@
  * the canonical fan-out source for SCP-146.
  *
  * Tenant isolation is enforced at the row level here (every statement is
- * tenant-scoped); Postgres RLS as defense-in-depth is SCP-144, and verifying
- * the uploaded events' actor against the authenticated principal is SCP-132.
+ * tenant-scoped); verifying the uploaded events' actor against the
+ * authenticated principal is SCP-132.
+ *
+ * SCP-189: every public function below additionally runs its statements inside
+ * `withTenant` (rls.js), which pins the transaction to the tenant's RLS context
+ * (SET LOCAL app.tenant_id, and SET LOCAL ROLE when SCOPE_PG_APP_ROLE is set).
+ * The explicit `WHERE tenant_id = $1` clauses are kept as belt-and-suspenders;
+ * RLS is the layer beneath them — if a future bug ever drops a WHERE, the
+ * database itself refuses cross-tenant rows.
  */
 import { validateEvent } from '../event-schema.js';
 import { replayWithinTx } from './replay.js';
+import { withTenant } from './rls.js';
 
 /**
  * @param {import('pg').Pool} pool
@@ -27,9 +35,9 @@ export async function uploadEvents(pool, tenantId, events) {
   // Validate the whole batch up front so a bad event lands nothing (atomic).
   for (const e of events) validateEvent(e);
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+  // SCP-189: withTenant owns BEGIN/COMMIT and pins the RLS tenant context, so
+  // the union + replay below stay one atomic, tenant-scoped transaction.
+  return withTenant(pool, tenantId, async (client) => {
     const accepted = [];
     const duplicates = [];
     for (const e of events) {
@@ -56,7 +64,6 @@ export async function uploadEvents(pool, tenantId, events) {
       'SELECT max(event_id) AS cursor, count(*)::int AS count FROM events WHERE tenant_id=$1',
       [tenantId]
     );
-    await client.query('COMMIT');
     return {
       accepted,
       duplicates,
@@ -64,12 +71,7 @@ export async function uploadEvents(pool, tenantId, events) {
       cursor: agg.rows[0].cursor,
       count: agg.rows[0].count,
     };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /**
@@ -81,25 +83,29 @@ export async function uploadEvents(pool, tenantId, events) {
  */
 export async function pullEvents(pool, tenantId, { since = null, limit = 1000 } = {}) {
   const cap = Math.min(Number(limit) || 1000, 1000);
-  const rows = (
-    await pool.query(
-      `SELECT body FROM events
-       WHERE tenant_id=$1 AND ($2::text IS NULL OR event_id > $2)
-       ORDER BY event_id ASC LIMIT $3`,
-      [tenantId, since, cap + 1] // fetch one extra to detect `more`
-    )
-  ).rows.map((r) => r.body);
-  const more = rows.length > cap;
-  const page = more ? rows.slice(0, cap) : rows;
-  const total = (
-    await pool.query('SELECT count(*)::int AS c FROM events WHERE tenant_id=$1', [tenantId])
-  ).rows[0].c;
-  return {
-    events: page,
-    cursor: page.length ? page[page.length - 1].id : since,
-    count: total,
-    more,
-  };
+  // SCP-189: reads run inside the tenant's RLS context too — the database
+  // refuses cross-tenant rows even if the WHERE below ever regressed.
+  return withTenant(pool, tenantId, async (client) => {
+    const rows = (
+      await client.query(
+        `SELECT body FROM events
+         WHERE tenant_id=$1 AND ($2::text IS NULL OR event_id > $2)
+         ORDER BY event_id ASC LIMIT $3`,
+        [tenantId, since, cap + 1] // fetch one extra to detect `more`
+      )
+    ).rows.map((r) => r.body);
+    const more = rows.length > cap;
+    const page = more ? rows.slice(0, cap) : rows;
+    const total = (
+      await client.query('SELECT count(*)::int AS c FROM events WHERE tenant_id=$1', [tenantId])
+    ).rows[0].c;
+    return {
+      events: page,
+      cursor: page.length ? page[page.length - 1].id : since,
+      count: total,
+      more,
+    };
+  });
 }
 
 /**
@@ -116,18 +122,21 @@ export async function pullEvents(pool, tenantId, { since = null, limit = 1000 } 
  * @returns {Promise<{cursor: string|null, count: number, state: {workspace, tickets, relations, comments, history}}>}
  */
 export async function snapshotState(pool, tenantId) {
-  const q = (sql) => pool.query(sql, [tenantId]).then((r) => r.rows);
-  const [agg, workspace, tickets, relations, comments, history] = await Promise.all([
-    pool.query('SELECT max(event_id) AS cursor, count(*)::int AS count FROM events WHERE tenant_id=$1', [tenantId]),
-    q('SELECT key, name, description, overview, next_ticket_number FROM workspace WHERE tenant_id=$1'),
-    q('SELECT id, uid, number, type, title, description, status, priority, parent_id, branch, pr_url, assignee, labels, created_at, updated_at FROM tickets WHERE tenant_id=$1 ORDER BY number'),
-    q('SELECT from_ticket_id, to_ticket_id, type, created_at FROM ticket_relations WHERE tenant_id=$1'),
-    q('SELECT ticket_id, author, body, created_at FROM ticket_comments WHERE tenant_id=$1 ORDER BY id'),
-    q('SELECT ticket_id, field, old_value, new_value, changed_by, changed_at FROM ticket_history WHERE tenant_id=$1 ORDER BY id'),
-  ]);
-  return {
-    cursor: agg.rows[0].cursor,
-    count: agg.rows[0].count,
-    state: { workspace: workspace[0] ?? null, tickets, relations, comments, history },
-  };
+  // SCP-189: all six reads share one tenant-scoped transaction (RLS context) —
+  // sequential on the txn client (pg deprecates overlapping queries on one
+  // client), and as a bonus the snapshot is now a consistent single-txn read.
+  return withTenant(pool, tenantId, async (client) => {
+    const q = (sql) => client.query(sql, [tenantId]).then((r) => r.rows);
+    const agg = await client.query('SELECT max(event_id) AS cursor, count(*)::int AS count FROM events WHERE tenant_id=$1', [tenantId]);
+    const workspace = await q('SELECT key, name, description, overview, next_ticket_number FROM workspace WHERE tenant_id=$1');
+    const tickets = await q('SELECT id, uid, number, type, title, description, status, priority, parent_id, branch, pr_url, assignee, labels, created_at, updated_at FROM tickets WHERE tenant_id=$1 ORDER BY number');
+    const relations = await q('SELECT from_ticket_id, to_ticket_id, type, created_at FROM ticket_relations WHERE tenant_id=$1');
+    const comments = await q('SELECT ticket_id, author, body, created_at FROM ticket_comments WHERE tenant_id=$1 ORDER BY id');
+    const history = await q('SELECT ticket_id, field, old_value, new_value, changed_by, changed_at FROM ticket_history WHERE tenant_id=$1 ORDER BY id');
+    return {
+      cursor: agg.rows[0].cursor,
+      count: agg.rows[0].count,
+      state: { workspace: workspace[0] ?? null, tickets, relations, comments, history },
+    };
+  });
 }

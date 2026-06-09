@@ -17,6 +17,7 @@
 import { compareEvents, formatActor } from '../event-schema.js';
 import { resolveDisplayNumbers, nextNumberSeed } from '../identity.js';
 import { COLUMN_TO_FIELD, RELATION_INVERSE } from '../enums.js';
+import { withTenant, TENANT_GUC } from './rls.js';
 
 const FIELD_TO_COLUMN = Object.fromEntries(
   Object.entries(COLUMN_TO_FIELD).map(([col, field]) => [field, col])
@@ -33,6 +34,12 @@ const FIELD_TO_COLUMN = Object.fromEntries(
  * @returns {Promise<{ applied: number, renumbered: Array }>}
  */
 export async function replayWithinTx(client, tenantId, events) {
+  // SCP-189: pin the caller's open transaction to this tenant's RLS context
+  // (SET LOCAL semantics — dies with the txn). Idempotent when the caller
+  // already set it via withTenant; for direct callers it guarantees every
+  // statement below runs under the tenant's row-level-security policies.
+  await client.query('SELECT set_config($1, $2, true)', [TENANT_GUC, tenantId]);
+
   const ordered = events.slice().sort(compareEvents);
   const { assignments, renumbered } = resolveDisplayNumbers(ordered);
 
@@ -97,9 +104,10 @@ export async function replayWithinTx(client, tenantId, events) {
 }
 
 /**
- * Rebuild a tenant's cache from `events` in its own transaction. Acquires a
- * dedicated client from the pool — using the pool directly would let BEGIN and
- * the writes land on different pooled connections, silently breaking atomicity.
+ * Rebuild a tenant's cache from `events` in its own transaction. Runs through
+ * withTenant (SCP-189), which owns a dedicated client + BEGIN/COMMIT — using
+ * the pool directly would let BEGIN and the writes land on different pooled
+ * connections, silently breaking atomicity — and pins the tenant RLS context.
  *
  * @param {import('pg').Pool} pool
  * @param {string} tenantId
@@ -107,18 +115,7 @@ export async function replayWithinTx(client, tenantId, events) {
  * @returns {Promise<{ applied: number, renumbered: Array }>}
  */
 export async function pgReplay(pool, tenantId, events) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const r = await replayWithinTx(client, tenantId, events);
-    await client.query('COMMIT');
-    return r;
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  return withTenant(pool, tenantId, (client) => replayWithinTx(client, tenantId, events));
 }
 
 async function applyEvent(db, T, e, human, assignments) {

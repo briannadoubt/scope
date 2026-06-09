@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ6AJKFFQSFFQSJGHF4R27K",
+  "ts": "2026-06-09T21:58:54.319Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q616J4KQE4GHP28A28D",
+    "commentId": "01KTQ6AJKFFQSFFQSJGHF4R27J",
+    "author": "claude",
+    "body": "DONE. First GitHub login now provisions a real served board via createProjectBoard (project row + owner membership + seeded workspace.init) instead of the orphan projects row. Lifecycle: PATCH /api/projects/:id rename (updates the projects row AND emits workspace.set into the board history), DELETE = soft archive (archived_at; data retained; replica evicted; archived boards excluded from listings and session defaults). Schema upgrade is a conditional, advisory-locked ALTER."
+  }
+}

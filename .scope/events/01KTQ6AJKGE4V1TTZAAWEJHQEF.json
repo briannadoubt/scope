@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ6AJKGE4V1TTZAAWEJHQEF",
+  "ts": "2026-06-09T21:58:54.320Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q616J4KQE4GHP28A28H",
+    "commentId": "01KTQ6AJKGE4V1TTZAAWEJHQEE",
+    "author": "claude",
+    "body": "Acceptance scenarios are implemented and passing (test/multi-tenant-pg.test.js + test/pg-rls-live.test.js + test/invites-pg.test.js: two-user isolation incl. RLS, invite grants scoped access, viewer cannot write, tenant+role-scoped sync, actor authz). NOT closing yet: the full suite shows an INTERMITTENT cross-process failure (~1 in 3 runs, varies by file) when many PG test processes share scope_test concurrently - ensureAuthSchema is now advisory-locked which reduced it, but root cause not yet pinned. Closing this ticket = flake fixed + 3 consecutive clean full-suite runs."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ6AJKFFQSFFQSJGHF4R27A",
+  "ts": "2026-06-09T21:58:54.319Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNF",
+    "commentId": "01KTQ6AJKFFQSFFQSJGHF4R279",
+    "author": "claude",
+    "body": "DONE. Roles enforced across the whole API: replica gate (reads viewer, writes member), sync pull viewer / push member + actor authz, project lifecycle owner-only (rename/archive), members+invites router self-gates (owner for invites/role changes, LAST_OWNER guard). Verified: viewer can read but POST /api/tickets returns 403 FORBIDDEN_ROLE."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ6AJKFFQSFFQSJGHF4R27D",
+  "ts": "2026-06-09T21:58:54.319Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNH",
+    "commentId": "01KTQ6AJKFFQSFFQSJGHF4R27C",
+    "author": "claude",
+    "body": "DONE (subagent + integrated). ensureRls(pool) wired into cloud boot after ensureSchema. All 6 tenant tables ENABLE+FORCE RLS; uploadEvents/pullEvents/snapshotState/pgReplay run inside withTenant. PROD REQUIREMENT: the docker/test user is superuser (bypasses RLS), so set SCOPE_PG_APP_ROLE to a non-superuser role on Fly for the defense-in-depth to bind - ensureRls grants it the needed table privileges automatically. Proven in test/pg-rls-live.test.js: no-WHERE queries in tenant-A context see only A rows; cross-tenant INSERT rejected by WITH CHECK; FORCE verified."
+  }
+}
