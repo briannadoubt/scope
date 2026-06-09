@@ -447,11 +447,19 @@ function openOverflowMenu() {
   if (popoverEl) return closePopover();
   const pop = openPopover(anchor, {align: 'right', width: 200});
   pop.classList.add('popover-menu');
+  // Hosted-only items (per-user identity): API keys + sign out. Shown only when
+  // the hub runs hosted auth (SCP-174) — never on the local/LAN path.
+  const hostedItems = state.meta?.hosted ? `
+    <div class="menu-sep"></div>
+    <button type="button" class="menu-item" data-act="apikeys"><span class="mi-icon">🔑</span> API keys</button>
+    <button type="button" class="menu-item" data-act="signout"><span class="mi-icon">⏏</span> Sign out</button>
+  ` : '';
   pop.innerHTML = `
     <button type="button" class="menu-item" data-act="refresh"><span class="mi-icon">↻</span> Refresh</button>
     <button type="button" class="menu-item" data-act="graph"><span class="mi-icon">⛓</span> ${state.view === 'graph' ? 'Back to board' : 'Relationship graph'}</button>
     <button type="button" class="menu-item" data-act="overview"><span class="mi-icon">☰</span> ${state.view === 'overview' ? 'Back to board' : 'Workspace overview'}</button>
     <button type="button" class="menu-item" data-act="history"><span class="mi-icon">⏱</span> ${state.view === 'history' ? 'Back to board' : 'History'}</button>
+    ${hostedItems}
   `;
   pop.querySelectorAll('.menu-item').forEach((b) => {
     b.addEventListener('click', async () => {
@@ -471,8 +479,83 @@ function openOverflowMenu() {
         state.view = state.view === 'history' ? 'board' : 'history';
         await refresh();
       }
+      else if (act === 'apikeys') openApiKeysModal();
+      else if (act === 'signout') {
+        try { await api('/auth/logout', { method: 'POST' }); } catch {}
+        window.location.href = '/';
+      }
     });
   });
+}
+
+/**
+ * API-keys manager (SCP-174) — mint, copy, and revoke per-user keys for the CLI
+ * and agents. The plaintext secret is shown exactly once, at creation. Hosted
+ * mode only (the menu entry that opens this is gated on meta.hosted).
+ */
+async function openApiKeysModal() {
+  const modal = openModal(`
+    <div class="modal-head"><h2>API keys</h2></div>
+    <p class="modal-sub">Use a key as <code>SCOPE_API_KEY</code> for <code>scope sync</code>. The secret is shown once.</p>
+    <form id="apikey-form" class="apikey-form">
+      <input id="apikey-name" type="text" placeholder="Key name (e.g. laptop, ci)" autocomplete="off" required />
+      <button type="submit" class="btn primary">Create</button>
+    </form>
+    <div id="apikey-fresh" class="apikey-fresh" hidden></div>
+    <div id="apikey-list" class="apikey-list">Loading…</div>
+  `);
+
+  const listEl = modal.querySelector('#apikey-list');
+  const freshEl = modal.querySelector('#apikey-fresh');
+
+  async function renderList() {
+    try {
+      const keys = await api('/auth/keys');
+      listEl.innerHTML = keys.length
+        ? keys.map((k) => `
+          <div class="apikey-row${k.revoked_at ? ' revoked' : ''}">
+            <span class="apikey-id">${escapeHtml(k.name)} <code>${escapeHtml(k.id)}</code></span>
+            ${k.revoked_at
+              ? '<span class="apikey-tag">revoked</span>'
+              : `<button type="button" class="link-btn" data-revoke="${escapeHtml(k.id)}">Revoke</button>`}
+          </div>`).join('')
+        : '<div class="pane-empty">No keys yet.</div>';
+      listEl.querySelectorAll('[data-revoke]').forEach((b) => {
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          try { await api(`/auth/keys/${encodeURIComponent(b.dataset.revoke)}`, { method: 'DELETE' }); }
+          catch (e) { b.disabled = false; return; }
+          await renderList();
+        });
+      });
+    } catch (e) {
+      listEl.innerHTML = `<div class="modal-error">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  modal.querySelector('#apikey-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = modal.querySelector('#apikey-name');
+    const name = input.value.trim();
+    if (!name) return;
+    try {
+      const created = await api('/auth/keys', { method: 'POST', body: { name } });
+      input.value = '';
+      freshEl.hidden = false;
+      freshEl.innerHTML = `Copy your new key now — it won’t be shown again:
+        <code class="apikey-secret">${escapeHtml(created.key)}</code>
+        <button type="button" class="link-btn" id="apikey-copy">Copy</button>`;
+      freshEl.querySelector('#apikey-copy').addEventListener('click', () => {
+        navigator.clipboard?.writeText(created.key);
+      });
+      await renderList();
+    } catch (e) {
+      freshEl.hidden = false;
+      freshEl.innerHTML = `<span class="modal-error">${escapeHtml(e.message)}</span>`;
+    }
+  });
+
+  await renderList();
 }
 
 /* ------------- realtime: server-sent events ------------- */

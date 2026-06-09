@@ -285,6 +285,9 @@ export async function startServer({
       relation_types: SCHEMA_RELATION_TYPES,
       hub: { port, workspaces: enrichedWorkspaces() },
       security,
+      // True when per-user hosted auth is active — the web UI uses this to show
+      // the API-keys panel + sign-out (SCP-174). False on the local/LAN path.
+      hosted: hostedAuth,
     });
   });
 

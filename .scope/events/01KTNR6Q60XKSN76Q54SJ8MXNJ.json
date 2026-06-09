@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNR6Q60XKSN76Q54SJ8MXNJ",
+  "ts": "2026-06-09T08:32:53.440Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNH",
+    "number": 189,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Postgres row-level security for tenant isolation",
+    "description": "SCP-124 integration. Enable RLS keyed on tenant_id so a tenant cannot read or write another tenants events/data even on the shared database, defense-in-depth beneath the app-layer role checks. Set the tenant GUC per connection/transaction from the authenticated subject.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTNR6Q5ZB1E6ENCN07THH1TN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

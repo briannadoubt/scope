@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNR6Q616J4KQE4GHP28A28J",
+  "ts": "2026-06-09T08:32:53.441Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNR6Q616J4KQE4GHP28A28H",
+    "number": 194,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "End-to-end multi-tenant tests: isolation, invites, role gates",
+    "description": "Two users + two projects against real Postgres: A cannot see or mutate Bs board (isolation, incl. RLS); accepting an invite grants scoped access; a viewer cannot write; sync push/pull is tenant- and role-scoped. Proves the whole sharing model end-to-end.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTNR6Q5ZB1E6ENCN07THH1TN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

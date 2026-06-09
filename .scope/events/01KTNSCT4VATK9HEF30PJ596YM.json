@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNSCT4VATK9HEF30PJ596YM",
+  "ts": "2026-06-09T08:53:41.659Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496B0",
+    "commentId": "01KTNSCT4VATK9HEF30PJ596YK",
+    "author": "claude",
+    "body": "DONE: e2e integration tests (test/cloud-auth-pg.test.js) + docs/deploy.md shipped. The shared SCOPE_TOKEN is now inert for auth in production (hostedAuth rejects it) - it is intentionally RETAINED only as the rollback lever (unset DATABASE_URL -> interim shared-token mode). The interim code branch stays as the safe-rollout mechanism."
+  }
+}

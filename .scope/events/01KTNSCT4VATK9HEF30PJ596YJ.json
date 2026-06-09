@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNSCT4VATK9HEF30PJ596YJ",
+  "ts": "2026-06-09T08:53:41.659Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496AY",
+    "commentId": "01KTNSCT4VATK9HEF30PJ596YH",
+    "author": "claude",
+    "body": "DONE (core): in-app API-keys panel (create/copy-once/revoke) + Sign out in the overflow menu, gated on meta.hosted. Built + verified in the browser against real Postgres. The project-picker portion moved to SCP-191 (collaboration epic) since it depends on project-to-board mapping."
+  }
+}

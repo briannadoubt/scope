@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNR6Q616J4KQE4GHP28A28E",
+  "ts": "2026-06-09T08:32:53.441Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNR6Q616J4KQE4GHP28A28D",
+    "number": 192,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "First-login + project lifecycle; retire the orphan auto-project",
+    "description": "On first login, create a real owned project-board for the user (wired to an actual served board via the mapping story) instead of the current vestigial projects row. Add rename/archive/delete (soft) for projects. Clean up the now-misleading auto-project creation in the OIDC callback.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTNR6Q5ZB1E6ENCN07THH1TN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

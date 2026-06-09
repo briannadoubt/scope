@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNR6Q60XKSN76Q54SJ8MXNA",
+  "ts": "2026-06-09T08:32:53.440Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNR6Q5ZB1E6ENCN07THH1TN",
+    "number": 185,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Shareable multi-tenant collaboration: projects, members, invites, isolation",
+    "description": "Today the hosted hub authenticates per-user but serves ONE shared board: tenancy claims are minted but ignored by workspace resolution, there is no access control beyond can-you-sign-in, and the per-user projects created at login are orphan rows disconnected from any served board. This epic turns the existing, tested primitives (membership.js roles owner/member/viewer, authz.js, the projects/memberships tables, SCP-124 storage spike) into a real collaborative product: each project IS its own board, the active board is derived from the authenticated session, members are invited with roles, and data is isolated per tenant. Builds on SCP-167 (auth wiring), SCP-171 (claims tenancy), SCP-124 (multi-tenant storage), SCP-131 (membership).",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

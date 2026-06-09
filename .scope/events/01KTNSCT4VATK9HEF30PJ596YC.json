@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNSCT4VATK9HEF30PJ596YC",
+  "ts": "2026-06-09T08:53:41.659Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHGG1CRKFYYJ90AC0CD",
+    "commentId": "01KTNSCT4VATK9HEF30PJ596YB",
+    "author": "claude",
+    "body": "DONE: scope-hub-db attached to scope-hub (DATABASE_URL deployed), ensureAuthSchema ran on boot, /healthz green. Verified against real Postgres locally (docker/colima) and live in production."
+  }
+}

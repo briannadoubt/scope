@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNSCT4VATK9HEF30PJ596YG",
+  "ts": "2026-06-09T08:53:41.659Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496AR",
+    "commentId": "01KTNSCT4VATK9HEF30PJ596YF",
+    "author": "claude",
+    "body": "DONE: cloud middleware accepts session JWT or per-user API key, no shared token / no loopback bypass; verified end-to-end against real Postgres (test/cloud-auth-pg.test.js). The remaining half of the original scope - derive the tenant/board strictly from claims and stop trusting X-Scope-Workspace - is tracked as SCP-187 under the collaboration epic (deliberate split, not dropped)."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNR6Q60XKSN76Q54SJ8MXNG",
+  "ts": "2026-06-09T08:32:53.440Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNF",
+    "number": 188,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Enforce membership roles across the API (viewer/member/owner)",
+    "description": "Gate every project-scoped route with membership.hasRole: reads require >=viewer, writes require >=member, admin/destructive ops require owner. Apply to REST + sync push/pull + SSE. Return 403 with a clear code when the role is insufficient.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTNR6Q5ZB1E6ENCN07THH1TN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

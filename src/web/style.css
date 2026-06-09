@@ -839,6 +839,30 @@ button { font-family: inherit; }
 .modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .modal .error { color: var(--red); font-size: 12px; margin-top: 8px; }
 
+/* API-keys manager (SCP-174) */
+.modal-head h2 { margin: 0 0 4px; font-size: 16px; }
+.modal-sub { margin: 0 0 14px; font-size: 12px; color: var(--text-muted); }
+.modal-sub code, .apikey-id code { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-muted); }
+.modal-error { color: var(--red); font-size: 12px; }
+.apikey-form { display: flex; gap: 8px; margin-bottom: 12px; }
+.apikey-form input { width: auto; flex: 1 1 auto; }
+.apikey-fresh {
+  background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: var(--text-muted);
+}
+.apikey-secret {
+  display: block; margin: 6px 0; padding: 6px 8px; background: var(--bg);
+  border-radius: var(--radius); font-family: ui-monospace, monospace; font-size: 12px;
+  color: var(--text); word-break: break-all; user-select: all;
+}
+.apikey-list { display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto; }
+.apikey-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 7px 4px; border-bottom: 1px solid var(--border-soft); font-size: 13px;
+}
+.apikey-row.revoked { opacity: 0.5; }
+.apikey-tag { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+
 /* ------------- search palette ------------- */
 /* Command-palette layout: dock near the top instead of dead-centre. */
 .modal-backdrop:has(.search-palette) { align-items: flex-start; padding-top: 12vh; }

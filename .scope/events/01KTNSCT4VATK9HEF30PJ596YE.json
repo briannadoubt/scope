@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNSCT4VATK9HEF30PJ596YE",
+  "ts": "2026-06-09T08:53:41.659Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHGG1CRKFYYJ90AC0CF",
+    "commentId": "01KTNSCT4VATK9HEF30PJ596YD",
+    "author": "claude",
+    "body": "DONE: GitHub OAuth app registered + secrets set; /auth/login redirects to github.com with correct client_id/redirect/scope (verified live). github.js adapter unit-tested. The only atom not machine-verifiable is the live token-exchange round-trip, which is exercised on a real human sign-in."
+  }
+}

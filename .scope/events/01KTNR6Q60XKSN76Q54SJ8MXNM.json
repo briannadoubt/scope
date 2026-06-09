@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNR6Q60XKSN76Q54SJ8MXNM",
+  "ts": "2026-06-09T08:32:53.440Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNK",
+    "number": 190,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Invite flow: add members to a project by GitHub/email with a role",
+    "description": "Create, accept, and revoke invitations to a project at a chosen role. setMembership on accept; pending-invite state; expiry. Endpoints + emails or shareable invite links. The mechanism by which a board is actually shared with specific people.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTNR6Q5ZB1E6ENCN07THH1TN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

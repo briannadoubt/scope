@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNR6Q60XKSN76Q54SJ8MXNC",
+  "ts": "2026-06-09T08:32:53.440Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNB",
+    "number": 186,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Project-to-board mapping: a project IS a workspace keyed by tenant_id",
+    "description": "Architectural keystone. Map each PG project (tenant_id) to a served board: provision a board when a project is created, and resolve the served workspace from the project rather than the single volume workspace. Decide + implement storage: wire SCP-124s per-tenant Postgres event log into the serve path, or per-tenant event-log directories keyed by tenant_id. Removes the disconnect where projects exist in PG but the served board is a lone file-based workspace.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KTNR6Q5ZB1E6ENCN07THH1TN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

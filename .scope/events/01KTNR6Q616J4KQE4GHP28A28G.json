@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNR6Q616J4KQE4GHP28A28G",
+  "ts": "2026-06-09T08:32:53.441Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNR6Q616J4KQE4GHP28A28F",
+    "number": 193,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "CLI project-awareness: list projects, target a project for sync",
+    "description": "scope projects list (your memberships + roles); remote config targets a project you belong to; scope sync respects tenant + role. Ties into the .scope/remote.json + SCOPE_API_KEY work (SCP-173).",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTNR6Q5ZB1E6ENCN07THH1TN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

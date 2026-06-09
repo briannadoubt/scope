@@ -14,6 +14,13 @@
       "runtimeArgs": ["scripts/preview-cloud.mjs", "4400"],
       "port": 4400,
       "autoPort": false
+    },
+    {
+      "name": "scope-cloud-hosted",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/preview-cloud.mjs", "4401", "hosted"],
+      "port": 4401,
+      "autoPort": false
     }
   ]
 }

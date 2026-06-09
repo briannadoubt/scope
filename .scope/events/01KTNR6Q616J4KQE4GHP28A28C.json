@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNR6Q616J4KQE4GHP28A28C",
+  "ts": "2026-06-09T08:32:53.441Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNN",
+    "number": 191,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Projects in the web UI: create, switch, members, invite, manage roles",
+    "description": "Project picker in the app header; create-project; a members panel showing people + roles; invite UI; role management (promote/demote/remove). Replaces the single-board assumption and the token-in-URL flow. Extends SCP-174.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTNR6Q5ZB1E6ENCN07THH1TN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}
