@@ -1117,7 +1117,7 @@ function renderBoard() {
     // next row at narrow viewports (via CSS @media). At wide widths it's
     // display:none, so the head stays a single line.
     head.innerHTML = `
-      <span class="lane-chevron">▾</span>
+      <span class="lane-chevron">▼</span>
       ${isSubEpic ? '<span class="lane-nest-arrow" aria-hidden="true">↳</span>' : ''}
       ${isEpic ? `<span class="lane-epic-badge">${isSubEpic ? 'SUB-EPIC' : 'EPIC'}</span>` : ''}
       <span class="lane-title">${escapeHtml(lane.label)}</span>
@@ -1974,7 +1974,7 @@ function openSearchModal(initial = '') {
   let searchDebounce = null;
   const modal = openModal(`
     <div class="search-head">
-      <span class="search-icon" aria-hidden="true">⌕</span>
+      <span class="search-icon" aria-hidden="true"><svg class="icon-svg" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
       <input id="search-q" class="search-input" type="text" autocomplete="off"
              spellcheck="false" enterkeyhint="search"
              placeholder="Search tickets — title, SCP-12, @assignee, label, comment…" />
@@ -2659,7 +2659,7 @@ function buildGraphNode(node) {
   const collapsible = node.childCount > 0;
   const collapsed = state.graphCollapsed.has(t.id);
   const chevron = collapsible
-    ? `<button class="gn-collapse" title="${collapsed ? 'Expand' : 'Collapse'} children">${collapsed ? '▸' : '▾'}</button>`
+    ? `<button class="gn-collapse" title="${collapsed ? 'Expand' : 'Collapse'} children">${collapsed ? '▶' : '▼'}</button>`
     : '';
   const count = collapsible && t.type === 'epic'
     ? `<span class="gn-count">${node.childCount}</span>`

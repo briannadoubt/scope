@@ -96,10 +96,12 @@ button { font-family: inherit; }
 }
 .trigger:hover { background: var(--bg-elev-2); }
 .trigger.open  { background: var(--bg-elev-2); border-color: var(--border); }
-.trigger.icon  { padding: 5px 9px; font-size: 14px; line-height: 1; color: var(--text-muted); }
+.trigger.icon  { padding: 5px 9px; font-size: 22px; line-height: 1; color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; }
 .trigger.icon:hover { color: var(--text); }
-.trigger .caret { color: var(--text-dim); font-size: 10px; margin-left: 2px; }
-.trigger .t-icon { color: var(--text-muted); font-size: 13px; }
+.icon-svg { display: block; }
+.search-head .search-icon .icon-svg { display: block; }
+.trigger .caret { color: var(--text-dim); font-size: 10px; margin-left: 3px; }
+.trigger .t-icon { color: var(--text-muted); font-size: 16px; }
 .trigger.active .t-label { color: var(--accent); }
 .trigger.active .t-icon  { color: var(--accent); }
 
@@ -150,7 +152,7 @@ button { font-family: inherit; }
 /* Breadcrumb — workspace › project as a single trigger. The labels shrink
    with ellipsis so the bar never grows or wraps on narrow widths. */
 .breadcrumb { padding-left: 8px; }
-.breadcrumb .brand-mark { color: var(--accent); font-size: 13px; margin-right: 4px; }
+.breadcrumb .brand-mark { color: var(--accent); font-size: 16px; margin-right: 4px; }
 .breadcrumb .bc-sep { color: var(--text-dim); font-size: 11px; }
 .breadcrumb .bc-label {
   font-weight: 600;
@@ -299,7 +301,7 @@ button { font-family: inherit; }
   cursor: pointer;
 }
 .menu-item:hover { background: var(--bg-elev-2); }
-.menu-item .mi-icon { color: var(--text-muted); width: 14px; text-align: center; }
+.menu-item .mi-icon { color: var(--text-muted); width: 18px; font-size: 15px; text-align: center; }
 .menu-sep { height: 1px; background: var(--border-soft); margin: 4px 6px; }
 
 /* Narrow widths: tighten labels progressively. Keep interactive widgets
@@ -468,9 +470,9 @@ button { font-family: inherit; }
 }
 .lane-head:hover { background: #1c2128; }
 .lane-chevron {
-  font-size: 10px; color: var(--text-muted);
+  font-size: 13px; color: var(--text-muted);
   transition: transform 120ms;
-  width: 12px; text-align: center;
+  width: 16px; text-align: center;
 }
 .lane.collapsed .lane-chevron { transform: rotate(-90deg); }
 .lane-title {
@@ -542,7 +544,7 @@ button { font-family: inherit; }
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 16px;
   padding: 2px 4px;
   border-radius: 4px;
   cursor: pointer;
@@ -855,7 +857,7 @@ button { font-family: inherit; }
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
 }
-.search-head .search-icon { color: var(--text-muted); font-size: 18px; line-height: 1; }
+.search-head .search-icon { color: var(--text-muted); font-size: 22px; line-height: 1; }
 .modal.search-palette .search-input {
   flex: 1;
   width: auto;
@@ -1265,7 +1267,7 @@ button { font-family: inherit; }
 }
 .live-icon {
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: 14px;
   color: var(--accent);
   line-height: 1;
 }
@@ -1530,8 +1532,8 @@ button { font-family: inherit; }
 
 .gn-collapse {
   background: transparent; border: none; cursor: pointer;
-  color: var(--text-muted); font-size: 10px; line-height: 1;
-  padding: 0; margin-right: -1px; width: 12px;
+  color: var(--text-muted); font-size: 13px; line-height: 1;
+  padding: 0; margin-right: -1px; width: 16px;
 }
 .gn-collapse:hover { color: var(--text); }
 
