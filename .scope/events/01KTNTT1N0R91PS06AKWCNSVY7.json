@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNTT1N0R91PS06AKWCNSVY7",
+  "ts": "2026-06-09T09:18:23.904Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNB",
+    "commentId": "01KTNTT1N0R91PS06AKWCNSVY6",
+    "author": "claude",
+    "body": "FOUNDATION landed + verified vs real Postgres (test/multi-tenant-pg.test.js). A project IS a tenant-scoped board: src/auth_hosted/tenant-board.js (createProjectBoard seeds a workspace.init via uploadEvents; readBoard via snapshotState) + the PG event store. Wired in cloud serve: GET/POST /api/projects, GET /api/board, GET /api/sync/pull, POST /api/sync/push - all tenant-scoped, mounted before the generic file/SQLite handlers. Boot now runs ensureSchema (event tables) + ensureAuthSchema. REMAINING: migrate the granular REST surface (tickets/relations/comments/history endpoints) onto the tenant store - they still fall through to the volume workspace in hosted mode. That migration unblocks the web UI (SCP-191)."
+  }
+}

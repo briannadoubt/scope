@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNTT1N0R91PS06AKWCNSVY9",
+  "ts": "2026-06-09T09:18:23.904Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXND",
+    "commentId": "01KTNTT1N0R91PS06AKWCNSVY8",
+    "author": "claude",
+    "body": "FOUNDATION done + verified: src/auth_hosted/tenancy.js resolves the active board from the subject (X-Scope-Project header / ?project / session tenant_id claim) and validates membership - never trusts an unauthenticated workspace header. Cross-tenant read returns 404 (non-members not told a board exists). Applies to the migrated endpoints; the not-yet-migrated generic endpoints still read the header (covered by the SCP-186 remaining-surface migration)."
+  }
+}

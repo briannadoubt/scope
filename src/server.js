@@ -51,6 +51,9 @@ import {
   ensureHostedAuthReady, loginProviderConfigured,
 } from './auth_hosted/cloud-auth.js';
 import { authorizeUploadActors, statusForReject } from './auth_hosted/authz.js';
+import { requireTenantRole } from './auth_hosted/tenancy.js';
+import { listProjects, createProjectBoard, readBoard } from './auth_hosted/tenant-board.js';
+import { uploadEvents, pullEvents } from './pg/store.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
@@ -234,6 +237,46 @@ export async function startServer({
     app.use(hostedAuthMiddleware({ pool }));
     // Authenticated API-key management (needs req.principal).
     app.use(apiKeyRouter({ pool }));
+
+    // Tenant-scoped board API (SCP-186/187/188): a project IS a board, stored
+    // per-tenant in Postgres. Mounted BEFORE the generic file/SQLite handlers so
+    // hosted requests resolve their board from the authenticated subject's
+    // project + role — never the X-Scope-Workspace header. Endpoints not yet
+    // migrated fall through to the generic handlers (next increment).
+    const tApi = express.Router();
+    // The caller's projects (boards) + role on each.
+    tApi.get('/api/projects', async (req, res) => {
+      try { res.json(await listProjects(pool, req.principal.accountId)); }
+      catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // Create a project + seed its board; the creator becomes owner.
+    tApi.post('/api/projects', async (req, res) => {
+      const name = req.body && req.body.name;
+      if (!name) return res.status(400).json({ error: 'name required' });
+      try { res.status(201).json(await createProjectBoard(pool, { accountId: req.principal.accountId, name })); }
+      catch (e) { res.status(400).json({ error: e.message }); }
+    });
+    // Read the active board (>= viewer).
+    tApi.get('/api/board', requireTenantRole(pool, 'viewer'), async (req, res) => {
+      try { res.json(await readBoard(pool, req.tenantId)); }
+      catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    // Sync pull (>= viewer) / push (>= member) against the tenant's PG log.
+    tApi.get('/api/sync/pull', requireTenantRole(pool, 'viewer'), async (req, res) => {
+      try { res.json(await pullEvents(pool, req.tenantId, { since: req.query.since || null })); }
+      catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    tApi.post('/api/sync/push', requireTenantRole(pool, 'member'), async (req, res) => {
+      const events = Array.isArray(req.body?.events) ? req.body.events : null;
+      if (!events) return res.status(400).json({ error: 'body.events must be an array' });
+      // Actor authz (SCP-172): every event's actor must be the authenticated principal.
+      const verdict = authorizeUploadActors(events, req.principal.accountId);
+      if (!verdict.ok) return res.status(statusForReject(verdict.code)).json({ error: verdict.message, code: verdict.code });
+      try { res.json(await uploadEvents(pool, req.tenantId, events)); }
+      catch (e) { res.status(400).json({ error: `invalid event: ${e.message}` }); }
+    });
+    app.use(tApi);
+
     if (!quiet && !loginProviderConfigured()) {
       process.stderr.write('[hub] hosted auth on, but no login provider configured (API keys only)\n');
     }

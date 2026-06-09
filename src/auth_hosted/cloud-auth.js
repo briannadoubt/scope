@@ -20,6 +20,7 @@
 import express from 'express';
 
 import { pgConfigured, getPool } from '../pg/pool.js';
+import { ensureSchema } from '../pg/schema.js';
 import { ensureAuthSchema } from './schema.js';
 import {
   mintAccessToken, verifyAccessToken,
@@ -341,7 +342,8 @@ export function apiKeyRouter({ pool }) {
  */
 export async function ensureHostedAuthReady() {
   const pool = getPool();
-  await ensureAuthSchema(pool);
+  await ensureAuthSchema(pool);   // accounts/projects/memberships/api_keys/refresh_tokens
+  await ensureSchema(pool);       // tenant event log + replayed cache (per-project boards)
   return pool;
 }
 

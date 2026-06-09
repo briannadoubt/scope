@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNTT1N0R91PS06AKWCNSVYB",
+  "ts": "2026-06-09T09:18:23.904Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNF",
+    "commentId": "01KTNTT1N0R91PS06AKWCNSVYA",
+    "author": "claude",
+    "body": "FOUNDATION done + verified: requireTenantRole(pool,min) gates the tenant endpoints - reads >=viewer, sync push >=member; insufficient role = 403 FORBIDDEN_ROLE, non-member = 404. Test proves a viewer can read but not write. Uses membership.hasRole. Extends to remaining endpoints as they migrate (SCP-186)."
+  }
+}
