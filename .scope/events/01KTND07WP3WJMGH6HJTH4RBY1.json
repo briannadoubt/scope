@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTND07WP3WJMGH6HJTH4RBY1",
+  "ts": "2026-06-09T05:17:06.838Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTND07WP3WJMGH6HJTH4RBY0",
+    "number": 179,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Feature pages",
+    "description": "Public feature pages covering: offline-first + sync-cursor protocol, realtime SSE updates, CLI + web + iOS clients, event-sourced storage (git-mergeable, deploy-free), and multi-tenant hosting. Linked from the landing nav.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTND07WNSBR9RXH6Y1VTV7T1",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

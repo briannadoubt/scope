@@ -101,7 +101,7 @@ and rebuilds the SSE connection.
 ## Agent integration
 
 Agents call scope via the CLI — every command supports `--json` for
-machine-readable output. No MCP server, no extra config; if `scope` is on
+machine-readable output. No extra config; if `scope` is on
 `$PATH` it works.
 
 ```jsonc

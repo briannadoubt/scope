@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNNE2P6NP63BCYJ4Q9TCPG2",
+  "ts": "2026-06-09T07:44:28.870Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTND07WP3WJMGH6HJTH4RBY4",
+    "commentId": "01KTNNE2P6NP63BCYJ4Q9TCPG1",
+    "author": "claude",
+    "body": "UX fix: the login route is now mounted in ALL cloud modes and serves a styled sign-in-not-enabled page when the hub has no provider/Postgres configured, instead of falling through to the auth gate and returning a raw 401. Fixes the confusing response on the un-provisioned hub and the local preview."
+  }
+}

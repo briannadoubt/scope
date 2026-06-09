@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNCQQHGG1CRKFYYJ90AC0CC",
+  "ts": "2026-06-09T05:12:27.952Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "number": 167,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Wire hosted multi-tenant auth into the live hub",
+    "description": "The auth_hosted modules (OIDC, JWT/refresh sessions, hashed per-user API keys, project membership/roles, on-upload authz) are built and unit-tested under SCP-129..134, but grep shows they are NOT imported in src/server.js. The deployed Fly hub (scope-hub.fly.dev) still runs the interim single shared bearer token with loopback bypass — unsafe for a multi-tenant public service. This epic integrates the existing hosted-auth stack into the live cloud request path, provisions Fly Postgres + GitHub OIDC, and retires the shared token. LAN/mTLS local path stays untouched (ADR 0003 §5).",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNNE2P5GSPPZF2891Y6AFH9",
+  "ts": "2026-06-09T07:44:28.869Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496AT",
+    "commentId": "01KTNNE2P5GSPPZF2891Y6AFH8",
+    "author": "claude",
+    "body": "Verified end-to-end over HTTP against real Postgres (test/cloud-auth-pg.test.js): a pushed event whose actor differs from the authenticated principal returns 403 ACTOR_MISMATCH; actor equal to principal is accepted. The gate runs before dedup/replay."
+  }
+}

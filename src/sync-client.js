@@ -18,15 +18,21 @@ import { getMeta, setMeta } from './db.js';
  * @param {object} opts
  * @param {string} opts.remote - remote hub base URL (e.g. https://hub.scope.dev)
  * @param {string} opts.remoteWorkspace - the remote workspace id to sync with
- * @param {string} [opts.token] - bearer token for the remote
+ * @param {string} [opts.token] - bearer token for the remote: a per-user API
+ *   key (`sk_…`, hosted) or the shared token (interim/LAN).
+ * @param {string} [opts.model] - acting model for attribution (X-Scope-Model,
+ *   SCP-128); the principal stays the credential's human account.
  * @param {Function} [opts.fetchImpl] - injectable fetch (defaults to global)
  * @returns {Promise<{pushed:number,duplicates:number,pulled:number,renumbered:Array,cursor:string}>}
  */
-export async function syncWithRemote(db, scopeDir, { remote, remoteWorkspace, token = '', fetchImpl = fetch } = {}) {
+export async function syncWithRemote(db, scopeDir, { remote, remoteWorkspace, token = '', model = '', fetchImpl = fetch } = {}) {
   if (!remote) throw new Error('remote hub URL is required (--remote)');
   if (!remoteWorkspace) throw new Error('remote workspace id is required (--remote-workspace)');
   const dir = eventsDir(scopeDir);
-  const auth = token ? { Authorization: `Bearer ${token}` } : {};
+  const auth = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(model ? { 'X-Scope-Model': model } : {}),
+  };
   const url = (path) =>
     `${remote.replace(/\/$/, '')}${path}${path.includes('?') ? '&' : '?'}workspace=${encodeURIComponent(remoteWorkspace)}`;
 

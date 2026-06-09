@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNCQQHHFPY86JAR580496AZ",
+  "ts": "2026-06-09T05:12:27.953Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496AY",
+    "number": 174,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Web UI: GitHub OIDC login + session + project picker (replace token-in-URL)",
+    "description": "Replace the token-in-URL browser login with an OIDC sign-in screen (redirect to /auth/login), session-cookie handling, sign-out, and a project picker scoped to the user memberships. Empty/unauthauthenticated state shows a Sign in with GitHub button.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -188,10 +188,47 @@ the board with zero reliance on any cache.
 | Name | Where | Purpose |
 | --- | --- | --- |
 | `SCOPE_PG_URL` (or `DATABASE_URL`) | Fly secret | Canonical Postgres event log + cache. Required for the hosted path; `/healthz` readiness probes it. |
-| `SCOPE_TOKEN` | Fly secret | Bearer token clients use (interim until SCP-152 OAuth). |
+| `SCOPE_TOKEN` | Fly secret | Bearer token clients use (interim, before multi-tenant auth is enabled). |
+| `SCOPE_JWT_SECRET` | Fly secret | HS256 signing key for session access tokens (≥16 chars; use 48+ hex). One of the three switches that enable multi-tenant auth. |
+| `SCOPE_GITHUB_CLIENT_ID` / `SCOPE_GITHUB_CLIENT_SECRET` / `SCOPE_GITHUB_REDIRECT` | Fly secret | GitHub OAuth app for human sign-in. Redirect = `https://<app>.fly.dev/auth/callback`. |
 | `FLY_API_TOKEN` | GitHub Actions secret | Lets `deploy.yml` run `fly deploy`. |
 | `RCLONE_REMOTE` + rclone config | backup host/CI | Off-host upload target for `backup-eventlog.sh` (versioned bucket). |
 | `LOG_LEVEL` | Fly env (optional) | `debug`/`info`/`warn`/`error`; default `info`. |
 | `SCOPE_DIR` | Fly env | Path for the disposable SQLite cache on the volume (`/data/.scope`). |
 | `PORT` / `HOST` | Fly env | Internal bind port and `0.0.0.0` host (see integration notes). |
 | `SCOPE_CLOUD` | Fly env | Flags the cloud build to disable Bonjour/mTLS/loopback-bypass (see integration notes). |
+
+---
+
+## Enabling multi-tenant auth (ADR 0003)
+
+The hosted hub ships with two auth modes. Out of the box it uses the **interim
+single shared `SCOPE_TOKEN`** (fine for a private/solo hub). The **multi-tenant**
+mode — per-user GitHub sign-in, session JWTs, and revocable per-user API keys —
+activates automatically once all three of these are present (`hostedAuthEnabled`
+= cloud **+** Postgres **+** JWT secret):
+
+1. **Postgres** — `SCOPE_PG_URL` set (the auth tables are created on boot,
+   idempotently, by `ensureAuthSchema`).
+2. **JWT secret** — `fly secrets set SCOPE_JWT_SECRET=$(openssl rand -hex 24)`.
+3. **A login provider** — register a GitHub OAuth app and set
+   `SCOPE_GITHUB_CLIENT_ID` / `SCOPE_GITHUB_CLIENT_SECRET` /
+   `SCOPE_GITHUB_REDIRECT=https://<app>.fly.dev/auth/callback`.
+   (Without a provider the hub still runs in multi-tenant mode but only accepts
+   API keys — no interactive web login.)
+
+When enabled, the request gate changes from "shared token" to **session JWT
+(cookie/Bearer) or per-user API key (`sk_…`)**; the loopback bypass is off, and
+the public marketing site is served at `/` with the app behind auth at `/app`.
+Until all three are set, the hub keeps using `SCOPE_TOKEN`, so **deploying this
+code never breaks a not-yet-provisioned hub**. The local/LAN `scope serve` path
+is unaffected in every case (ADR 0003 §5).
+
+**Minting API keys for the CLI/agents:** after signing in via the web UI, a user
+mints keys with `scope apikey create <name> --remote https://<app>.fly.dev`
+(authenticated with an existing session/key), then uses them headlessly:
+
+```bash
+export SCOPE_API_KEY=sk_…           # the CLI picks this up automatically
+scope sync --remote https://<app>.fly.dev --remote-workspace <id> --model "Opus 4.8"
+```

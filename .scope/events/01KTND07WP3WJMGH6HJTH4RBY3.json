@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTND07WP3WJMGH6HJTH4RBY3",
+  "ts": "2026-06-09T05:17:06.838Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTND07WP3WJMGH6HJTH4RBY2",
+    "number": 180,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Public-facing documentation on the hub",
+    "description": "Serve public docs from the hub: getting started, CLI reference, sync + hosting, and a self-host/deploy guide (adapt docs/deploy.md). Navigable docs layout; consider rendering existing docs/ markdown.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTND07WNSBR9RXH6Y1VTV7T1",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

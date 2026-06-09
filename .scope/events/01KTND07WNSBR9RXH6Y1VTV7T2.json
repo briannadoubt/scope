@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTND07WNSBR9RXH6Y1VTV7T2",
+  "ts": "2026-06-09T05:17:06.837Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTND07WNSBR9RXH6Y1VTV7T1",
+    "number": 176,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Public website for the hosted hub: landing, features, docs, login",
+    "description": "The remote hub (scope-hub.fly.dev) currently auth-gates the root path — an anonymous visitor to / gets 401. Add a public-facing site served by the hub: a marketing landing page on /, feature pages, public documentation, and a sign-in entry that kicks off GitHub OIDC (from epic SCP-167). The authenticated kanban SPA moves behind auth. Public routes must be served WITHOUT the bearer/session gate; only the app + /api stay authenticated.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

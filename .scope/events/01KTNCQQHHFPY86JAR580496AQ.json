@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNCQQHHFPY86JAR580496AQ",
+  "ts": "2026-06-09T05:12:27.953Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496AP",
+    "number": 170,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Mount hosted-auth HTTP routes in the cloud server",
+    "description": "In src/server.js cloud path, mount /auth/login, /auth/callback, /auth/refresh, /auth/logout using oidc.js + sessions.js (mintAccessToken/issueRefreshToken/rotateRefreshToken). Set the session cookie; handle refresh rotation + revoke.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

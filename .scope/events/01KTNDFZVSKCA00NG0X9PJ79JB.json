@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNDFZVSKCA00NG0X9PJ79JB",
+  "ts": "2026-06-09T05:25:42.905Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTND07WP3WJMGH6HJTH4RBXW",
+    "commentId": "01KTNDFZVSKCA00NG0X9PJ79JA",
+    "author": "claude",
+    "body": "Gate every public route (/, /features, /docs, static marketing assets) behind the cloud flag. In non-cloud mode the routing is untouched: / still serves the app SPA on localhost, no public site mounted. Implement as a cloud-only router branch, not a global change to the Express app."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNCQQHHFPY86JAR580496B1",
+  "ts": "2026-06-09T05:12:27.953Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496B0",
+    "number": 175,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Retire shared SCOPE_TOKEN + e2e integration tests + docs",
+    "description": "After the above land: rotate and remove the single SCOPE_TOKEN from the hosted path; add end-to-end integration tests against the wired cloud server (OIDC login -> session -> tenant-scoped read/write -> sync push authz -> API-key auth). Update docs/deploy.md + the deploy runbook; note the LAN/mTLS path is unchanged.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

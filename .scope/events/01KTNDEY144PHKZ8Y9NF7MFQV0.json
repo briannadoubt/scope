@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNDEY144PHKZ8Y9NF7MFQV0",
+  "ts": "2026-06-09T05:25:08.260Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNDEY144PHKZ8Y9NF7MFQTZ",
+    "number": 183,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Guard: local path parity — scope serve unchanged, public site cloud-only",
+    "description": "Regression guard spanning epics SCP-167 + SCP-176. Assert the local path is unchanged when SCOPE_CLOUD is unset: (1) GET / on a local hub serves the kanban app SPA, NOT a landing page; (2) no /auth/* or public-site routes are mounted in non-cloud mode; (3) loopback bypass still authenticates same-machine requests; (4) LAN mTLS device-cert auth still works; (5) no Postgres/OIDC dependency is required to run locally. Add automated tests so a future cloud change cannot silently regress local/offline behavior.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTND07WNSBR9RXH6Y1VTV7T1",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

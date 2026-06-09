@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNNE2P6NP63BCYJ4Q9TCPG4",
+  "ts": "2026-06-09T07:44:28.870Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHGG1CRKFYYJ90AC0CD",
+    "commentId": "01KTNNE2P6NP63BCYJ4Q9TCPG3",
+    "author": "claude",
+    "body": "The PG-backed path (auth schema + modules) is now verified locally against real Postgres via docker compose (colima). Fly provisioning of production Postgres remains the infra handoff."
+  }
+}

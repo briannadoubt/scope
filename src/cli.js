@@ -927,14 +927,16 @@ export function buildProgram() {
     .description('Sync this workspace with a remote hub: push local events, pull the remote back.')
     .requiredOption('--remote <url>', 'remote hub base URL, e.g. https://hub.scope.dev')
     .requiredOption('--remote-workspace <id>', 'the remote workspace id to sync with')
-    .option('--token <token>', 'bearer token for the remote hub')
+    .option('--token <token>', 'credential for the remote hub: a per-user API key (sk_…) or shared token. Falls back to $SCOPE_API_KEY then $SCOPE_TOKEN.')
+    .option('--model <name>', 'acting model for attribution (X-Scope-Model). Falls back to $SCOPE_MODEL.')
     .action(async (opts, cmd) => {
       const { db, scopeDir } = openOrDie();
       try {
         const r = await syncWithRemote(db, scopeDir, {
           remote: opts.remote,
           remoteWorkspace: opts.remoteWorkspace,
-          token: opts.token,
+          token: opts.token || process.env.SCOPE_API_KEY || process.env.SCOPE_TOKEN || '',
+          model: opts.model || process.env.SCOPE_MODEL || '',
         });
         out(cmd, r, (r) =>
           chalk.green('✓') +
@@ -944,6 +946,71 @@ export function buildProgram() {
       } catch (e) {
         fail(e.message);
       }
+    });
+
+  /* ---------- apikey: per-user API keys (SCP-173) ---------- */
+
+  const key = program
+    .command('apikey')
+    .description('Create, list, and revoke per-user API keys on a remote hosted hub.');
+
+  // Resolve the credential used to call the hub's /auth/keys endpoints: an
+  // existing API key or session token. The very first key is minted in the web
+  // UI after GitHub sign-in; thereafter a key can mint more.
+  const authCred = (opts) => opts.token || process.env.SCOPE_API_KEY || process.env.SCOPE_TOKEN || '';
+  const keysUrl = (remote, path = '') => `${remote.replace(/\/$/, '')}/auth/keys${path}`;
+  const authHeaders = (cred) => ({
+    'Content-Type': 'application/json',
+    ...(cred ? { Authorization: `Bearer ${cred}` } : {}),
+  });
+
+  key
+    .command('create <name>')
+    .description('Mint a named API key on the remote hub. The secret is shown ONCE.')
+    .requiredOption('--remote <url>', 'remote hub base URL, e.g. https://scope-hub.fly.dev')
+    .option('--token <token>', 'existing API key / session to authenticate this call ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .action(async (name, opts, cmd) => {
+      try {
+        const res = await fetch(keysUrl(opts.remote), {
+          method: 'POST', headers: authHeaders(authCred(opts)), body: JSON.stringify({ name }),
+        });
+        if (!res.ok) fail(`create failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
+        const body = await res.json();
+        out(cmd, body, (b) =>
+          chalk.green('✓') + ` created key ${chalk.bold(b.id)} (${b.name})\n` +
+          chalk.yellow('  save this now — it is shown only once:') + '\n  ' + chalk.bold(b.key));
+      } catch (e) { fail(e.message); }
+    });
+
+  key
+    .command('list')
+    .description('List your API keys on the remote hub (never shows secrets).')
+    .requiredOption('--remote <url>', 'remote hub base URL')
+    .option('--token <token>', 'existing API key / session ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .action(async (opts, cmd) => {
+      try {
+        const res = await fetch(keysUrl(opts.remote), { headers: authHeaders(authCred(opts)) });
+        if (!res.ok) fail(`list failed: HTTP ${res.status}`);
+        const rows = await res.json();
+        out(cmd, rows, (rs) => rs.length
+          ? rs.map((k) => `  ${k.id}  ${k.name}${k.revoked_at ? chalk.red(' (revoked)') : ''}`).join('\n')
+          : '  (no keys)');
+      } catch (e) { fail(e.message); }
+    });
+
+  key
+    .command('revoke <id>')
+    .description('Revoke an API key by id on the remote hub.')
+    .requiredOption('--remote <url>', 'remote hub base URL')
+    .option('--token <token>', 'existing API key / session ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .action(async (id, opts, cmd) => {
+      try {
+        const res = await fetch(keysUrl(opts.remote, `/${encodeURIComponent(id)}`), {
+          method: 'DELETE', headers: authHeaders(authCred(opts)),
+        });
+        if (!res.ok) fail(`revoke failed: HTTP ${res.status}`);
+        out(cmd, { ok: true, id }, () => chalk.green('✓') + ` revoked ${id}`);
+      } catch (e) { fail(e.message); }
     });
 
   /* ---------- board / ui ---------- */

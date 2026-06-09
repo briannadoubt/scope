@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTND07WP3WJMGH6HJTH4RBY7",
+  "ts": "2026-06-09T05:17:06.838Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTND07WP3WJMGH6HJTH4RBY6",
+    "number": 182,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Remove stale MCP references from docs + Homebrew formula",
+    "description": "The Scope MCP server was deleted long ago but stale references remain. Fix: Formula/scope.rb desc (drop \"+ MCP\" — it falsely advertises a feature we do not ship); README.md line ~104 (rephrase the \"No MCP server\" sentence to not mention MCP); skills/README.md heading \"## No MCP server required\". Leave App/ xcodebuildmcp references alone — those are the third-party xcodebuild build tool, not a Scope MCP. Note: epic SCP-17 (MCP integration, done) stays as history.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

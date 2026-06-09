@@ -1,5 +1,5 @@
 class Scope < Formula
-  desc "Local-first kanban for projects, epics, stories, and bugs — CLI + web UI + MCP"
+  desc "Local-first kanban for projects, epics, stories, and bugs — CLI + web UI"
   homepage "https://github.com/briannadoubt/scope"
   url "https://github.com/briannadoubt/scope/archive/refs/tags/v0.1.0.tar.gz"
   sha256 "REPLACE_AFTER_FIRST_RELEASE"

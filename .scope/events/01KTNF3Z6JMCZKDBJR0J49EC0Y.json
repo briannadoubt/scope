@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNF3Z6JMCZKDBJR0J49EC0Y",
+  "ts": "2026-06-09T05:54:06.162Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNF3Z6HBE9ZQZ0GA3PGPA6A",
+    "number": 184,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Reconcile local event actor names with hosted account ids for sync authz",
+    "description": "SCP-172 gates /api/sync/push on event.actor === authenticated principal (account id). But local workspaces stamp human-readable actors (e.g. \"bri\", \"claude\"), while hosted principals are account ids (acct_…). So a local->hosted push fails the actor check until the two are reconciled. Options: per-remote actor identity mapping in the sync client, or an account alias table on the hub. Blocks real cross-identity hosted sync.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

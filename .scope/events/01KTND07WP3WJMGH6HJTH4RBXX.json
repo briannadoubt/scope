@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTND07WP3WJMGH6HJTH4RBXX",
+  "ts": "2026-06-09T05:17:06.838Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTND07WP3WJMGH6HJTH4RBXW",
+    "number": 177,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Public routing: serve / unauthenticated, relocate the authed app behind auth",
+    "description": "Restructure the cloud-mode Express routing so public pages (landing, features, docs) are served WITHOUT auth, while the kanban SPA + /api/* stay gated. Move the app to /app (or a subpath), add a public static/site layer, 404 handling, and ensure /healthz stays public. Foundation for the rest of the epic.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTND07WNSBR9RXH6Y1VTV7T1",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

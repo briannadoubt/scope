@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNNE2P5GSPPZF2891Y6AFH7",
+  "ts": "2026-06-09T07:44:28.869Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "commentId": "01KTNNE2P5GSPPZF2891Y6AFH6",
+    "author": "claude",
+    "body": "E2E VERIFIED against real Postgres (docker compose / colima). New test/cloud-auth-pg.test.js exercises the full cloud HTTP flow: no-cred=401, session-JWT cookie=200, a session mints an API key, that key authenticates standalone, bogus key=401, and the sync push actor-authz (mismatch=403 ACTOR_MISMATCH, match=200). Full suite now 261/261, 0 skipped with SCOPE_PG_URL set. Only the live github.com OAuth round-trip remains unverified (needs a real OAuth app)."
+  }
+}
