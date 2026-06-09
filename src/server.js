@@ -46,6 +46,11 @@ import {
 } from './repo.js';
 import { WorkspaceManager } from './workspaces.js';
 import { loadOrCreateToken, authMiddleware, lanHosts } from './auth.js';
+import {
+  hostedAuthEnabled, hostedAuthMiddleware, publicAuthRouter, apiKeyRouter,
+  ensureHostedAuthReady, loginProviderConfigured,
+} from './auth_hosted/cloud-auth.js';
+import { authorizeUploadActors, statusForReject } from './auth_hosted/authz.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
@@ -110,6 +115,17 @@ export async function startServer({
   if (scopeDir) mgr.attach(scopeDir);
 
   const token = loadOrCreateToken();
+
+  // Hosted multi-tenant auth (ADR 0003) activates ONLY in cloud mode with
+  // Postgres + a JWT secret configured; until then the hub uses the interim
+  // shared token, so deploying this code never breaks a not-yet-provisioned
+  // hub. NEVER active on the local/LAN path (ADR 0003 §5). (SCP-171)
+  const hostedAuth = hostedAuthEnabled(cloud);
+  let pool = null;
+  if (hostedAuth) {
+    pool = await ensureHostedAuthReady(); // create auth tables if absent (idempotent)
+  }
+
   // Prime the in-memory CRL from disk and install SIGUSR1 so revokes done by
   // out-of-process CLI calls (`scope devices revoke`) get picked up live.
   reloadCrl();
@@ -188,14 +204,44 @@ export async function startServer({
   // Mounted BEFORE auth so health checks need no credentials.
   app.get('/healthz', (_req, res) => res.json({ status: 'ok' }));
 
-  // In cloud mode require the token on every request (no loopback bypass, and
-  // no LAN host allowlist — the edge proxy routes by host). On a LAN the
-  // loopback bypass + scope.local allowlist keep same-machine CLI use friction-free.
-  app.use(
-    cloud
-      ? authMiddleware({ token, allowedHosts: [], trustLoopback: false })
-      : authMiddleware({ token, allowedHosts: lanHosts() })
-  );
+  // --- Auth gate -----------------------------------------------------------
+  // Three layers, increasing capability:
+  //   local (non-cloud):  shared token + loopback bypass + LAN host allowlist
+  //                       (+ mTLS device certs, inside authMiddleware). The
+  //                       public site and /auth/* routes below are NEVER mounted
+  //                       here — local serves only the app. UNCHANGED, ADR 0003 §5.
+  //   cloud, interim:     shared token, no loopback bypass (today's hosted hub,
+  //                       before Postgres/OAuth are provisioned).
+  //   cloud + hostedAuth: per-user identity (session JWT or API key).
+  if (cloud) {
+    // Public marketing/docs site (cloud-only). Dynamically imported so the
+    // local path never even loads it. Mounted BEFORE the gate so / /features
+    // /docs are reachable unauthenticated; it owns no catch-all, so the app
+    // and /api stay gated below.
+    try {
+      const { createPublicSiteRouter } = await import('./public-site/index.js');
+      app.use(createPublicSiteRouter({ appPath: '/app', githubLoginPath: '/auth/login' }));
+    } catch (e) {
+      if (!quiet) process.stderr.write(`[hub] public site not mounted: ${e.message}\n`);
+    }
+  }
+  if (hostedAuth) {
+    // Unauthenticated login flow (sets req nothing; issues the session).
+    app.use(publicAuthRouter({ pool, appPath: '/app' }));
+    // The credential gate: every request below needs a session JWT or API key.
+    app.use(hostedAuthMiddleware({ pool }));
+    // Authenticated API-key management (needs req.principal).
+    app.use(apiKeyRouter({ pool }));
+    if (!quiet && !loginProviderConfigured()) {
+      process.stderr.write('[hub] hosted auth on, but no login provider configured (API keys only)\n');
+    }
+  } else {
+    app.use(
+      cloud
+        ? authMiddleware({ token, allowedHosts: [], trustLoopback: false })
+        : authMiddleware({ token, allowedHosts: lanHosts() })
+    );
+  }
 
   /* ---------- workspace helpers ---------- */
 
@@ -526,6 +572,15 @@ export async function startServer({
     } catch (e) {
       return res.status(400).json({ error: `invalid event: ${e.message}` });
     }
+    // Hosted authz (SCP-172, ADR 0003 §4): every event's actor must equal the
+    // authenticated principal — the public sync path must not let one user
+    // upload events attributed to another. Skipped on the local/LAN path.
+    if (hostedAuth) {
+      const verdict = authorizeUploadActors(incoming, req.principal?.accountId);
+      if (!verdict.ok) {
+        return res.status(statusForReject(verdict.code)).json({ error: verdict.message, code: verdict.code });
+      }
+    }
     const dir = eventsDirForDb(w.db);
     const existing = new Set(readAllEvents(dir).map((e) => e.id));
     const accepted = [];
@@ -602,11 +657,24 @@ export async function startServer({
 
   /* ---------- static UI ---------- */
 
+  // Static assets (app.js, style.css, …) are served from the web/ root in both
+  // modes so the SPA's relative asset URLs resolve. They sit AFTER the auth gate,
+  // so in cloud mode they require a session.
   app.use(express.static(join(__dirname, 'web')));
-  app.get('*', (_req, res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store');
-    res.sendFile(join(__dirname, 'web', 'index.html'));
-  });
+  if (cloud) {
+    // Cloud: the public landing owns '/', so the authed SPA lives at /app. A
+    // scoped catch-all serves index.html for the app's client-side routes only.
+    app.get('/app*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store');
+      res.sendFile(join(__dirname, 'web', 'index.html'));
+    });
+  } else {
+    // Local: unchanged — the app is the whole site, served from '/'.
+    app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store');
+      res.sendFile(join(__dirname, 'web', 'index.html'));
+    });
+  }
 
   // Resolve TLS configuration. `tls === false` keeps the legacy HTTP path
   // for tests; anything else (including undefined) means HTTPS on LAN. In cloud

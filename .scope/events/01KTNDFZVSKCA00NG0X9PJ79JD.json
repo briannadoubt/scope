@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNDFZVSKCA00NG0X9PJ79JD",
+  "ts": "2026-06-09T05:25:42.905Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496AR",
+    "commentId": "01KTNDFZVSKCA00NG0X9PJ79JC",
+    "author": "claude",
+    "body": "Scope guard: this middleware swap applies ONLY when cloud===true. Non-cloud keeps the existing shared-token + loopback bypass + LAN mTLS exactly as today (ADR 0003 section 5). Local offline use must have zero behavior change and zero cloud dependency."
+  }
+}

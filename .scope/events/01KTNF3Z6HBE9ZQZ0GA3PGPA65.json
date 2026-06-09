@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNF3Z6HBE9ZQZ0GA3PGPA65",
+  "ts": "2026-06-09T05:54:06.161Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHGG1CRKFYYJ90AC0CD",
+    "commentId": "01KTNF3Z6HBE9ZQZ0GA3PGPA64",
+    "author": "claude",
+    "body": "CODE READY: server.js calls ensureHostedAuthReady() on cloud boot (creates the auth tables, idempotent), gated behind hostedAuthEnabled = cloud + Postgres + SCOPE_JWT_SECRET. INFRA HANDOFF (needs your Fly acct): fly postgres create + attach to scope-hub; fly secrets set SCOPE_PG_URL=... SCOPE_JWT_SECRET=<48+ hex>. Until those secrets exist the hub stays on the interim shared token (safe rollout)."
+  }
+}

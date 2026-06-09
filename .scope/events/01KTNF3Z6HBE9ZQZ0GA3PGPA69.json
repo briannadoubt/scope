@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNF3Z6HBE9ZQZ0GA3PGPA69",
+  "ts": "2026-06-09T05:54:06.161Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496AR",
+    "commentId": "01KTNF3Z6HBE9ZQZ0GA3PGPA68",
+    "author": "claude",
+    "body": "DONE: cloud middleware now accepts session JWT or per-user API key (no shared token / no loopback bypass when enabled); req.principal carries accountId + claims tenant_id/role; safe-rollout gate keeps local + un-provisioned cloud unchanged. REMAINING (why in_review): workspace resolution still reads ?workspace/X-Scope-Workspace; deriving the tenant strictly from claims + dropping header trust needs the account->workspace mapping (ties into SCP-124 RLS). Tracked as a follow-up."
+  }
+}

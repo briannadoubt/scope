@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNCQQHHFPY86JAR580496AV",
+  "ts": "2026-06-09T05:12:27.953Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496AT",
+    "number": 172,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Gate /sync push with authorizeUpload (on-behalf-of principal + write role)",
+    "description": "Wire authorizeUpload/authorizeUploadActors (src/auth_hosted/authz.js) into the /sync push endpoint (SCP-134): reject any event whose actor principal differs from the authenticated subject, or where the subject lacks write role on the target project. Map reject codes via statusForReject.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

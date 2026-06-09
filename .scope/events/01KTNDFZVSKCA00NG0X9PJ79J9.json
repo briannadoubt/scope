@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNDFZVSKCA00NG0X9PJ79J9",
+  "ts": "2026-06-09T05:25:42.905Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTND07WNSBR9RXH6Y1VTV7T1",
+    "commentId": "01KTNDFZVSKCA00NG0X9PJ79J8",
+    "author": "claude",
+    "body": "INVARIANT: this whole epic is CLOUD-ONLY (gated behind SCOPE_CLOUD=1). Local scope serve on localhost must be byte-for-byte unchanged — it serves only the kanban app, never the landing/features/docs marketing site and never the OIDC routes. We are NOT serving the public site locally."
+  }
+}

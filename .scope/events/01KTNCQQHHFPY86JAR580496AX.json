@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNCQQHHFPY86JAR580496AX",
+  "ts": "2026-06-09T05:12:27.953Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496AW",
+    "number": 173,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Per-user API keys: CLI create/list/revoke + SCOPE_API_KEY in sync client",
+    "description": "Expose createApiKey/listApiKeys/revokeApiKey (src/auth_hosted/apikeys.js) via scope CLI commands so users mint their own named, revocable keys. Make src/sync-client.js + scope sync send the key (Authorization: Bearer scope_...) and the per-request --model/X-Scope-Model. Replaces the shared --token for hosted sync.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

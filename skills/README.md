@@ -61,7 +61,7 @@ priorities), and a handful of common commands. See [`scope.md`](./scope.md)
 for the canonical text — the per-tool files are mostly the same content with
 different frontmatter.
 
-## No MCP server required
+## No extra setup required
 
 Scope is **CLI-first**. Agents shell out to `scope` directly (every command
 supports `--json`). There is nothing to wire up in `~/.claude.json` or

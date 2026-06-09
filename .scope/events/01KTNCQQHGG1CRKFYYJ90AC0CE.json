@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNCQQHGG1CRKFYYJ90AC0CE",
+  "ts": "2026-06-09T05:12:27.952Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNCQQHGG1CRKFYYJ90AC0CD",
+    "number": 168,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Provision Fly Postgres + run hosted-auth schema migration",
+    "description": "Stand up Fly Postgres for scope-hub, set SCOPE_PG_URL secret, and run ensureAuthSchema (src/auth_hosted/schema.js) against it. Hosted-auth modules are Postgres-backed (auth-hosted-pg.test.js). Blocks all wiring stories. Includes: fly postgres create/attach, secret, migration on boot, and back-up/retention note (the event log already moved to PG under SCP-139).",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

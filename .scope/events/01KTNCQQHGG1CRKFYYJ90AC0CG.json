@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNCQQHGG1CRKFYYJ90AC0CG",
+  "ts": "2026-06-09T05:12:27.952Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNCQQHGG1CRKFYYJ90AC0CF",
+    "number": 169,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "GitHub OAuth app + OIDC config wired into the cloud hub",
+    "description": "Register a GitHub OAuth app (client id/secret, callback https://scope-hub.fly.dev/auth/callback). Wire SCOPE_OIDC_* config into src/auth_hosted/oidc.js for the cloud hub; set secrets via fly secrets. Verify discover()/buildAuthUrl()/handleCallback() against the real provider.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTNF3Z6HBE9ZQZ0GA3PGPA67",
+  "ts": "2026-06-09T05:54:06.161Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNCQQHGG1CRKFYYJ90AC0CF",
+    "commentId": "01KTNF3Z6HBE9ZQZ0GA3PGPA66",
+    "author": "claude",
+    "body": "CODE DONE: src/auth_hosted/github.js (GitHub is OAuth2, not OIDC — own adapter), wired in cloud-auth.js publicAuthRouter (/auth/login,/auth/callback). Unit-tested (test/github-oauth.test.js). INFRA HANDOFF: register a GitHub OAuth app (callback https://scope-hub.fly.dev/auth/callback), then fly secrets set SCOPE_GITHUB_CLIENT_ID/SECRET/REDIRECT. In_review until the real app is registered + a live login verified."
+  }
+}

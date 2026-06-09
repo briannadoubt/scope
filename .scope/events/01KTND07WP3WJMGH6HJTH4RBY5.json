@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTND07WP3WJMGH6HJTH4RBY5",
+  "ts": "2026-06-09T05:17:06.838Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTND07WP3WJMGH6HJTH4RBY4",
+    "number": 181,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Sign-in CTA wired to GitHub OIDC",
+    "description": "Wire the landing/header Sign in button to the GitHub OIDC flow built in SCP-167 (/auth/login -> callback -> session). Post-login routes to the app/project picker. Depends on the OIDC routes + web UI login work.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTND07WNSBR9RXH6Y1VTV7T1",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

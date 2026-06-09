@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTND07WP3WJMGH6HJTH4RBXZ",
+  "ts": "2026-06-09T05:17:06.838Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTND07WP3WJMGH6HJTH4RBXY",
+    "number": 178,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Landing page (hero, value prop, CTA) on the root path",
+    "description": "Design + build the marketing landing rendered at / for anonymous visitors: hero, what Scope is (local-first kanban, CLI + web + iOS, event-sourced/git-mergeable, realtime sync), and a Sign in / Get started CTA. Responsive, dark-theme consistent with the app, basic SEO meta.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTND07WNSBR9RXH6Y1VTV7T1",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

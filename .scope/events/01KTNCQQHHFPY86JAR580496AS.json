@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTNCQQHHFPY86JAR580496AS",
+  "ts": "2026-06-09T05:12:27.953Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTNCQQHHFPY86JAR580496AR",
+    "number": 171,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Cloud auth middleware: JWT session + API key, drop shared token; tenancy from claims",
+    "description": "Replace the cloud-mode authMiddleware (currently shared bearer token + trustLoopback) with: verifyAccessToken (cookie/Bearer) OR authenticateApiKey for non-interactive callers. Remove the shared-token and loopback bypass in cloud mode. Derive tenant/project from the subject claims (authz.js), and STOP trusting the client-supplied X-Scope-Workspace header (ADR 0003 §4). Core security change.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KTNCQQHGG1CRKFYYJ90AC0CB",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}
