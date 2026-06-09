@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ7CSANDRVSQ9Q018MKTS1K",
+  "ts": "2026-06-09T22:17:35.317Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q616J4KQE4GHP28A28F",
+    "commentId": "01KTQ7CSANDRVSQ9Q018MKTS1J",
+    "author": "claude",
+    "body": "DONE (subagent + integrated). scope remote set/show (.scope/remote.json - committed, no secrets by design), scope projects list/create, scope sync now flagless (resolution: flags > env SCOPE_REMOTE/SCOPE_PROJECT > remote.json) with a --project alias. Live-smoked against a real hosted hub with Postgres: flagless sync converged (pushed 1, pulled 2); 401/no-remote error paths verified. 9 new tests."
+  }
+}

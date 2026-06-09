@@ -22,6 +22,7 @@ import express from 'express';
 import { pgConfigured, getPool } from '../pg/pool.js';
 import { ensureSchema } from '../pg/schema.js';
 import { ensureRls } from '../pg/rls.js';
+import { ensureQuotaSchema } from '../quota/quota.js';
 import { ensureAuthSchema } from './schema.js';
 import {
   mintAccessToken, verifyAccessToken,
@@ -352,6 +353,7 @@ export async function ensureHostedAuthReady() {
   await ensureSchema(pool);       // tenant event log + replayed cache (per-project boards)
   await ensureRls(pool);          // row-level security on the tenant tables (SCP-189);
                                   // binds when SCOPE_PG_APP_ROLE names a non-superuser role
+  await ensureQuotaSchema(pool);  // per-tenant usage counters + plan limits (SCP-165)
   return pool;
 }
 

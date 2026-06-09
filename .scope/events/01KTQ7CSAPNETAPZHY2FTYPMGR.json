@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ7CSAPNETAPZHY2FTYPMGR",
+  "ts": "2026-06-09T22:17:35.318Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNF3Z6HBE9ZQZ0GA3PGPA6A",
+    "commentId": "01KTQ7CSAPNETAPZHY2FTYPMGQ",
+    "author": "claude",
+    "body": "DONE. Per-project actor aliases: tenant_aliases table (first-come per board - no global squatting), claim/list/remove API on /api/projects/:id/aliases (self-claim >=member, reassign/force owner-only, 409 ALIAS_TAKEN on conflict), and sync-push authz now accepts actor IN ({account} UNION claimed aliases). CLI: scope alias claim/list/remove. Verified e2e: push of local history stamped bri fails 403 before claim, lands 200 after; another member cannot claim or push the same name."
+  }
+}

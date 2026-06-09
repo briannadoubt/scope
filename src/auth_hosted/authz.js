@@ -36,7 +36,14 @@ function looksRendered(actor) {
  *
  * @param {Array<object>} events - event envelopes ({actor, model?, ...})
  * @param {string} principal - the authenticated human account id (the JWT
- *   `sub` or the API key's account). Must equal each event's raw `actor`.
+ *   `sub` or the API key's account). Must equal each event's raw `actor` —
+ *   or, when `opts.allowedActors` is given, be in that set (SCP-184: the
+ *   caller passes the principal's per-project alias set, so a local log
+ *   stamped "bri" can sync under the account that claimed that alias).
+ * @param {object} [opts]
+ * @param {Set<string>} [opts.allowedActors] - additional acceptable actor
+ *   strings for this principal on this tenant (alias map). The principal
+ *   itself is always acceptable.
  * @returns {{ ok: true } | { ok: false, code: string, message: string, eventId?: string }}
  *
  * Reject codes (the error contract shared with the SCP-134 push protocol):
@@ -47,7 +54,7 @@ function looksRendered(actor) {
  *                            validator already requires one)
  *   - PRINCIPAL_MISSING    — no authenticated principal supplied
  */
-export function authorizeUploadActors(events, principal) {
+export function authorizeUploadActors(events, principal, { allowedActors } = {}) {
   if (typeof principal !== 'string' || !principal) {
     return { ok: false, code: 'PRINCIPAL_MISSING', message: 'no authenticated principal' };
   }
@@ -71,11 +78,11 @@ export function authorizeUploadActors(events, principal) {
         eventId: e.id,
       };
     }
-    if (actor !== principal) {
+    if (actor !== principal && !(allowedActors instanceof Set && allowedActors.has(actor))) {
       return {
         ok: false,
         code: 'ACTOR_MISMATCH',
-        message: `event actor "${actor}" != authenticated principal "${principal}"`,
+        message: `event actor "${actor}" != authenticated principal "${principal}" (claim it as an alias to sync local history)`,
         eventId: e.id,
       };
     }
@@ -94,8 +101,8 @@ export function authorizeUploadActors(events, principal) {
  *   role gate is skipped (caller enforced it separately).
  * @returns {Promise<{ ok: true } | { ok: false, code: string, message: string, eventId?: string }>}
  */
-export async function authorizeUpload(events, principal, { checkRole } = {}) {
-  const actorResult = authorizeUploadActors(events, principal);
+export async function authorizeUpload(events, principal, { checkRole, allowedActors } = {}) {
+  const actorResult = authorizeUploadActors(events, principal, { allowedActors });
   if (!actorResult.ok) return actorResult;
   if (typeof checkRole === 'function') {
     const allowed = await checkRole();

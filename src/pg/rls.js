@@ -106,6 +106,39 @@ export function appRole() {
 export async function ensureRls(clientOrPool) {
   const role = appRole();
   const isPool = typeof clientOrPool.connect === 'function'; // a Pool
+
+  // Zero-DDL fast path (SCP-194): when RLS is already fully applied (every
+  // table forced + every policy present + app-role grants in place when
+  // configured), skip the DDL batch entirely. The DROP/CREATE POLICY pair
+  // takes ACCESS EXCLUSIVE locks even when nothing changes, and many
+  // processes boot concurrently (parallel test files, multi-instance
+  // deploys) — re-running it on every boot deadlocked with other processes'
+  // data writes, surfacing as transient 500s. NOTE: if RLS_SQL grows new
+  // objects, extend this check to cover them or stale fast-paths will skip.
+  try {
+    const applied = (await clientOrPool.query(
+      `SELECT count(*)::int AS forced
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname='public' AND c.relname = ANY($1)
+          AND c.relrowsecurity AND c.relforcerowsecurity`,
+      [RLS_TABLES]
+    )).rows[0].forced === RLS_TABLES.length;
+    const policies = (await clientOrPool.query(
+      `SELECT count(*)::int AS n FROM pg_policies
+        WHERE schemaname='public' AND tablename = ANY($1)`,
+      [RLS_TABLES]
+    )).rows[0].n >= RLS_TABLES.length;
+    let granted = true;
+    if (role) {
+      granted = (await clientOrPool.query(
+        `SELECT bool_and(has_table_privilege($2, 'public.' || t, 'SELECT, INSERT, UPDATE, DELETE')) AS ok
+           FROM unnest($1::text[]) AS t`,
+        [RLS_TABLES, role]
+      )).rows[0].ok === true;
+    }
+    if (applied && policies && granted) return;
+  } catch { /* fall through to the full DDL path */ }
+
   for (let attempt = 1; ; attempt++) {
     const db = isPool ? await clientOrPool.connect() : clientOrPool;
     try {

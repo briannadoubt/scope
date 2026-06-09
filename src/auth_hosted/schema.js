@@ -105,6 +105,21 @@ CREATE TABLE IF NOT EXISTS invites (
   accepted_by text                       -- account that redeemed the code
 );
 CREATE INDEX IF NOT EXISTS idx_invites_tenant ON invites (tenant_id);
+
+-- actor aliases (SCP-184) ----------------------------------------------------
+-- Local event logs stamp human-readable actors ("bri", "claude"); hosted
+-- principals are account ids. A per-project alias maps the former onto the
+-- latter so sync-push actor authz can accept a member's own local history.
+-- Scoped per tenant (no global name squatting): the same alias can map to
+-- different accounts on different boards.
+CREATE TABLE IF NOT EXISTS tenant_aliases (
+  tenant_id  text NOT NULL REFERENCES projects(tenant_id) ON DELETE CASCADE,
+  alias      text NOT NULL,
+  account_id text NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  created_at text NOT NULL,
+  PRIMARY KEY (tenant_id, alias)
+);
+CREATE INDEX IF NOT EXISTS idx_tenant_aliases_account ON tenant_aliases (tenant_id, account_id);
 `;
 
 /**
@@ -119,6 +134,21 @@ CREATE INDEX IF NOT EXISTS idx_invites_tenant ON invites (tenant_id);
  */
 export async function ensureAuthSchema(clientOrPool) {
   const isPool = typeof clientOrPool.connect === 'function';
+
+  // Zero-DDL fast path (SCP-194): the two NEWEST objects in this schema are
+  // tenant_aliases (SCP-184) and projects.archived_at (SCP-192) — when both
+  // exist, every older CREATE has already run and we can skip the DDL batch
+  // (even IF NOT EXISTS DDL takes catalog locks that churn under concurrent
+  // boots). NOTE: when adding DDL here, point this probe at the newest object.
+  try {
+    const probe = (await clientOrPool.query(`
+      SELECT (to_regclass('public.tenant_aliases') IS NOT NULL) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_name='projects' AND column_name='archived_at'
+      ) AS ok`)).rows[0].ok;
+    if (probe === true) return;
+  } catch { /* fall through to the full DDL path */ }
+
   for (let attempt = 1; ; attempt++) {
     const db = isPool ? await clientOrPool.connect() : clientOrPool;
     try {
@@ -149,6 +179,6 @@ export async function ensureAuthSchema(clientOrPool) {
 /** Drop every hosted-auth table (tests only). */
 export async function dropAuthSchema(clientOrPool) {
   await clientOrPool.query(`
-    DROP TABLE IF EXISTS invites, refresh_tokens, api_keys, memberships, projects, accounts CASCADE;
+    DROP TABLE IF EXISTS tenant_aliases, invites, refresh_tokens, api_keys, memberships, projects, accounts CASCADE;
   `);
 }

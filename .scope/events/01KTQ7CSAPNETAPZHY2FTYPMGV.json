@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ7CSAPNETAPZHY2FTYPMGV",
+  "ts": "2026-06-09T22:17:35.318Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KT3RXNPGRFWQNYCFPQE5GW37",
+    "commentId": "01KTQ7CSAPNETAPZHY2FTYPMGT",
+    "author": "claude",
+    "body": "DONE (subagent + integrated). src/gossip.js: paired LAN hubs push/pull the event log directly over the existing mTLS device-cert machinery - no central host. fs-bus-triggered debounced rounds (~100ms path) + interval catch-up; peers matched by workspace KEY; mesh-safe (ULID-idempotent, transitive propagation); per-peer error isolation. discoverLanPeers via Bonjour. Wired: scope serve --gossip [--gossip-peer url] with --gossip-cert/key/ca or SCOPE_GOSSIP_* (credential = the device cert from pairing against the peer). test/gossip.test.js: two real mTLS servers converge both directions <2s; idempotent re-rounds; clean teardown. Acceptance met."
+  }
+}

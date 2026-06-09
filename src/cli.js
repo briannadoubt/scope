@@ -25,6 +25,7 @@ import {
 import { ensureEventLog } from './backfill.js';
 import { syncFromLog } from './replay.js';
 import { syncWithRemote } from './sync-client.js';
+import { readRemoteConfig, writeRemoteConfig, resolveRemote, remoteConfigPath } from './remote-config.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -925,16 +926,33 @@ export function buildProgram() {
   program
     .command('sync')
     .description('Sync this workspace with a remote hub: push local events, pull the remote back.')
-    .requiredOption('--remote <url>', 'remote hub base URL, e.g. https://hub.scope.dev')
-    .requiredOption('--remote-workspace <id>', 'the remote workspace id to sync with')
+    .option('--remote <url>', 'remote hub base URL, e.g. https://hub.scope.dev (falls back to $SCOPE_REMOTE, then .scope/remote.json)')
+    .option('--remote-workspace <id>', 'the remote workspace id to sync with (wins over --project)')
+    .option('--project <tenantId>', 'the remote project (tenant) to sync with (falls back to $SCOPE_PROJECT, then .scope/remote.json)')
     .option('--token <token>', 'credential for the remote hub: a per-user API key (sk_…) or shared token. Falls back to $SCOPE_API_KEY then $SCOPE_TOKEN.')
     .option('--model <name>', 'acting model for attribution (X-Scope-Model). Falls back to $SCOPE_MODEL.')
     .action(async (opts, cmd) => {
       const { db, scopeDir } = openOrDie();
+      // SCP-193: flags > env > committed .scope/remote.json. The legacy
+      // --remote-workspace selector wins over --project; on a hosted hub the
+      // project (tenant) id IS the remote workspace id, so either spelling
+      // lands on the same board.
+      let target;
+      try {
+        target = resolveRemote(scopeDir, { remote: opts.remote, project: opts.remoteWorkspace || opts.project });
+      } catch (e) {
+        fail(e.message);
+      }
+      if (!target.url) {
+        fail('remote hub URL is required (--remote). Configure one with `scope remote set --url <url>`.');
+      }
+      if (!target.project) {
+        fail('remote workspace id is required (--remote-workspace). Configure one with `scope remote set --project <tenantId>`.');
+      }
       try {
         const r = await syncWithRemote(db, scopeDir, {
-          remote: opts.remote,
-          remoteWorkspace: opts.remoteWorkspace,
+          remote: target.url,
+          remoteWorkspace: target.project,
           token: opts.token || process.env.SCOPE_API_KEY || process.env.SCOPE_TOKEN || '',
           model: opts.model || process.env.SCOPE_MODEL || '',
         });
@@ -1010,6 +1028,188 @@ export function buildProgram() {
         });
         if (!res.ok) fail(`revoke failed: HTTP ${res.status}`);
         out(cmd, { ok: true, id }, () => chalk.green('✓') + ` revoked ${id}`);
+      } catch (e) { fail(e.message); }
+    });
+
+  /* ---------- remote: committed hub target (SCP-193) ---------- */
+
+  const remote = program
+    .command('remote')
+    .description(
+      'Configure which hosted hub + project this workspace syncs with (.scope/remote.json — committed with the repo, never holds credentials).'
+    );
+
+  remote
+    .command('set')
+    .description('Write/merge .scope/remote.json with the hub URL and/or target project (tenant) id.')
+    .option('--url <url>', 'remote hub base URL, e.g. https://scope-hub.fly.dev')
+    .option('--project <tenantId>', 'target project (tenant) id, e.g. tnt_…')
+    .action((opts, cmd) => {
+      const { scopeDir } = openOrDie();
+      if (!opts.url && !opts.project) fail('Nothing to set — pass --url and/or --project.');
+      try {
+        const existing = readRemoteConfig(scopeDir) || {};
+        const cfg = writeRemoteConfig(scopeDir, {
+          url: opts.url || existing.url,
+          project: opts.project || existing.project,
+        });
+        out(cmd, { ...cfg, path: remoteConfigPath(scopeDir) }, (c) =>
+          chalk.green('✓') + ` Remote configured — ${c.path}\n` +
+          chalk.gray(`  url:      ${c.url || '(none)'}\n`) +
+          chalk.gray(`  project:  ${c.project || '(none)'}\n`) +
+          chalk.gray('  Tokens never live here — pass --token or set $SCOPE_API_KEY.')
+        );
+      } catch (e) { fail(e.message); }
+    });
+
+  remote
+    .command('show')
+    .description('Show the resolved remote target and where each value comes from (flag/env/file/none).')
+    .action((opts, cmd) => {
+      const { scopeDir } = openOrDie();
+      try {
+        const r = resolveRemote(scopeDir);
+        out(cmd, r, (r) =>
+          `  url:      ${r.url ? chalk.bold(r.url) : chalk.gray('(none)')}  ${chalk.gray(`[${r.source.url}]`)}\n` +
+          `  project:  ${r.project ? chalk.bold(r.project) : chalk.gray('(none)')}  ${chalk.gray(`[${r.source.project}]`)}`
+        );
+      } catch (e) { fail(e.message); }
+    });
+
+  /* ---------- projects: hosted boards (SCP-193) ---------- */
+
+  const projects = program
+    .command('projects')
+    .description('List and create projects (boards) on a remote hosted hub.');
+
+  const projectsUrl = (remoteUrl) => `${remoteUrl.replace(/\/$/, '')}/api/projects`;
+  // Resolve the hub URL like `scope sync` does (flag > $SCOPE_REMOTE >
+  // .scope/remote.json) — but without requiring a workspace, so these work
+  // outside a repo when --remote is explicit.
+  const resolveHubOrDie = (opts) => {
+    let r;
+    try {
+      r = resolveRemote(findScopeDir(), { remote: opts.remote });
+    } catch (e) {
+      fail(e.message);
+    }
+    if (!r.url) fail('No remote configured. Pass --remote <url> or run `scope remote set --url <url>`.');
+    return r;
+  };
+
+  projects
+    .command('list')
+    .description('List the projects (boards) you belong to on the remote hub, with your role on each.')
+    .option('--remote <url>', 'remote hub base URL (falls back to $SCOPE_REMOTE, then .scope/remote.json)')
+    .option('--token <token>', 'API key / session to authenticate ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .action(async (opts, cmd) => {
+      const r = resolveHubOrDie(opts);
+      try {
+        const res = await fetch(projectsUrl(r.url), { headers: authHeaders(authCred(opts)) });
+        if (res.status === 401) fail('list failed: HTTP 401 — pass --token or set $SCOPE_API_KEY.');
+        if (!res.ok) fail(`list failed: HTTP ${res.status}`);
+        const rows = await res.json();
+        out(cmd, rows, (rs) => rs.length
+          ? rs.map((p) => `  ${p.tenant_id}  ${p.role}  ${p.name}`).join('\n')
+          : '  (no projects)');
+      } catch (e) { fail(e.message); }
+    });
+
+  projects
+    .command('create <name>')
+    .description('Create a project (board) on the remote hub — you become its owner.')
+    .option('--remote <url>', 'remote hub base URL (falls back to $SCOPE_REMOTE, then .scope/remote.json)')
+    .option('--token <token>', 'API key / session to authenticate ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .action(async (name, opts, cmd) => {
+      const r = resolveHubOrDie(opts);
+      try {
+        const res = await fetch(projectsUrl(r.url), {
+          method: 'POST', headers: authHeaders(authCred(opts)), body: JSON.stringify({ name }),
+        });
+        if (res.status === 401) fail('create failed: HTTP 401 — pass --token or set $SCOPE_API_KEY.');
+        if (!res.ok) fail(`create failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
+        const body = await res.json();
+        // SCP-193: non-interactive by convention — when the committed config
+        // has no project target yet, print the command instead of prompting.
+        const cfg = readRemoteConfig(findScopeDir());
+        const hint = cfg && !cfg.project
+          ? '\n' + chalk.gray(`  target it for sync: scope remote set --project ${body.tenantId}`)
+          : '';
+        out(cmd, body, (b) =>
+          chalk.green('✓') + ` created project ${chalk.bold(b.name)} (${b.key})\n` +
+          chalk.gray(`  tenant: ${b.tenantId}`) + hint);
+      } catch (e) { fail(e.message); }
+    });
+
+  /* ---------- alias: map local actor names to your account (SCP-184) ---------- */
+
+  const alias = program
+    .command('alias')
+    .description('Claim local event-actor names (e.g. "bri") on a remote project so your local history syncs under your account.');
+
+  // Resolve BOTH the hub url and the target project (alias ops are per-board).
+  const resolveProjectOrDie = (opts) => {
+    const r = resolveHubOrDie(opts);
+    const project = opts.project || r.project;
+    if (!project) fail('No project selected. Pass --project <tenantId> or run `scope remote set --project <tenantId>`.');
+    return { url: r.url, project };
+  };
+  const aliasesUrl = (url, project, name = '') =>
+    `${url.replace(/\/$/, '')}/api/projects/${encodeURIComponent(project)}/aliases${name ? `/${encodeURIComponent(name)}` : ''}`;
+
+  alias
+    .command('claim <name>')
+    .description('Claim an actor name as yours on the project (first-come; owners can --force a reassignment).')
+    .option('--remote <url>', 'remote hub base URL ($SCOPE_REMOTE, .scope/remote.json)')
+    .option('--project <tenantId>', 'target project ($SCOPE_PROJECT, .scope/remote.json)')
+    .option('--token <token>', 'API key / session ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .option('--force', 'owner only: reassign the alias even if someone else holds it', false)
+    .action(async (name, opts, cmd) => {
+      const { url, project } = resolveProjectOrDie(opts);
+      try {
+        const res = await fetch(aliasesUrl(url, project), {
+          method: 'POST', headers: authHeaders(authCred(opts)),
+          body: JSON.stringify({ alias: name, force: opts.force || undefined }),
+        });
+        if (res.status === 409) fail(`"${name}" is already claimed on this project (an owner can reassign with --force).`);
+        if (!res.ok) fail(`claim failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
+        out(cmd, await res.json(), (b) =>
+          chalk.green('✓') + ` "${b.alias}" now syncs as your account on this project`);
+      } catch (e) { fail(e.message); }
+    });
+
+  alias
+    .command('list')
+    .description('Show the actor-name → account map on the project.')
+    .option('--remote <url>', 'remote hub base URL')
+    .option('--project <tenantId>', 'target project')
+    .option('--token <token>', 'API key / session')
+    .action(async (opts, cmd) => {
+      const { url, project } = resolveProjectOrDie(opts);
+      try {
+        const res = await fetch(aliasesUrl(url, project), { headers: authHeaders(authCred(opts)) });
+        if (!res.ok) fail(`list failed: HTTP ${res.status}`);
+        const rows = await res.json();
+        out(cmd, rows, (rs) => rs.length
+          ? rs.map((a) => `  ${a.alias}  →  ${a.account_id}`).join('\n')
+          : '  (no aliases claimed)');
+      } catch (e) { fail(e.message); }
+    });
+
+  alias
+    .command('remove <name>')
+    .description('Remove an alias mapping (yours, or any as owner).')
+    .option('--remote <url>', 'remote hub base URL')
+    .option('--project <tenantId>', 'target project')
+    .option('--token <token>', 'API key / session')
+    .action(async (name, opts, cmd) => {
+      const { url, project } = resolveProjectOrDie(opts);
+      try {
+        const res = await fetch(aliasesUrl(url, project, name), {
+          method: 'DELETE', headers: authHeaders(authCred(opts)),
+        });
+        if (!res.ok) fail(`remove failed: HTTP ${res.status}`);
+        out(cmd, { ok: true, alias: name }, () => chalk.green('✓') + ` removed "${name}"`);
       } catch (e) { fail(e.message); }
     });
 
@@ -1611,8 +1811,13 @@ export function buildProgram() {
     )
     .option('-p, --port <port>', 'preferred port (walks forward if taken)', String(DEFAULT_HUB_PORT))
     .option('--no-open', "don't open the browser automatically")
+    .option('--gossip', 'gossip events directly with paired LAN peers (no central host, SCP-114)')
+    .option('--gossip-peer <url...>', 'explicit peer base URL(s); default = mDNS discovery')
+    .option('--gossip-cert <pem>', 'client cert for peer mTLS ($SCOPE_GOSSIP_CERT)')
+    .option('--gossip-key <pem>', 'client key for peer mTLS ($SCOPE_GOSSIP_KEY)')
+    .option('--gossip-ca <pem>', "peer hub's CA cert ($SCOPE_GOSSIP_CA)")
     .action(async (opts) => {
-      const { scopeDir } = openOrDie();
+      const { db, scopeDir } = openOrDie();
       const preferredPort = Number.parseInt(opts.port, 10);
 
       const ensureOpts = {
@@ -1621,6 +1826,41 @@ export function buildProgram() {
         openBrowser: false, // we open the browser ourselves after the CA trust prompt
       };
       const res = await ensureHub(ensureOpts);
+
+      // LAN peer gossip (SCP-114): push/pull the event log directly with
+      // paired peer hubs over mTLS — realtime on a LAN with no central host.
+      // The client credential is the device cert a `scope pair` flow against
+      // the peer's CA produced.
+      let gossip = null, disco = null;
+      if (opts.gossip) {
+        const certPath = opts.gossipCert || process.env.SCOPE_GOSSIP_CERT;
+        const keyPath = opts.gossipKey || process.env.SCOPE_GOSSIP_KEY;
+        const caPath = opts.gossipCa || process.env.SCOPE_GOSSIP_CA;
+        if (!certPath || !keyPath || !caPath) {
+          fail(
+            '--gossip needs a peer-signed client credential: --gossip-cert/--gossip-key/--gossip-ca ' +
+            '(or SCOPE_GOSSIP_CERT/KEY/CA). Pair this machine against the peer hub first (`scope pair`).'
+          );
+        }
+        const { startGossip, discoverLanPeers } = await import('./gossip.js');
+        const clientCert = {
+          certPem: readFileSync(certPath, 'utf8'),
+          keyPem: readFileSync(keyPath, 'utf8'),
+          caPem: readFileSync(caPath, 'utf8'),
+        };
+        let getPeers;
+        if (opts.gossipPeer?.length) {
+          getPeers = () => opts.gossipPeer.map((url) => ({ url }));
+        } else {
+          disco = discoverLanPeers({ excludeUrls: [res.url] });
+          getPeers = disco.getPeers;
+        }
+        gossip = startGossip({ scopeDir, db, getPeers, clientCert });
+        process.stdout.write(chalk.green('✓') + ' gossip on — syncing with paired LAN peers\n');
+        const stopGossip = async () => { try { await gossip.stop(); } catch {} try { disco?.stop(); } catch {} };
+        process.on('SIGINT', stopGossip);
+        process.on('SIGTERM', stopGossip);
+      }
       startHubWatchdog(res, ensureOpts, {
         onEvent: (e) => {
           if (e.type === 'repair.done') {

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQ7CSAPNETAPZHY2FTYPMGY",
+  "ts": "2026-06-09T22:17:35.318Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTJDSJ4J828MN859C0JAWZ18",
+    "commentId": "01KTQ7CSAPNETAPZHY2FTYPMGX",
+    "author": "claude",
+    "body": "DONE - Milestone B assembled. Already-landed: PG store+replay behind serving (tenant replicas), hosted OIDC/API-key auth, schema+RLS on boot. This tranche wired the remaining two: (1) LISTEN/NOTIFY fan-out - makePgBus on hosted boot; writes publish {tenant,cursor} pointers; each SSE connection LISTENs on its tenant topic and replays into the local bus, so multi-instance viewers converge (single-instance unaffected); (2) quotas - ensureQuotaSchema on boot, per-principal/tenant rate limiting on the API (429 + Retry-After), daily event quota enforced on sync push AND replica mutations (429 QUOTA_EVENTS) with recordEvents accounting, per-tenant SSE connection ceiling (429 QUOTA_CONNECTIONS), and GET /api/usage. Note: fly.toml still pins min_machines_running=1; the bus makes >1 safe for realtime, but scaling out remains a deploy decision."
+  }
+}

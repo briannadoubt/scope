@@ -216,6 +216,38 @@ test('replica REST: invite grants access through the real server; viewer still c
   } finally { await hub.close(); }
 });
 
+test('aliases (SCP-184): claiming a local actor name lets its history sync; conflicts are 409', { skip }, async () => {
+  const hub = await startHostedHub();
+  try {
+    const A = await upsertAccount(hub.pool, { email: uniq('a') + '@t.test', provider: 'github', providerSub: uniq('a') });
+    const B = await upsertAccount(hub.pool, { email: uniq('b') + '@t.test', provider: 'github', providerSub: uniq('b') });
+    const tokA = sess(A), tokB = sess(B);
+    const pa = await (await authPost(hub.base, '/api/projects', tokA, { name: 'Alpha' })).json();
+
+    // A's local log is stamped with the human name "bri" — push fails unclaimed.
+    const localEvents = ticketEvent('bri', 'my local history');
+    const before = await authPost(hub.base, `/api/sync/push?project=${pa.tenantId}`, tokA, { events: localEvents });
+    assert.equal(before.status, 403);
+    assert.equal((await before.json()).code, 'ACTOR_MISMATCH');
+
+    // A claims the alias; the same push now lands.
+    const claim = await authPost(hub.base, `/api/projects/${pa.tenantId}/aliases`, tokA, { alias: 'bri' });
+    assert.equal(claim.status, 201);
+    const after = await authPost(hub.base, `/api/sync/push?project=${pa.tenantId}`, tokA, { events: localEvents });
+    assert.equal(after.status, 200, 'claimed alias unlocks the local history');
+
+    // B (added as member) cannot claim the same alias on this board.
+    await setMembership(hub.pool, { tenantId: pa.tenantId, accountId: B, role: 'member' });
+    const steal = await authPost(hub.base, `/api/projects/${pa.tenantId}/aliases`, tokB, { alias: 'bri' });
+    assert.equal(steal.status, 409, 'alias is first-come per project');
+    assert.equal((await steal.json()).code, 'ALIAS_TAKEN');
+
+    // …and B pushing events as "bri" is still refused.
+    const forged = await authPost(hub.base, `/api/sync/push?project=${pa.tenantId}`, tokB, { events: ticketEvent('bri', 'forged') });
+    assert.equal(forged.status, 403);
+  } finally { await hub.close(); }
+});
+
 test('foundation: actor authz — cannot push events attributed to another principal', { skip }, async () => {
   const hub = await startHostedHub();
   try {

@@ -130,6 +130,56 @@ export async function hasRole(pool, tenantId, accountId, minRole) {
   return roleSatisfies(role, minRole);
 }
 
+/* ---------------------------- actor aliases ------------------------------ */
+/* SCP-184: per-project mapping of local event-actor names ("bri") onto hosted
+ * account ids, so sync-push authz can accept a member's own local history. */
+
+/** Claim (or reassign) an alias on a project. First-come within a tenant:
+ * claiming an alias already mapped to ANOTHER account throws ALIAS_TAKEN
+ * unless `force` (owner reassignment). Idempotent for the same account. */
+export async function claimAlias(pool, { tenantId, alias, accountId, force = false, now } = {}) {
+  if (!alias || !String(alias).trim()) throw new Error('alias required');
+  const a = String(alias).trim();
+  const existing = (await pool.query(
+    'SELECT account_id FROM tenant_aliases WHERE tenant_id=$1 AND alias=$2', [tenantId, a]
+  )).rows[0];
+  if (existing && existing.account_id !== accountId && !force) {
+    const err = new Error(`alias "${a}" is already claimed on this project`);
+    err.code = 'ALIAS_TAKEN';
+    throw err;
+  }
+  await pool.query(
+    `INSERT INTO tenant_aliases (tenant_id, alias, account_id, created_at)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (tenant_id, alias) DO UPDATE SET account_id=EXCLUDED.account_id`,
+    [tenantId, a, accountId, nowIso(now)]
+  );
+  return { tenantId, alias: a, accountId };
+}
+
+/** Remove an alias mapping. Idempotent. */
+export async function removeAlias(pool, { tenantId, alias } = {}) {
+  await pool.query('DELETE FROM tenant_aliases WHERE tenant_id=$1 AND alias=$2', [tenantId, alias]);
+}
+
+/** All alias mappings on a project (attribution map for the board). */
+export async function listAliases(pool, tenantId) {
+  return (await pool.query(
+    'SELECT alias, account_id, created_at FROM tenant_aliases WHERE tenant_id=$1 ORDER BY alias',
+    [tenantId]
+  )).rows;
+}
+
+/** The set of actor strings `accountId` may push as on `tenantId`:
+ * the account id itself plus every alias it holds there. */
+export async function allowedActorsFor(pool, tenantId, accountId) {
+  const rows = (await pool.query(
+    'SELECT alias FROM tenant_aliases WHERE tenant_id=$1 AND account_id=$2',
+    [tenantId, accountId]
+  )).rows;
+  return new Set([accountId, ...rows.map((r) => r.alias)]);
+}
+
 /** Projects the account belongs to, with role. Used to populate JWT claims.
  * Archived projects are excluded — they keep their data (soft delete,
  * SCP-192) but stop being selectable boards or session defaults. */

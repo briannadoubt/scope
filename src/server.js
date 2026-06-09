@@ -52,7 +52,7 @@ import {
 } from './auth_hosted/cloud-auth.js';
 import { authorizeUploadActors, statusForReject } from './auth_hosted/authz.js';
 import { requireTenantRole } from './auth_hosted/tenancy.js';
-import { getRole } from './auth_hosted/membership.js';
+import { getRole, claimAlias, removeAlias, listAliases, allowedActorsFor } from './auth_hosted/membership.js';
 import {
   listProjects, listProjectBoards, createProjectBoard, readBoard,
   renameProject, archiveProject,
@@ -130,6 +130,7 @@ export async function startServer({
   // hub. NEVER active on the local/LAN path (ADR 0003 §5). (SCP-171)
   const hostedAuth = hostedAuthEnabled(cloud);
   let pool = null;
+  let hostedRuntime = null; // { pgBus } — set in the hosted branch, closed on shutdown
   if (hostedAuth) {
     pool = await ensureHostedAuthReady(); // create auth tables if absent (idempotent)
   }
@@ -242,6 +243,35 @@ export async function startServer({
     app.use(hostedAuthMiddleware({ pool }));
     // Authenticated API-key management (needs req.principal).
     app.use(apiKeyRouter({ pool }));
+
+    // Milestone-B runtime modules (SCP-165): cross-node fan-out + quotas.
+    // - pgBus: LISTEN/NOTIFY pointer messages ({tenant, cursor}) so an SSE
+    //   client on THIS node hears about writes accepted by ANY node.
+    // - rate limiter: per-principal/tenant token buckets on the whole API.
+    // - connection tracker: per-tenant SSE ceiling.
+    const { makePgBus } = await import('./realtime/bus.js');
+    const { topicForTenant } = await import('./realtime/topics.js');
+    const { checkEventQuota, recordEvents } = await import('./quota/quota.js');
+    const { rateLimitMiddleware } = await import('./quota/ratelimit.js');
+    const { createConnectionTracker } = await import('./quota/connections.js');
+    const { getUsage } = await import('./quota/usage.js');
+    const pgBus = makePgBus({ pool });
+    hostedRuntime = { pgBus };
+    const sseTracker = createConnectionTracker();
+    const announce = (tenantId, cursor) => {
+      pgBus.publish(topicForTenant(tenantId), { tenant: tenantId, cursor: cursor ?? null })
+        .catch(() => {}); // fan-out is best-effort; pull-refresh is the backstop
+    };
+    app.use(rateLimitMiddleware({
+      getPrincipal: (req) => req.principal?.accountId ?? null,
+      // The limiter FAILS CLOSED on a null key, and plenty of authenticated
+      // requests are tenantless (/api/meta, /api/projects, invite accept) —
+      // key those on the account instead so they share the principal's window.
+      getTenant: (req) =>
+        req.tenantId ?? req.query?.project ?? req.query?.workspace ??
+        (req.principal ? `acct:${req.principal.accountId}` : null),
+    }));
+
     // Members + invites (SCP-190): per-project member list / role management /
     // invite create-accept-revoke. Self-gated per route; mounted BEFORE the
     // replica gate so /api/invites/accept works for principals who don't hold
@@ -303,22 +333,84 @@ export async function startServer({
       try { res.json(await pullEvents(pool, req.tenantId, { since: req.query.since || null })); }
       catch (e) { res.status(500).json({ error: e.message }); }
     });
+    // Actor aliases (SCP-184): map local event-actor names onto hosted accounts
+    // so sync authz accepts a member's own local history. Claim is first-come
+    // per project for yourself; the owner can force-reassign or remove any.
+    tApi.get('/api/projects/:tenantId/aliases', requireTenantRole(pool, 'viewer'), async (req, res) => {
+      // Selector comes from the route param here, not the header/claim.
+      try { res.json(await listAliases(pool, req.params.tenantId)); }
+      catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    tApi.post('/api/projects/:tenantId/aliases', async (req, res) => {
+      try {
+        const tenantId = req.params.tenantId;
+        const role = await getRole(pool, tenantId, req.principal.accountId);
+        if (!role) return res.status(404).json({ error: 'no such project', code: 'NO_PROJECT' });
+        if (role === 'viewer') return res.status(403).json({ error: 'insufficient role', code: 'FORBIDDEN_ROLE' });
+        const { alias, account_id: target } = req.body || {};
+        // Assigning someone ELSE's alias (or force-reassigning) is owner-only.
+        const assigningOther = target && target !== req.principal.accountId;
+        const force = req.body?.force === true;
+        if ((assigningOther || force) && role !== 'owner') {
+          return res.status(403).json({ error: 'insufficient role', code: 'FORBIDDEN_ROLE' });
+        }
+        const out = await claimAlias(pool, {
+          tenantId, alias, accountId: target || req.principal.accountId, force,
+        });
+        res.status(201).json(out);
+      } catch (e) {
+        if (e.code === 'ALIAS_TAKEN') return res.status(409).json({ error: e.message, code: e.code });
+        res.status(400).json({ error: e.message });
+      }
+    });
+    tApi.delete('/api/projects/:tenantId/aliases/:alias', async (req, res) => {
+      try {
+        const tenantId = req.params.tenantId;
+        const role = await getRole(pool, tenantId, req.principal.accountId);
+        if (!role) return res.status(404).json({ error: 'no such project', code: 'NO_PROJECT' });
+        const mine = (await listAliases(pool, tenantId))
+          .find((a) => a.alias === req.params.alias)?.account_id === req.principal.accountId;
+        if (!mine && role !== 'owner') {
+          return res.status(403).json({ error: 'insufficient role', code: 'FORBIDDEN_ROLE' });
+        }
+        await removeAlias(pool, { tenantId, alias: req.params.alias });
+        res.json({ ok: true });
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     tApi.post('/api/sync/push', requireTenantRole(pool, 'member'), async (req, res) => {
       const events = Array.isArray(req.body?.events) ? req.body.events : null;
       if (!events) return res.status(400).json({ error: 'body.events must be an array' });
-      // Actor authz (SCP-172): every event's actor must be the authenticated principal.
-      const verdict = authorizeUploadActors(events, req.principal.accountId);
+      // Actor authz (SCP-172) + aliases (SCP-184): every event's actor must be
+      // the authenticated principal or one of its claimed aliases on this board.
+      const allowedActors = await allowedActorsFor(pool, req.tenantId, req.principal.accountId);
+      const verdict = authorizeUploadActors(events, req.principal.accountId, { allowedActors });
       if (!verdict.ok) return res.status(statusForReject(verdict.code)).json({ error: verdict.message, code: verdict.code });
       try {
+        // Daily event quota (SCP-165) — hard stop at the tenant's plan cap.
+        const quota = await checkEventQuota(pool, req.tenantId, events.length);
+        if (!quota.allowed) {
+          return res.status(429).json({
+            error: 'event quota exceeded', code: 'QUOTA_EVENTS', used: quota.used, limit: quota.limit,
+          });
+        }
         const out = await uploadEvents(pool, req.tenantId, events);
         if (out.accepted.length) {
-          // Surface to live viewers; the serving replica catches up on its
-          // next refresh-on-read.
+          recordEvents(pool, req.tenantId, out.accepted.length).catch(() => {});
+          // Surface to live viewers here AND on every other node (pg bus); the
+          // serving replica catches up on its next refresh-on-read.
           emitChange({ type: 'sync.applied', workspace: req.tenantId, applied: out.accepted.length });
+          announce(req.tenantId, out.cursor);
         }
         res.json(out);
       }
       catch (e) { res.status(400).json({ error: `invalid event: ${e.message}` }); }
+    });
+
+    // Per-tenant usage vs plan limits (SCP-165).
+    tApi.get('/api/usage', requireTenantRole(pool, 'viewer'), async (req, res) => {
+      try { res.json(await getUsage(pool, req.tenantId, { connections: sseTracker })); }
+      catch (e) { res.status(500).json({ error: e.message }); }
     });
 
     // The web app's workspace switcher reads /api/workspaces — in hosted mode a
@@ -345,14 +437,32 @@ export async function startServer({
       const min = req.method === 'GET' ? 'viewer' : 'member';
       requireTenantRole(pool, min)(req, res, async () => {
         try {
+          // Mutations consume event quota (SCP-165). The exact event count
+          // isn't known until the handler runs; gate on headroom for one and
+          // record the real count after the flush.
+          if (req.method !== 'GET') {
+            const quota = await checkEventQuota(pool, req.tenantId, 1);
+            if (!quota.allowed) {
+              return res.status(429).json({
+                error: 'event quota exceeded', code: 'QUOTA_EVENTS', used: quota.used, limit: quota.limit,
+              });
+            }
+          }
           const rep = await ensureReplica(pool, req.tenantId);
           await refreshReplica(pool, rep);
           req.tenantReplica = { id: req.tenantId, scope_dir: rep.scopeDir, db: rep.db, label: 'project' };
           if (req.method !== 'GET') {
             res.on('finish', () => {
-              flushReplica(pool, rep).catch((e) => {
-                if (!quiet) process.stderr.write(`[hub] tenant flush failed (${req.tenantId}): ${e.message}\n`);
-              });
+              flushReplica(pool, rep)
+                .then((r) => {
+                  if (r.pushed) {
+                    recordEvents(pool, req.tenantId, r.pushed).catch(() => {});
+                    announce(req.tenantId, rep.cursor); // other nodes' viewers
+                  }
+                })
+                .catch((e) => {
+                  if (!quiet) process.stderr.write(`[hub] tenant flush failed (${req.tenantId}): ${e.message}\n`);
+                });
             });
           }
           next();
@@ -363,9 +473,28 @@ export async function startServer({
     });
 
     // SSE: a hosted viewer may only stream a board they belong to. The guard
-    // validates the ?workspace= selector (a tenant id) before the generic
-    // /events handler attaches the stream.
-    app.use('/events', (req, res, next) => requireTenantRole(pool, 'viewer')(req, res, next));
+    // validates the ?workspace= selector (a tenant id), enforces the per-tenant
+    // connection ceiling, and bridges the cross-node bus: while this stream is
+    // open the node LISTENs on the tenant's topic and replays pointer messages
+    // into the local change bus, so writes accepted by OTHER nodes reach this
+    // node's viewers (SCP-165 / SCP-146).
+    app.use('/events', (req, res, next) => requireTenantRole(pool, 'viewer')(req, res, async () => {
+      const lease = sseTracker.acquire(req.tenantId);
+      if (!lease) {
+        return res.status(429).json({ error: 'too many live connections for this project', code: 'QUOTA_CONNECTIONS' });
+      }
+      let off = null;
+      try {
+        off = await pgBus.subscribe(topicForTenant(req.tenantId), (payload) => {
+          emitChange({ type: 'sync.applied', workspace: payload?.tenant || req.tenantId });
+        });
+      } catch { /* single-node still works via the in-process bus */ }
+      req.on('close', () => {
+        lease.release();
+        if (off) Promise.resolve(off()).catch(() => {});
+      });
+      next();
+    }));
 
     if (!quiet && !loginProviderConfigured()) {
       process.stderr.write('[hub] hosted auth on, but no login provider configured (API keys only)\n');
@@ -950,7 +1079,10 @@ export async function startServer({
     try { advert?.stop?.(); } catch {}
     try { bonjour?.unpublishAll(() => bonjour.destroy()); } catch {}
     try { lanServer?.close(); } catch {}
-    if (hostedAuth) { try { closeAllReplicas(); } catch {} }
+    if (hostedAuth) {
+      try { closeAllReplicas(); } catch {}
+      try { hostedRuntime?.pgBus?.close?.(); } catch {}
+    }
     return origClose(cb);
   };
   return server;

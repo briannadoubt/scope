@@ -863,6 +863,38 @@ button { font-family: inherit; }
 .apikey-row.revoked { opacity: 0.5; }
 .apikey-tag { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
 
+/* Members & sharing + project lifecycle (SCP-191, hosted only) */
+.member-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 240px; overflow-y: auto; margin-bottom: 6px;
+}
+.member-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 4px; border-bottom: 1px solid var(--border-soft); font-size: 13px;
+}
+.member-row .member-id {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.member-row .member-id code { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-muted); }
+.member-tag { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.modal select.member-role { width: auto; flex: 0 0 auto; font-size: 12px; padding: 3px 6px; }
+.member-sec-head {
+  font-size: 11px; color: var(--text-dim); text-transform: uppercase;
+  letter-spacing: 0.05em; margin: 16px 0 6px;
+}
+.proj-invite-form { display: flex; gap: 8px; margin-bottom: 12px; }
+.proj-invite-form input { width: auto; flex: 1 1 auto; }
+.proj-invite-form select { width: auto; flex: 0 0 auto; }
+.proj-invite-form .btn { flex: 0 0 auto; white-space: nowrap; }
+.btn.danger.armed { background: rgba(248,81,73,0.18); border-color: var(--red); }
+
+/* Role-aware chrome (SCP-191): viewers can't create tickets — hide the dead
+ * controls. body.role-viewer is toggled on workspace switch, hosted only. */
+body.role-viewer #new-ticket,
+body.role-viewer .column-add,
+body.role-viewer #board-empty-manual { display: none; }
+
 /* ------------- search palette ------------- */
 /* Command-palette layout: dock near the top instead of dead-centre. */
 .modal-backdrop:has(.search-palette) { align-items: flex-start; padding-top: 12vh; }

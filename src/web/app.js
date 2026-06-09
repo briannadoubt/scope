@@ -60,7 +60,12 @@ async function api(path, opts = {}) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    // SCP-191: carry the HTTP status + machine code (e.g. LAST_OWNER,
+    // FORBIDDEN_ROLE) so callers can branch without string-matching messages.
+    const e = new Error(err.error || `HTTP ${res.status}`);
+    e.status = res.status;
+    e.code = err.code || null;
+    throw e;
   }
   if (res.status === 204) return null;
   return res.json();
@@ -71,7 +76,15 @@ async function api(path, opts = {}) {
 async function init() {
   state.meta = await api('/api/meta');
   state.serverVersion = state.meta.version ?? null;
+  // SCP-191: invite links land on /app?invite=<code>. Redeem BEFORE the first
+  // workspaces fetch so the newly-joined board is already in the list, and
+  // prefer it as the active board below.
+  const invitedTenant = await maybeAcceptInvite();
   await reloadWorkspaces();
+  if (invitedTenant && state.workspaces.find((w) => w.id === invitedTenant)) {
+    state.currentWorkspace = invitedTenant;
+    localStorage.setItem('scope.workspace', invitedTenant);
+  }
   bindTopbar();
   // Pick workspace: previously-selected if still attached, else first.
   if (
@@ -82,11 +95,37 @@ async function init() {
   }
   if (!state.currentWorkspace) {
     updateBreadcrumb();
-    renderEmpty('No workspaces attached. Run `scope serve` in a repo with a .scope/ directory.');
+    // SCP-191: a fresh hosted login with zero projects gets a welcome card
+    // (create-first-project CTA) instead of the local-path hint.
+    if (state.meta?.hosted) renderHostedWelcome();
+    else renderEmpty('No workspaces attached. Run `scope serve` in a repo with a .scope/ directory.');
     return;
   }
   updateBreadcrumb();
   await refresh();
+}
+
+/**
+ * SCP-191: if the URL carries ?invite=<code> on a hosted hub, redeem it and
+ * strip the param (codes are single-use — a refresh must not re-redeem).
+ * Returns the joined tenant id, or null when there was nothing to accept.
+ */
+async function maybeAcceptInvite() {
+  if (!state.meta?.hosted) return null;
+  const params = new URLSearchParams(location.search);
+  const code = params.get('invite');
+  if (!code) return null;
+  params.delete('invite');
+  const qs = params.toString();
+  history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : '') + location.hash);
+  try {
+    const res = await api('/api/invites/accept', { method: 'POST', body: { code } });
+    toast(`Joined ${res.name} as ${res.role}.`, { variant: 'info' });
+    return res.tenantId;
+  } catch (e) {
+    toast(`Couldn’t accept invite: ${e.message}`);
+    return null;
+  }
 }
 
 async function reloadWorkspaces() {
@@ -116,7 +155,19 @@ function updateBreadcrumb() {
   } else {
     wsEl.textContent = state.workspaces.length ? 'Select workspace' : 'No workspaces';
   }
+  applyRoleChrome();
   updateViewTrigger();
+}
+
+/**
+ * SCP-191: role-aware chrome. Viewers can't create tickets (the server 403s),
+ * so hide the dead controls — body.role-viewer drives display:none rules for
+ * the "+ New ticket" button and the per-column "+" buttons. Hosted-only: the
+ * local path has no roles, so the class never appears there.
+ */
+function applyRoleChrome() {
+  const viewer = !!(state.meta?.hosted && currentWorkspaceObj()?.role === 'viewer');
+  document.body.classList.toggle('role-viewer', viewer);
 }
 
 function updateViewTrigger() {
@@ -340,11 +391,14 @@ function openBreadcrumbPopover() {
   if (popoverEl) return closePopover();
   const pop = openPopover(anchor, {align: 'left', width: 320});
   pop.classList.add('popover-breadcrumb');
+  // SCP-191: hosted boards are project boards — the footer creates a new
+  // project instead of attaching a local .scope/ dir (meaningless when hosted).
+  const hosted = !!state.meta?.hosted;
   pop.innerHTML = `
     <div class="pane pane-workspaces">
-      <div class="pane-head">Workspaces</div>
+      <div class="pane-head">${hosted ? 'Projects' : 'Workspaces'}</div>
       <div class="pane-list" id="bc-ws-list"></div>
-      <button type="button" class="pane-foot" id="bc-attach">＋ Attach workspace…</button>
+      <button type="button" class="pane-foot" id="bc-attach">${hosted ? '＋ New project…' : '＋ Attach workspace…'}</button>
     </div>
   `;
   const wsList = pop.querySelector('#bc-ws-list');
@@ -356,9 +410,10 @@ function openBreadcrumbPopover() {
       item.type = 'button';
       item.className = 'pane-item';
       if (w.id === state.currentWorkspace) item.classList.add('active');
+      // Hosted entries have no scope_dir; show the caller's role instead.
       item.innerHTML = `
         <span class="pane-item-label">${w.key ? `<span class="pkey">${escapeHtml(w.key)}</span> ` : ''}${escapeHtml(w.name || w.label)}</span>
-        <span class="pane-item-sub">${escapeHtml(w.scope_dir)}</span>
+        <span class="pane-item-sub">${hosted ? escapeHtml(w.role || '') : escapeHtml(w.scope_dir)}</span>
       `;
       item.addEventListener('click', async () => {
         if (w.id !== state.currentWorkspace) {
@@ -383,7 +438,8 @@ function openBreadcrumbPopover() {
 
   pop.querySelector('#bc-attach').addEventListener('click', () => {
     closePopover();
-    openAddWorkspaceModal();
+    if (hosted) openCreateProjectModal();
+    else openAddWorkspaceModal();
   });
 
   renderWsList();
@@ -447,10 +503,12 @@ function openOverflowMenu() {
   if (popoverEl) return closePopover();
   const pop = openPopover(anchor, {align: 'right', width: 200});
   pop.classList.add('popover-menu');
-  // Hosted-only items (per-user identity): API keys + sign out. Shown only when
-  // the hub runs hosted auth (SCP-174) — never on the local/LAN path.
+  // Hosted-only items (per-user identity): members panel (SCP-191), API keys +
+  // sign out (SCP-174). Shown only when the hub runs hosted auth — never on the
+  // local/LAN path.
   const hostedItems = state.meta?.hosted ? `
     <div class="menu-sep"></div>
+    <button type="button" class="menu-item" data-act="members"><span class="mi-icon">👥</span> Members &amp; sharing</button>
     <button type="button" class="menu-item" data-act="apikeys"><span class="mi-icon">🔑</span> API keys</button>
     <button type="button" class="menu-item" data-act="signout"><span class="mi-icon">⏏</span> Sign out</button>
   ` : '';
@@ -479,6 +537,7 @@ function openOverflowMenu() {
         state.view = state.view === 'history' ? 'board' : 'history';
         await refresh();
       }
+      else if (act === 'members') openMembersModal();
       else if (act === 'apikeys') openApiKeysModal();
       else if (act === 'signout') {
         try { await api('/auth/logout', { method: 'POST' }); } catch {}
@@ -556,6 +615,406 @@ async function openApiKeysModal() {
   });
 
   await renderList();
+}
+
+/* ------- projects: create / members / invites / lifecycle (SCP-191) -------
+ * Everything in this section is hosted-only: the entry points (switcher
+ * footer, overflow menu, welcome card, ?invite= boot hook) are all gated on
+ * state.meta.hosted, so none of it is reachable on the local `scope serve`
+ * path. A hosted "workspace" is a project board; its id is the tenant id and
+ * its `role` field is the caller's role on that board. */
+
+const PROJECT_ROLES = ['owner', 'member', 'viewer'];
+
+/**
+ * Switch the UI onto a hosted board after the project list changed (created,
+ * joined, archived, left). Reloads workspaces first; `tenantId` may be null or
+ * stale — then we fall back to the first remaining board, or the welcome card
+ * when the caller has none left.
+ */
+async function switchToBoard(tenantId) {
+  await reloadWorkspaces();
+  const target =
+    state.workspaces.find((x) => x.id === tenantId) || state.workspaces[0] || null;
+  state.currentWorkspace = target ? target.id : null;
+  if (target) localStorage.setItem('scope.workspace', target.id);
+  state.epicFilter = '';
+  state.view = 'board';
+  updateBreadcrumb();
+  // Restart SSE so the workspace filter is correct.
+  if (eventSource) { try { eventSource.close(); } catch {} eventSource = null; }
+  startEventStream();
+  if (!state.currentWorkspace) return renderHostedWelcome();
+  await refresh();
+}
+
+/**
+ * Centered welcome card for a hosted account with zero projects (fresh login,
+ * or the last board was just archived/left). Reuses the board-empty layout.
+ */
+function renderHostedWelcome() {
+  const root = document.getElementById('board');
+  root.classList.remove('swim', 'graph-host');
+  root.style.display = '';
+  root.classList.add('board-empty-wrap');
+  root.innerHTML = `
+    <div class="board-empty proj-welcome">
+      <div class="board-empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none"
+             stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="2"/>
+          <path d="M9 4v16M15 4v16"/>
+        </svg>
+      </div>
+      <h2 class="board-empty-title">Welcome to Scope</h2>
+      <p class="board-empty-desc">You don’t have a project yet. A project is a
+        shared kanban board — create one, then invite teammates from
+        “Members &amp; sharing”.</p>
+      <div class="board-empty-actions">
+        <button type="button" class="btn primary" id="proj-welcome-create">
+          <span aria-hidden="true">＋</span>
+          <span>Create your first project</span>
+        </button>
+      </div>
+    </div>
+  `;
+  root.querySelector('#proj-welcome-create').addEventListener('click', () => openCreateProjectModal());
+}
+
+/** Name-only modal → POST /api/projects → switch to the new board. */
+function openCreateProjectModal() {
+  const modal = openModal(`
+    <h3>New project</h3>
+    <p class="modal-sub">A project is a shared board. You become its owner and
+      can invite others from “Members &amp; sharing”.</p>
+    <label>Name <input id="proj-name" placeholder="e.g. Apollo" autocomplete="off" /></label>
+    <div class="error" id="proj-err"></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="proj-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="proj-create" type="button">Create</button>
+    </div>
+  `);
+  const input = modal.querySelector('#proj-name');
+  input.focus();
+  const submit = async () => {
+    const name = input.value.trim();
+    if (!name) {
+      modal.querySelector('#proj-err').textContent = 'Name is required.';
+      return;
+    }
+    const btn = modal.querySelector('#proj-create');
+    btn.disabled = true;
+    try {
+      const created = await api('/api/projects', { method: 'POST', body: { name } });
+      closeModal();
+      toast(`Project ${created.name} created.`, { variant: 'info' });
+      await switchToBoard(created.tenantId);
+    } catch (e) {
+      btn.disabled = false;
+      modal.querySelector('#proj-err').textContent = e.message;
+    }
+  };
+  modal.querySelector('#proj-cancel').addEventListener('click', closeModal);
+  modal.querySelector('#proj-create').addEventListener('click', submit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+  });
+}
+
+/**
+ * Leave a project as a non-owner. The hub exposes no whoami endpoint, so the
+ * client can't directly know its own account id; DELETE /members/:accountId
+ * (which the server only allows on YOURSELF unless you're an owner) is the
+ * one self-shaped operation. Strategy, safest first:
+ *   1. an id learned from a previous successful leave (localStorage cache),
+ *   2. a sequential probe: for a NON-owner every non-self delete is refused
+ *      with 403 before any mutation, so trying candidates one by one is
+ *      side-effect-free for every row except our own. A sentinel pre-check
+ *      aborts if our role drifted to owner server-side (where a real delete
+ *      would land on someone else).
+ */
+async function leaveProject(tid, members, errEl) {
+  const tidPath = encodeURIComponent(tid);
+  const memberPath = (acct) => `/api/projects/${tidPath}/members/${encodeURIComponent(acct)}`;
+
+  // Sentinel pre-check: an owner deleting a nonexistent member gets an
+  // idempotent {ok:true}; a non-owner gets 403 before any lookup. Only a 403
+  // proves the probe below cannot remove anyone but ourselves.
+  try {
+    await api(memberPath('__scope_self_probe__'), { method: 'DELETE' });
+    errEl.textContent = 'You are an owner of this project — transfer ownership before leaving.';
+    return false;
+  } catch (e) {
+    if (e.status !== 403) { errEl.textContent = e.message; return false; }
+  }
+
+  const cached = localStorage.getItem('scope.accountId');
+  const myRole = state.workspaces.find((x) => x.id === tid)?.role || null;
+  const sameRole = members.filter((m) => m.role === myRole);
+  const candidates = [];
+  if (cached && members.some((m) => m.account_id === cached)) candidates.push(cached);
+  for (const m of [...sameRole, ...members]) {
+    if (!candidates.includes(m.account_id)) candidates.push(m.account_id);
+  }
+
+  for (const acct of candidates) {
+    try {
+      await api(memberPath(acct), { method: 'DELETE' });
+      localStorage.setItem('scope.accountId', acct); // learned: this is me
+      return true;
+    } catch (e) {
+      if (e.status === 403) continue; // not me — refused before any change
+      errEl.textContent = e.message;
+      return false;
+    }
+  }
+  errEl.textContent = 'Couldn’t identify your membership — ask an owner to remove you.';
+  return false;
+}
+
+/**
+ * Members & sharing panel: member list with role management (owner), invites
+ * with one-time share links (owner), self leave (non-owner), and project
+ * rename/archive (owner). Opened from the overflow menu, hosted only.
+ */
+async function openMembersModal() {
+  const w = currentWorkspaceObj();
+  if (!state.meta?.hosted || !w) {
+    return toast('Select a project first.', { variant: 'info' });
+  }
+  const tid = w.id;
+  const tidPath = encodeURIComponent(tid);
+  const myRole = w.role || 'viewer';
+  const isOwner = myRole === 'owner';
+  const projName = w.name || w.label || 'this project';
+
+  const modal = openModal(`
+    <div class="modal-head"><h2>Members &amp; sharing</h2></div>
+    <p class="modal-sub">${w.key ? `<span class="pkey">${escapeHtml(w.key)}</span> ` : ''}${escapeHtml(projName)} — your role: <strong>${escapeHtml(myRole)}</strong></p>
+    <div id="member-list" class="member-list">Loading…</div>
+    <div id="member-err" class="modal-error" role="alert"></div>
+    ${isOwner ? `
+      <div class="member-sec-head">Invite someone</div>
+      <form id="invite-form" class="proj-invite-form">
+        <input id="invite-email" type="email" placeholder="email (optional)" autocomplete="off" />
+        <select id="invite-role">
+          ${PROJECT_ROLES.map((r) => `<option value="${r}"${r === 'member' ? ' selected' : ''}>${r}</option>`).join('')}
+        </select>
+        <button type="submit" class="btn primary">Create invite</button>
+      </form>
+      <div id="invite-fresh" class="apikey-fresh" hidden></div>
+      <div id="invite-list" class="apikey-list"></div>
+      <div class="member-sec-head">Project</div>
+      <form id="proj-rename" class="proj-invite-form">
+        <input id="proj-rename-name" value="${escapeHtml(w.name || '')}" autocomplete="off" />
+        <button type="submit" class="btn">Rename</button>
+      </form>
+      <div class="modal-actions">
+        <button type="button" class="btn danger" id="proj-archive">Archive project</button>
+      </div>
+    ` : `
+      <div class="modal-actions">
+        <button type="button" class="btn danger" id="member-leave">Leave project</button>
+      </div>
+    `}
+  `);
+
+  const listEl = modal.querySelector('#member-list');
+  const errEl = modal.querySelector('#member-err');
+  let members = [];
+
+  // After a successful membership mutation our own role (or membership) may
+  // have changed — re-sync the workspace list and rebuild what's stale.
+  async function resync() {
+    await reloadWorkspaces();
+    const nw = state.workspaces.find((x) => x.id === tid);
+    if (!nw) {
+      // We no longer belong to this board (removed ourselves) — move on.
+      closeModal();
+      await switchToBoard(null);
+      return;
+    }
+    if ((nw.role || 'viewer') !== myRole) {
+      openMembersModal(); // rebuild with the new role's controls
+      return;
+    }
+    await renderMembers();
+  }
+
+  async function renderMembers() {
+    try {
+      members = await api(`/api/projects/${tidPath}/members`);
+    } catch (e) {
+      listEl.innerHTML = `<div class="modal-error">${escapeHtml(e.message)}</div>`;
+      return;
+    }
+    listEl.innerHTML = members.length
+      ? members.map((m) => `
+        <div class="member-row">
+          <span class="member-id">${escapeHtml(m.name || m.email || m.account_id)} <code>${escapeHtml(m.email || m.account_id)}</code></span>
+          ${isOwner ? `
+            <select class="member-role" data-acct="${escapeHtml(m.account_id)}" data-prev="${escapeHtml(m.role)}">
+              ${PROJECT_ROLES.map((r) => `<option value="${r}"${r === m.role ? ' selected' : ''}>${r}</option>`).join('')}
+            </select>
+            <button type="button" class="link-btn" data-remove="${escapeHtml(m.account_id)}">Remove</button>
+          ` : `<span class="member-tag">${escapeHtml(m.role)}</span>`}
+        </div>`).join('')
+      : '<div class="pane-empty">No members.</div>';
+
+    const lastOwnerMsg = 'A project must keep at least one owner — promote someone else first.';
+    listEl.querySelectorAll('.member-role').forEach((sel) => {
+      sel.addEventListener('change', async () => {
+        errEl.textContent = '';
+        sel.disabled = true;
+        try {
+          await api(`/api/projects/${tidPath}/members/${encodeURIComponent(sel.dataset.acct)}`, {
+            method: 'PATCH', body: { role: sel.value },
+          });
+          await resync();
+        } catch (e) {
+          sel.value = sel.dataset.prev;
+          sel.disabled = false;
+          errEl.textContent = e.code === 'LAST_OWNER' ? lastOwnerMsg : e.message;
+        }
+      });
+    });
+    listEl.querySelectorAll('[data-remove]').forEach((b) => {
+      b.addEventListener('click', async () => {
+        const m = members.find((x) => x.account_id === b.dataset.remove);
+        if (!confirm(`Remove ${m?.email || b.dataset.remove} from this project?`)) return;
+        errEl.textContent = '';
+        b.disabled = true;
+        try {
+          await api(`/api/projects/${tidPath}/members/${encodeURIComponent(b.dataset.remove)}`, { method: 'DELETE' });
+          await resync();
+        } catch (e) {
+          b.disabled = false;
+          errEl.textContent = e.code === 'LAST_OWNER' ? lastOwnerMsg : e.message;
+        }
+      });
+    });
+  }
+
+  /* ---- invites (owner only — the elements exist only in the owner DOM) ---- */
+
+  const inviteList = modal.querySelector('#invite-list');
+  const inviteFresh = modal.querySelector('#invite-fresh');
+
+  async function renderInvites() {
+    if (!inviteList) return;
+    try {
+      const invites = await api(`/api/projects/${tidPath}/invites`);
+      inviteList.innerHTML = invites.length
+        ? invites.map((i) => `
+          <div class="apikey-row">
+            <span class="apikey-id">${escapeHtml(i.email || 'anyone with the link')}
+              <code>${escapeHtml(i.role)} · expires ${escapeHtml(String(i.expires_at).slice(0, 10))}</code></span>
+            <button type="button" class="link-btn" data-revoke-invite="${escapeHtml(i.id)}">Revoke</button>
+          </div>`).join('')
+        : '<div class="pane-empty">No pending invites.</div>';
+      inviteList.querySelectorAll('[data-revoke-invite]').forEach((b) => {
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          try {
+            await api(`/api/projects/${tidPath}/invites/${encodeURIComponent(b.dataset.revokeInvite)}`, { method: 'DELETE' });
+          } catch (e) {
+            b.disabled = false;
+            errEl.textContent = e.message;
+            return;
+          }
+          await renderInvites();
+        });
+      });
+    } catch (e) {
+      inviteList.innerHTML = `<div class="modal-error">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  modal.querySelector('#invite-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errEl.textContent = '';
+    const email = modal.querySelector('#invite-email').value.trim();
+    const role = modal.querySelector('#invite-role').value;
+    try {
+      const inv = await api(`/api/projects/${tidPath}/invites`, {
+        method: 'POST', body: { role, ...(email ? { email } : {}) },
+      });
+      // Mirror of the apikey-fresh pattern: the code is shown exactly once.
+      const link = `${location.origin}/app?invite=${encodeURIComponent(inv.code)}`;
+      inviteFresh.hidden = false;
+      inviteFresh.innerHTML = `Share this invite link now — it won’t be shown again:
+        <code class="apikey-secret">${escapeHtml(link)}</code>
+        <button type="button" class="link-btn" id="invite-copy">Copy link</button>`;
+      inviteFresh.querySelector('#invite-copy').addEventListener('click', () => {
+        navigator.clipboard?.writeText(link);
+      });
+      modal.querySelector('#invite-email').value = '';
+      await renderInvites();
+    } catch (e2) {
+      inviteFresh.hidden = false;
+      inviteFresh.innerHTML = `<span class="modal-error">${escapeHtml(e2.message)}</span>`;
+    }
+  });
+
+  /* ---- project lifecycle: rename + archive (owner only) ---- */
+
+  modal.querySelector('#proj-rename')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errEl.textContent = '';
+    const name = modal.querySelector('#proj-rename-name').value.trim();
+    if (!name) {
+      errEl.textContent = 'Project name can’t be empty.';
+      return;
+    }
+    try {
+      await api(`/api/projects/${tidPath}`, { method: 'PATCH', body: { name } });
+      await reloadWorkspaces(); // refreshes the breadcrumb too
+      toast('Project renamed.', { variant: 'info' });
+    } catch (e2) {
+      errEl.textContent = e2.message;
+    }
+  });
+
+  const archiveBtn = modal.querySelector('#proj-archive');
+  archiveBtn?.addEventListener('click', async () => {
+    // Two-step confirm: the first click arms the button, the second fires.
+    if (!archiveBtn.classList.contains('armed')) {
+      archiveBtn.classList.add('armed');
+      archiveBtn.textContent = 'Really archive?';
+      setTimeout(() => {
+        if (!archiveBtn.isConnected) return;
+        archiveBtn.classList.remove('armed');
+        archiveBtn.textContent = 'Archive project';
+      }, 5000);
+      return;
+    }
+    archiveBtn.disabled = true;
+    errEl.textContent = '';
+    try {
+      await api(`/api/projects/${tidPath}`, { method: 'DELETE' });
+      closeModal();
+      toast(`Archived ${projName}.`, { variant: 'info' });
+      await switchToBoard(null);
+    } catch (e) {
+      archiveBtn.disabled = false;
+      errEl.textContent = e.message;
+    }
+  });
+
+  modal.querySelector('#member-leave')?.addEventListener('click', async () => {
+    if (!confirm(`Leave ${projName}? You’ll need a new invite to come back.`)) return;
+    errEl.textContent = '';
+    const ok = await leaveProject(tid, members, errEl);
+    if (ok) {
+      closeModal();
+      toast(`Left ${projName}.`, { variant: 'info' });
+      await switchToBoard(null);
+    }
+  });
+
+  await renderMembers();
+  if (isOwner) await renderInvites();
 }
 
 /* ------------- realtime: server-sent events ------------- */

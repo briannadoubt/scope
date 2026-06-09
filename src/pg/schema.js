@@ -113,6 +113,23 @@ CREATE INDEX IF NOT EXISTS idx_history_ticket ON ticket_history (tenant_id, tick
  */
 export async function ensureSchema(clientOrPool) {
   const isPool = typeof clientOrPool.connect === 'function'; // a Pool
+
+  // Zero-DDL fast path (SCP-194): all six tables + the last-declared index
+  // present means the whole batch already ran — skip it. Concurrent boots
+  // re-running even IF-NOT-EXISTS DDL churn catalog locks against live data
+  // writes. NOTE: when adding DDL here, extend this probe to the newest object.
+  try {
+    const probe = (await clientOrPool.query(`
+      SELECT to_regclass('public.events')           IS NOT NULL
+         AND to_regclass('public.workspace')        IS NOT NULL
+         AND to_regclass('public.tickets')          IS NOT NULL
+         AND to_regclass('public.ticket_relations') IS NOT NULL
+         AND to_regclass('public.ticket_comments')  IS NOT NULL
+         AND to_regclass('public.ticket_history')   IS NOT NULL
+         AND to_regclass('public.idx_history_ticket') IS NOT NULL AS ok`)).rows[0].ok;
+    if (probe === true) return;
+  } catch { /* fall through to the full DDL path */ }
+
   for (let attempt = 1; ; attempt++) {
     const db = isPool ? await clientOrPool.connect() : clientOrPool;
     try {
