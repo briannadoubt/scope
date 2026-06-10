@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTRAYVZSQ9STBCN7AZYRFDNV",
+  "ts": "2026-06-10T08:39:08.025Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTRAYVZSQ9STBCN7AZYRFDNT",
+    "number": 242,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Board follows the repo via the hub even when the event log isn't committed",
+    "description": "Make the committed .scope/remote.json pointer + the hub carry the board when .scope/events/ is gitignored. Clone -> scope serve detects remote.json -> if no key, prompt to connect -> on connect the sync agent pulls the full board from the hub (hub as source of truth). Onboarding: a clear 'this repo is linked to <project> on <hub> — connect to load it' state in the UI/CLI when remote.json exists but you're not connected. Option on connect to add .scope/events/ to .gitignore (hub = source of truth). (Pending product confirmation on the default: gitignore events vs commit-and-mirror.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTRAYVZRSKNF6N939QM8VXXK",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

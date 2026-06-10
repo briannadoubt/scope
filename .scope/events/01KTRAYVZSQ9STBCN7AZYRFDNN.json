@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTRAYVZSQ9STBCN7AZYRFDNN",
+  "ts": "2026-06-10T08:39:08.025Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTRAYVZSQ9STBCN7AZYRFDNM",
+    "number": 239,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Local 'Add a board' modal: attach-local OR connect-to-remote in one place",
+    "description": "The current 'Attach a workspace' modal (local .scope path + label) should become a unified add-a-board entry with two paths: (1) attach a local .scope/ directory, (2) connect to a hosted project (hub URL + key -> pick or create a project). Connect currently lives as a separate CTA; surface it on this screen too.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTRAYVZRSKNF6N939QM8VXXK",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

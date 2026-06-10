@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTRABB811RNCM9Q50EZPKM6F",
+  "ts": "2026-06-10T08:28:28.289Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTR4J0NXQ70ZD7H2MJM0TGMH",
+    "commentId": "01KTRABB811RNCM9Q50EZPKM6E",
+    "author": "claude",
+    "body": "DONE. test/local-client-pg.test.js: a local board bound to a hosted hub reports meta.remote.connected+role, proxies members/invites/presence, and MIRRORS a ticket created on the hub onto the local board in realtime (~sub-second), then disconnect/reconnect. Caught + fixed two bugs: boot-probe race (meta now awaits first probe) and an sse-client teardown ECONNRESET crash."
+  }
+}

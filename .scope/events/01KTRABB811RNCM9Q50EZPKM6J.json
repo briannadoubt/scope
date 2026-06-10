@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTRABB811RNCM9Q50EZPKM6J",
+  "ts": "2026-06-10T08:28:28.289Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTR4J0NWDBVJ1RTE3WPDBP9N",
+    "commentId": "01KTRABB811RNCM9Q50EZPKM6H",
+    "author": "claude",
+    "body": "EPIC DONE (committed ae21ede). The local UI is now a full client of its bound remote: connect from the UI, collab unlocks, the control plane is proxied with the key server-side, and the local board mirrors the project in realtime. Built locally first per plan; full-suite x2 vs real Postgres is the final gate, then merge + deploy + live test."
+  }
+}

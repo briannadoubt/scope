@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTRB5P9ZA0ASNH4CTNK2GR8R",
+  "ts": "2026-06-10T08:42:51.583Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTRAYVZSQ9STBCN7AZYRFDNT",
+    "commentId": "01KTRB5P9ZA0ASNH4CTNK2GR8Q",
+    "author": "claude",
+    "body": "DECIDED: on connect, OFFER to gitignore .scope/events/ so the hub is the source of truth and the repo carries only the committed remote.json pointer. Clone -> serve -> connect rehydrates the board from the hub."
+  }
+}

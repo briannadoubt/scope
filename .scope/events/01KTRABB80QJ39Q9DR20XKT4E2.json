@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTRABB80QJ39Q9DR20XKT4E2",
+  "ts": "2026-06-10T08:28:28.288Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTR4J0NXQ70ZD7H2MJM0TGMB",
+    "commentId": "01KTRABB80QJ39Q9DR20XKT4E1",
+    "author": "claude",
+    "body": "DONE. src/remote-client.js collabProxyRouter forwards projects/members/invites/presence/aliases/keys to the bound hub with the API key attached server-side (key never reaches the browser); ticket/board/sync stay local. Verified: proxied members list + invite create through the local server in test/local-client-pg.test.js."
+  }
+}

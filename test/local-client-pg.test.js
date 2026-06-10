@@ -1,10 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { createTempScope } from './helpers.js';
 import { WorkspaceManager } from '../src/workspaces.js';
 import { startServer } from '../src/server.js';
+import { createTicket } from '../src/repo.js';
 import { getPool, closePool, pgUrl } from '../src/pg/pool.js';
 import { upsertAccount } from '../src/auth_hosted/membership.js';
 import { createProjectBoard } from '../src/auth_hosted/tenant-board.js';
@@ -90,6 +93,45 @@ test('SCP-237: local board bound to a hub — meta.remote, proxied collab, realt
     assert.equal(re.connected, true, 'reconnect re-binds');
   } finally {
     if (local) await local.close();
+    await hub.close();
+    await closePool();
+  }
+});
+
+test('SCP-241/242: connect CREATES a project from the local workspace + gitignores the event log', { skip }, async () => {
+  const hub = await hostedHub();
+  let close = null;
+  try {
+    const owner = await upsertAccount(hub.pool, { email: uniq('o') + '@t', provider: 'github', providerSub: uniq('o') });
+    const otok = mintAccessToken({ sub: owner });
+    const key = (await (await fetch(`${hub.base}/auth/keys`, { method: 'POST', headers: { Authorization: `Bearer ${otok}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'laptop' }) })).json()).key;
+
+    // A plain local workspace, NOT pre-bound, with one local ticket.
+    const scope = createTempScope();
+    createTicket(scope.db, { type: 'story', title: 'born local', actor: owner });
+    const mgr = new WorkspaceManager(); mgr.attach(scope.scopeDir, { persist: false, broadcast: false });
+    const server = await startServer({ workspaces: mgr, scopeDir: scope.scopeDir, port: 0, silent: true, discoverable: false, tls: false, cloud: false });
+    close = async () => { await new Promise((r) => server.close(() => r())); scope.cleanup(); };
+    const base = `http://127.0.0.1:${server.address().port}`;
+
+    // Connect by CREATING a new remote project from this repo, gitignoring events.
+    const r = await (await fetch(`${base}/api/remote/connect`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: hub.base, key, createName: 'Born From Local', gitignoreEvents: true }) })).json();
+    assert.equal(r.connected, true);
+    assert.ok(r.project, 'a new project was created on the hub');
+    assert.equal(r.gitignored, true);
+    assert.match(readFileSync(join(scope.scopeDir, '.gitignore'), 'utf8'), /events\//, 'event log is now gitignored');
+
+    const meta = await (await fetch(`${base}/api/meta`)).json();
+    assert.equal(meta.remote?.role, 'owner', 'creator owns the new project');
+
+    // The local board pushes UP to the new hub project (born from the local repo).
+    const appeared = await until(async () => {
+      const board = await (await fetch(`${hub.base}/api/board?project=${r.project}`, { headers: { Authorization: `Bearer ${otok}` } })).json();
+      return Object.values(board.buckets || {}).flat().some((t) => t.title === 'born local');
+    }, 6000);
+    assert.ok(appeared, 'the local ticket reached the newly-created hub project');
+  } finally {
+    if (close) await close();
     await hub.close();
     await closePool();
   }

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTRABB80QJ39Q9DR20XKT4DZ",
+  "ts": "2026-06-10T08:28:28.288Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTR4J0NWDBVJ1RTE3WPDBP9Q",
+    "commentId": "01KTRABB80QJ39Q9DR20XKT4DY",
+    "author": "claude",
+    "body": "DONE. /api/meta returns remote:{url,project,connected,role,projectName} when the local board is bound; first read awaits the probe (accurate immediately), later reads use a throttled async refresh. Verified in test/local-client-pg.test.js."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTRAYVZSQ9STBCN7AZYRFDNQ",
+  "ts": "2026-06-10T08:39:08.025Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTRAYVZSQ9STBCN7AZYRFDNP",
+    "number": 240,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Hosted UI: remove all workspace-creation (no attach, no new-project)",
+    "description": "On the deployed/hosted UI hide the attach button entirely (filesystem concept) AND the 'New project' button — projects are member-driven: they appear because a local workspace connected and pushed up. Hosted UI = collaboration view of your member projects only. The empty state should explain 'projects show up here when you connect a local workspace', not offer a create button. (Pending the product confirmation on whether to keep a minimal hosted create fallback.)",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTRAYVZRSKNF6N939QM8VXXK",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

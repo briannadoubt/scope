@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTRAYVZSQ9STBCN7AZYRFDNK",
+  "ts": "2026-06-10T08:39:08.025Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTRAYVZRSKNF6N939QM8VXXK",
+    "number": 238,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Connect-driven workspaces: local-origin projects, hub follows the repo",
+    "description": "Refine how boards come to exist (feedback while validating SCP-232). Model: projects originate from LOCAL workspaces that connect to a hub; the hosted UI is a pure collaboration view (no filesystem-attach, no blank-project creation). And the board must follow the repo via the committed .scope/remote.json pointer + the hub EVEN WHEN the event log (.scope/events/) isn't committed.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

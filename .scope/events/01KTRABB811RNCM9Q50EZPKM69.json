@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTRABB811RNCM9Q50EZPKM69",
+  "ts": "2026-06-10T08:28:28.289Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTR4J0NXQ70ZD7H2MJM0TGMD",
+    "commentId": "01KTRABB811RNCM9Q50EZPKM68",
+    "author": "claude",
+    "body": "DONE (parallel agent). Web collab UI (Members & sharing, invites, presence pill, keys) now unlocks on meta.remote.connected (not just meta.hosted) and targets meta.remote.project via a collabProject() helper; connected/offline indicator. Full non-PG suite 346/346; local-path unchanged (local-parity green)."
+  }
+}

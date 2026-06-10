@@ -96,12 +96,19 @@ async function init() {
   if (!state.currentWorkspace) {
     updateBreadcrumb();
     // SCP-191: a fresh hosted login with zero projects gets a welcome card
-    // (create-first-project CTA) instead of the local-path hint.
+    // (informational only — SCP-240) instead of the local-path hint.
     if (state.meta?.hosted) renderHostedWelcome();
+    // SCP-242: a fresh clone with a committed remote.json but no connection yet
+    // gets the "linked — connect to load" hero rather than the generic hint.
+    else if (isLinkedNotConnected()) renderRemoteLinkOnboarding();
     else renderEmpty('No workspaces attached. Run `scope serve` in a repo with a .scope/ directory.');
     return;
   }
   updateBreadcrumb();
+  // SCP-242: even with an attached local workspace, a fresh clone whose events
+  // aren't committed and whose binding isn't up shows the connect-to-load hero
+  // (the board itself is empty until the hub syncs it down).
+  if (isLinkedNotConnected()) return renderRemoteLinkOnboarding();
   await refresh();
 }
 
@@ -475,11 +482,18 @@ function openBreadcrumbPopover() {
         </div>`;
     }
   }
+  // SCP-240: a hosted hub never creates projects from its own UI — projects
+  // originate only from a local workspace connecting in. So drop the footer
+  // "+ New project…" button entirely when hosted. SCP-239: locally the footer
+  // is a single "Add a board…" entry that unifies attach-local + connect-to-hub.
+  const footerBtn = hosted
+    ? ''
+    : '<button type="button" class="pane-foot" id="bc-attach">＋ Add a board…</button>';
   pop.innerHTML = `
     <div class="pane pane-workspaces">
       <div class="pane-head">${hosted ? 'Projects' : 'Workspaces'}</div>
       <div class="pane-list" id="bc-ws-list"></div>
-      <button type="button" class="pane-foot" id="bc-attach">${hosted ? '＋ New project…' : '＋ Attach workspace…'}</button>
+      ${footerBtn}
     </div>
     ${remotePane}
   `;
@@ -518,10 +532,11 @@ function openBreadcrumbPopover() {
     }
   };
 
-  pop.querySelector('#bc-attach').addEventListener('click', () => {
+  // SCP-239: the local footer opens the unified "Add a board" chooser (attach a
+  // local folder OR connect to a hub). Hosted has no footer button (SCP-240).
+  pop.querySelector('#bc-attach')?.addEventListener('click', () => {
     closePopover();
-    if (hosted) openCreateProjectModal();
-    else openAddWorkspaceModal();
+    openAddBoardModal();
   });
 
   // SCP-236: remote bind/unbind from the switcher.
@@ -777,6 +792,12 @@ async function switchToBoard(tenantId) {
 /**
  * Centered welcome card for a hosted account with zero projects (fresh login,
  * or the last board was just archived/left). Reuses the board-empty layout.
+ *
+ * SCP-240: the hosted UI never CREATES projects — a project originates only when
+ * a local workspace connects to this hub (`scope serve` → Connect, which creates
+ * a remote project from that repo). So the welcome card is informational only:
+ * no "Create your first project" button. Projects appear here once a teammate
+ * connects a workspace, or you accept an invite link.
  */
 function renderHostedWelcome() {
   const root = document.getElementById('board');
@@ -793,60 +814,77 @@ function renderHostedWelcome() {
           <path d="M9 4v16M15 4v16"/>
         </svg>
       </div>
-      <h2 class="board-empty-title">Welcome to Scope</h2>
-      <p class="board-empty-desc">You don’t have a project yet. A project is a
-        shared kanban board — create one, then invite teammates from
-        “Members &amp; sharing”.</p>
+      <h2 class="board-empty-title">No projects yet</h2>
+      <p class="board-empty-desc">Projects appear here when you connect a local
+        workspace to this hub: run <code>scope serve</code> in a repo and choose
+        <strong>Connect</strong>. You’ll also land here after accepting an invite
+        link to someone else’s project.</p>
+    </div>
+  `;
+}
+
+/**
+ * SCP-242: is this board a fresh clone whose repo is LINKED to a hub project, but
+ * not yet connected (no key, or the key/binding hasn't come up)? Such a clone
+ * carries the committed `.scope/remote.json` pointer (meta.remoteLink) without an
+ * active binding (meta.remote null or remote.connected false). In that state we
+ * surface a "linked — connect to load" onboarding instead of the generic empty
+ * board. Never on a hosted hub (it manages projects, not local bindings).
+ */
+function isLinkedNotConnected() {
+  if (state.meta?.hosted) return false;
+  const link = state.meta?.remoteLink;
+  if (!link) return false;
+  const remote = state.meta?.remote;
+  return !remote || !remote.connected;
+}
+
+/**
+ * SCP-242: the "this repo is linked — Connect to load it" hero. Rendered for a
+ * fresh clone whose event log isn't committed (or whose key is missing). The
+ * Connect button opens the connect modal PREFILLED with the linked url + project
+ * (join mode), so the user only supplies the key.
+ */
+function renderRemoteLinkOnboarding() {
+  const link = state.meta?.remoteLink || {};
+  const root = document.getElementById('board');
+  root.classList.remove('swim', 'graph-host');
+  root.style.display = '';
+  root.classList.add('board-empty-wrap');
+  root.innerHTML = `
+    <div class="board-empty proj-welcome">
+      <div class="board-empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none"
+             stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+      </div>
+      <h2 class="board-empty-title">This repo is linked to a project</h2>
+      <p class="board-empty-desc">It points at
+        <code>${escapeHtml(link.url || '')}</code>, but the board isn’t loaded
+        yet — the event log isn’t committed, or a key hasn’t been set on this
+        machine. Connect to load it.</p>
       <div class="board-empty-actions">
-        <button type="button" class="btn primary" id="proj-welcome-create">
-          <span aria-hidden="true">＋</span>
-          <span>Create your first project</span>
+        <button type="button" class="btn primary" id="remote-link-connect">
+          <span aria-hidden="true">☁</span>
+          <span>Connect to load</span>
         </button>
       </div>
     </div>
   `;
-  root.querySelector('#proj-welcome-create').addEventListener('click', () => openCreateProjectModal());
-}
-
-/** Name-only modal → POST /api/projects → switch to the new board. */
-function openCreateProjectModal() {
-  const modal = openModal(`
-    <h3>New project</h3>
-    <p class="modal-sub">A project is a shared board. You become its owner and
-      can invite others from “Members &amp; sharing”.</p>
-    <label>Name <input id="proj-name" placeholder="e.g. Apollo" autocomplete="off" /></label>
-    <div class="error" id="proj-err"></div>
-    <div class="modal-actions">
-      <button class="btn ghost" id="proj-cancel" type="button">Cancel</button>
-      <button class="btn primary" id="proj-create" type="button">Create</button>
-    </div>
-  `);
-  const input = modal.querySelector('#proj-name');
-  input.focus();
-  const submit = async () => {
-    const name = input.value.trim();
-    if (!name) {
-      modal.querySelector('#proj-err').textContent = 'Name is required.';
-      return;
-    }
-    const btn = modal.querySelector('#proj-create');
-    btn.disabled = true;
-    try {
-      const created = await api('/api/projects', { method: 'POST', body: { name } });
-      closeModal();
-      toast(`Project ${created.name} created.`, { variant: 'info' });
-      await switchToBoard(created.tenantId);
-    } catch (e) {
-      btn.disabled = false;
-      modal.querySelector('#proj-err').textContent = e.message;
-    }
-  };
-  modal.querySelector('#proj-cancel').addEventListener('click', closeModal);
-  modal.querySelector('#proj-create').addEventListener('click', submit);
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+  root.querySelector('#remote-link-connect').addEventListener('click', () => {
+    // Prefill the connect modal in join-mode for the already-linked project.
+    openConnectRemoteModal({ url: link.url, project: link.project });
   });
 }
+
+// SCP-240: openCreateProjectModal() was removed — the hosted UI no longer
+// creates projects. Projects now originate only from a local workspace
+// connecting to the hub (openConnectRemoteModal → createName). The hub still
+// exposes POST /api/projects (used by that connect flow), but no UI button
+// targets it directly.
 
 /**
  * Leave a project as a non-owner. The hub exposes no whoami endpoint, so the
@@ -1187,18 +1225,31 @@ async function openMembersModal() {
  * and unlocked by collabEnabled(). */
 
 /**
- * Two-step connect modal: (1) enter hub URL + API key → POST /api/remote/projects
- * lists the projects that key can see; (2) pick one → POST /api/remote/connect
- * binds it. On success reload meta + workspaces so the collab chrome appears.
+ * SCP-236/241/242: connect this local board to a hub.
+ *
+ * Step 1 — hub URL + API key → POST /api/remote/projects (list what the key can see).
+ * Step 2 — choose between:
+ *   • CREATE a new project from this workspace (name input → connect with createName), or
+ *   • JOIN an existing project (pick from the list → connect with project).
+ * A checkbox controls whether the event log stays committed: the decided default
+ * is hub-as-source-of-truth, so "Stop committing the event log" starts CHECKED
+ * (gitignoreEvents: true).
+ *
+ * `prefill` (SCP-242) seeds the "linked, connect to load" onboarding: pass
+ * { url, project } from meta.remoteLink to lock the modal into join-mode for the
+ * already-linked project, leaving only the key to fill in.
  */
-function openConnectRemoteModal() {
+function openConnectRemoteModal(prefill = null) {
+  const linkedUrl = prefill?.url ? String(prefill.url).replace(/\/$/, '') : '';
+  const linkedProject = prefill?.project ? String(prefill.project) : '';
   const modal = openModal(`
-    <div class="modal-head"><h2>Connect to a remote</h2></div>
+    <div class="modal-head"><h2>Connect to a hub</h2></div>
     <p class="modal-sub">Bind this local board to a hosted Scope project. Members,
-      invites and presence then sync with the hub; your tickets stay local and mirror up.</p>
+      invites and presence then sync with the hub; your tickets mirror up.</p>
     <form id="remote-form" class="remote-form">
       <label>Hub URL
-        <input id="remote-url" type="url" placeholder="https://scope.example.com" autocomplete="off" required />
+        <input id="remote-url" type="url" placeholder="https://scope.example.com"
+          value="${escapeHtml(linkedUrl)}" autocomplete="off" required />
       </label>
       <label>API key
         <input id="remote-key" type="password" placeholder="scope_…" autocomplete="off" required />
@@ -1209,10 +1260,7 @@ function openConnectRemoteModal() {
         <button type="submit" class="btn primary" id="remote-next">List projects</button>
       </div>
     </form>
-    <div id="remote-picker" class="remote-picker" hidden>
-      <div class="member-sec-head">Choose a project</div>
-      <div id="remote-proj-list" class="remote-proj-list"></div>
-    </div>
+    <div id="remote-step2" class="remote-picker" hidden></div>
   `);
 
   const form = modal.querySelector('#remote-form');
@@ -1220,9 +1268,10 @@ function openConnectRemoteModal() {
   const keyInput = modal.querySelector('#remote-key');
   const errEl = modal.querySelector('#remote-err');
   const nextBtn = modal.querySelector('#remote-next');
-  const picker = modal.querySelector('#remote-picker');
-  const projList = modal.querySelector('#remote-proj-list');
-  urlInput.focus();
+  const step2 = modal.querySelector('#remote-step2');
+  // SCP-242: when prefilled from the linked pointer, the URL is known — start on
+  // the key field; otherwise start at the top.
+  (linkedUrl ? keyInput : urlInput).focus();
 
   modal.querySelector('#remote-cancel').addEventListener('click', closeModal);
 
@@ -1248,43 +1297,153 @@ function openConnectRemoteModal() {
       return;
     }
     nextBtn.disabled = false;
-    renderProjects(url, key, Array.isArray(projects) ? projects : []);
+    renderStep2(url, key, Array.isArray(projects) ? projects : []);
   });
 
-  function renderProjects(url, key, projects) {
-    picker.hidden = false;
-    if (!projects.length) {
-      projList.innerHTML = '<div class="pane-empty">That key can’t see any projects.</div>';
-      return;
-    }
-    projList.innerHTML = projects.map((p, i) => {
+  /**
+   * Step 2: create-vs-join chooser. SCP-241. The two modes share a single
+   * "Stop committing the event log" checkbox (default checked → gitignoreEvents)
+   * and a single submit handler that branches on the active mode.
+   */
+  function renderStep2(url, key, projects) {
+    // SCP-242: a prefilled link locks into join-mode for that one project.
+    const linkedMatch = linkedProject
+      ? projects.find((p) => (p.id || p.tenant_id) === linkedProject)
+      : null;
+    // Hide step 1's controls; step 2 carries its own submit.
+    form.querySelector('.modal-actions').hidden = true;
+    urlInput.disabled = true;
+    keyInput.disabled = true;
+    step2.hidden = false;
+
+    const projOptions = projects.map((p) => {
       const pid = p.id || p.tenant_id;
-      return `
-        <button type="button" class="remote-proj-item" data-i="${i}">
-          <span class="remote-proj-name">${escapeHtml(p.name || pid)}</span>
-          <span class="remote-proj-role">${escapeHtml(p.role || '')}</span>
-        </button>`;
+      const sel = pid === linkedProject ? ' selected' : '';
+      return `<option value="${escapeHtml(pid)}"${sel}>${escapeHtml(p.name || pid)}${p.role ? ` · ${escapeHtml(p.role)}` : ''}</option>`;
     }).join('');
-    projList.querySelectorAll('.remote-proj-item').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const p = projects[Number(btn.dataset.i)];
-        const project = p.id || p.tenant_id;
-        projList.querySelectorAll('.remote-proj-item').forEach((b) => (b.disabled = true));
-        errEl.textContent = '';
-        try {
-          const res = await api('/api/remote/connect', { method: 'POST', body: { url, project, key } });
-          // Reload meta + workspaces so collabEnabled() flips and the chrome appears.
-          await reloadMeta();
-          await reloadWorkspaces();
-          closeModal();
-          toast(`Connected to ${res.projectName || p.name || project}.`, { variant: 'info' });
-        } catch (e2) {
-          projList.querySelectorAll('.remote-proj-item').forEach((b) => (b.disabled = false));
-          errEl.textContent = explain(e2);
-        }
+
+    // When prefilled (SCP-242), default to join + lock the toggle to the linked
+    // project. Otherwise default to create (the common first-time path) unless the
+    // key already sees projects, in which case let the user choose.
+    const defaultMode = linkedMatch ? 'join' : 'create';
+
+    step2.innerHTML = `
+      <div class="remote-modeseg" role="tablist">
+        <button type="button" class="remote-mode${defaultMode === 'create' ? ' active' : ''}"
+          data-mode="create"${linkedMatch ? ' disabled' : ''}>Create a new project</button>
+        <button type="button" class="remote-mode${defaultMode === 'join' ? ' active' : ''}"
+          data-mode="join"${projects.length ? '' : ' disabled'}>Join an existing project</button>
+      </div>
+
+      <div class="remote-mode-pane" data-pane="create"${defaultMode === 'create' ? '' : ' hidden'}>
+        <label>New project name
+          <input id="remote-createname" type="text" placeholder="e.g. ${escapeHtml(suggestProjectName())}" autocomplete="off" />
+        </label>
+        <p class="remote-mode-hint">Creates a fresh project on the hub from this workspace. You become its owner.</p>
+      </div>
+
+      <div class="remote-mode-pane" data-pane="join"${defaultMode === 'join' ? '' : ' hidden'}>
+        ${projects.length ? `
+          <label>Project
+            <select id="remote-joinsel"${linkedMatch ? ' disabled' : ''}>${projOptions}</select>
+          </label>
+          ${linkedMatch ? `<p class="remote-mode-hint">This repo is linked to <strong>${escapeHtml(linkedMatch.name || linkedProject)}</strong>.</p>` : ''}
+        ` : '<div class="pane-empty">That key can’t see any existing projects yet.</div>'}
+      </div>
+
+      <label class="remote-gitignore">
+        <input id="remote-gitignore" type="checkbox" checked />
+        <span>Stop committing the event log (the hub keeps the board)</span>
+      </label>
+
+      <div id="remote-err2" class="modal-error" role="alert"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="remote-back">Back</button>
+        <button type="button" class="btn primary" id="remote-connect-go">Connect</button>
+      </div>
+    `;
+
+    const err2 = step2.querySelector('#remote-err2');
+    const goBtn = step2.querySelector('#remote-connect-go');
+    let mode = defaultMode;
+
+    // Mode toggle (disabled-locked when prefilled to a linked project).
+    step2.querySelectorAll('.remote-mode').forEach((b) => {
+      b.addEventListener('click', () => {
+        if (b.disabled) return;
+        mode = b.dataset.mode;
+        step2.querySelectorAll('.remote-mode').forEach((x) => x.classList.toggle('active', x === b));
+        step2.querySelectorAll('.remote-mode-pane').forEach((pane) => {
+          pane.hidden = pane.dataset.pane !== mode;
+        });
+        err2.textContent = '';
       });
     });
+
+    step2.querySelector('#remote-back').addEventListener('click', () => {
+      // Return to step 1 for a different hub/key.
+      step2.hidden = true;
+      step2.innerHTML = '';
+      urlInput.disabled = false;
+      keyInput.disabled = false;
+      form.querySelector('.modal-actions').hidden = false;
+      errEl.textContent = '';
+    });
+
+    const focusEl = mode === 'create'
+      ? step2.querySelector('#remote-createname')
+      : step2.querySelector('#remote-joinsel');
+    focusEl?.focus();
+
+    goBtn.addEventListener('click', async () => {
+      err2.textContent = '';
+      const gitignoreEvents = step2.querySelector('#remote-gitignore').checked;
+      const body = { url, key, gitignoreEvents };
+      if (mode === 'create') {
+        const createName = step2.querySelector('#remote-createname').value.trim();
+        if (!createName) { err2.textContent = 'A project name is required.'; return; }
+        body.createName = createName;
+      } else {
+        const sel = step2.querySelector('#remote-joinsel');
+        const project = sel ? sel.value : '';
+        if (!project) { err2.textContent = 'Pick a project to join.'; return; }
+        body.project = project;
+      }
+      goBtn.disabled = true;
+      try {
+        const res = await api('/api/remote/connect', { method: 'POST', body });
+        // Reload meta + workspaces so collabEnabled() flips and the chrome appears,
+        // then switch to the now-bound board.
+        await reloadMeta();
+        await reloadWorkspaces();
+        // SCP-242: a fresh clone may have had no active board until now — make the
+        // bound local workspace active if one isn't already selected.
+        if (!state.currentWorkspace && state.workspaces[0]) {
+          state.currentWorkspace = state.workspaces[0].id;
+          localStorage.setItem('scope.workspace', state.currentWorkspace);
+          if (eventSource) { try { eventSource.close(); } catch {} eventSource = null; }
+          startEventStream();
+        }
+        updateBreadcrumb();
+        closeModal();
+        await refresh();
+        const label = res.projectName || body.createName || body.project;
+        toast(`Connected to ${label}.`, { variant: 'info' });
+      } catch (e2) {
+        goBtn.disabled = false;
+        err2.textContent = explain(e2);
+      }
+    });
   }
+}
+
+/**
+ * SCP-241: a friendly placeholder name for a freshly-created remote project —
+ * the active workspace's name, or a generic fallback.
+ */
+function suggestProjectName() {
+  const w = currentWorkspaceObj();
+  return (w && (w.name || w.label)) || 'My project';
 }
 
 /**
@@ -3003,6 +3162,49 @@ function searchRowHtml(t, i) {
       </div>
       ${meta.length ? `<div class="search-row-meta">${meta.join('')}</div>` : ''}
     </div>`;
+}
+
+/**
+ * SCP-239: the local "Add a board" chooser. A board can come from two places, so
+ * this single entry point offers both as clearly-labelled choices:
+ *   (a) Attach a local folder — point at an existing .scope/ dir (openAddWorkspaceModal).
+ *   (b) Connect to a hub      — create a remote project from this repo, or join an
+ *       existing one you were invited to (openConnectRemoteModal).
+ * Hosted hubs never reach this (no footer button there — SCP-240).
+ */
+function openAddBoardModal() {
+  const modal = openModal(`
+    <h3>Add a board</h3>
+    <p class="modal-sub">A board can live in a local <code>.scope/</code> folder,
+      or on a hub you connect this repo to.</p>
+    <div class="addboard-choices">
+      <button type="button" class="addboard-choice" id="addboard-local">
+        <span class="addboard-choice-icon" aria-hidden="true">📁</span>
+        <span class="addboard-choice-text">
+          <span class="addboard-choice-title">Attach a local folder</span>
+          <span class="addboard-choice-sub">Open an existing <code>.scope/</code> directory on this machine.</span>
+        </span>
+      </button>
+      <button type="button" class="addboard-choice" id="addboard-connect">
+        <span class="addboard-choice-icon" aria-hidden="true">☁</span>
+        <span class="addboard-choice-text">
+          <span class="addboard-choice-title">Connect to a hub</span>
+          <span class="addboard-choice-sub">Create a new project from this repo, or join one you were invited to.</span>
+        </span>
+      </button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="addboard-cancel" type="button">Cancel</button>
+    </div>
+  `);
+  modal.querySelector('#addboard-cancel').addEventListener('click', closeModal);
+  // Each choice replaces this chooser with the matching flow.
+  modal.querySelector('#addboard-local').addEventListener('click', () => {
+    openAddWorkspaceModal();
+  });
+  modal.querySelector('#addboard-connect').addEventListener('click', () => {
+    openConnectRemoteModal();
+  });
 }
 
 function openAddWorkspaceModal() {

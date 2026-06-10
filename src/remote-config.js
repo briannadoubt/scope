@@ -56,6 +56,22 @@ export function clearRemoteConfig(scopeDir) {
   if (existsSync(path)) rmSync(path);
 }
 
+/**
+ * Stop committing the event log: add `events/` to .scope/.gitignore so the board
+ * lives on the hub (SCP-242) and the repo carries only the committed remote.json
+ * pointer. Idempotent — returns true if it added the rule, false if already set.
+ */
+export function ignoreEventLog(scopeDir) {
+  if (!scopeDir) return false;
+  const gi = join(scopeDir, '.gitignore');
+  let cur = '';
+  try { cur = readFileSync(gi, 'utf8'); } catch { /* no .gitignore yet */ }
+  if (/^\s*events\/?\s*$/m.test(cur)) return false;
+  const sep = cur && !cur.endsWith('\n') ? '\n' : '';
+  writeFileSync(gi, `${cur}${sep}# Board lives on the hub (scope remote) — event log not committed here.\nevents/\n`);
+  return true;
+}
+
 /** Absolute path of the config file inside a .scope dir. */
 export function remoteConfigPath(scopeDir) {
   return join(scopeDir, REMOTE_CONFIG_FILE);

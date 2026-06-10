@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTRAYVZSQ9STBCN7AZYRFDNS",
+  "ts": "2026-06-10T08:39:08.025Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTRAYVZSQ9STBCN7AZYRFDNR",
+    "number": 241,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Connect flow can CREATE a new remote project from a local workspace",
+    "description": "Since hosted has no create button, the local connect flow must let you push a local workspace UP as a NEW remote project (create project on the hub from this board), in addition to joining an existing project. Resolves the chicken-and-egg: the first project is born from a local connect. Wire: connect modal offers 'create new project' (name) -> createProjectBoard on the hub + bind + initial push; or 'join existing' (picker).",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTRAYVZRSKNF6N939QM8VXXK",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

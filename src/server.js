@@ -66,7 +66,7 @@ import { ensureReplica, refreshReplica, flushReplica, closeAllReplicas, evictRep
 import { uploadEvents, pullEvents, existingEventIds } from './pg/store.js';
 import { serverError } from './http-errors.js';
 import { resolveBinding, probeRemote, collabProxyRouter } from './remote-client.js';
-import { writeRemoteConfig, writeCredential, clearRemoteConfig, clearCredential } from './remote-config.js';
+import { readRemoteConfig, writeRemoteConfig, writeCredential, clearRemoteConfig, clearCredential, ignoreEventLog } from './remote-config.js';
 import { startRemoteSync } from './remote-sync.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -166,6 +166,13 @@ export async function startServer({
     });
   };
   const stopBoundSync = () => { if (boundAgent) { try { boundAgent.stop(); } catch { /* ignore */ } boundAgent = null; } };
+  // The committed remote.json pointer (key-independent) — drives the "linked but
+  // not connected, connect to load" onboarding on a fresh clone (SCP-242).
+  const remoteLinkPointer = () => {
+    if (cloud || !primaryScopeDir) return null;
+    const c = readRemoteConfig(primaryScopeDir);
+    return c?.url && c?.project ? { url: c.url, project: c.project } : null;
+  };
   if (binding) { refreshProbe().catch(() => {}); startBoundSync(); }
 
   // Prime the in-memory CRL from disk and install SIGUSR1 so revokes done by
@@ -651,17 +658,33 @@ export async function startServer({
         } catch { res.status(502).json({ error: 'the hub is unreachable', code: 'REMOTE_DOWN' }); }
       });
       app.post('/api/remote/connect', loopbackOnly, async (req, res) => {
-        const { url, project, key } = req.body || {};
-        if (!url || !project || !key) return res.status(400).json({ error: 'url, project, and key are required' });
+        let { url, project, key, createName, gitignoreEvents } = req.body || {};
+        if (!url || !key) return res.status(400).json({ error: 'url and key are required' });
         if (!primaryScopeDir) return res.status(400).json({ error: 'no local workspace to bind' });
+        url = String(url).replace(/\/$/, '');
         try {
+          // Born from a local repo (SCP-241): create a NEW project on the hub and
+          // bind this workspace to it (the sync agent then pushes the board up).
+          if (!project && createName) {
+            const r = await fetch(`${url}/api/projects`, {
+              method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: createName }),
+            });
+            if (!r.ok) return res.status(r.status === 401 ? 401 : 502).json({ error: r.status === 401 ? 'the hub rejected that key' : 'could not create the project on the hub', code: r.status === 401 ? 'BAD_KEY' : 'REMOTE_DOWN' });
+            project = (await r.json()).tenantId;
+          }
+          if (!project) return res.status(400).json({ error: 'project (to join) or createName (to create) is required', code: 'NO_PROJECT' });
+
           writeRemoteConfig(primaryScopeDir, { url, project });
           writeCredential(url, key);
+          // SCP-242: optionally stop committing the event log — the hub becomes
+          // the source of truth and the repo carries only the remote.json pointer.
+          if (gitignoreEvents) ignoreEventLog(primaryScopeDir);
           binding = resolveBinding(primaryScopeDir);
           stopBoundSync(); startBoundSync();
           await refreshProbe();
           if (!remoteProbe.connected) return res.status(502).json({ error: 'connected the config, but the hub did not accept the key', code: 'REMOTE_DOWN', remote: { url: binding.url, project: binding.project, connected: false } });
-          res.json({ url: binding.url, project: binding.project, connected: true, role: remoteProbe.role, projectName: remoteProbe.projectName });
+          res.json({ url: binding.url, project: binding.project, connected: true, role: remoteProbe.role, projectName: remoteProbe.projectName, gitignored: !!gitignoreEvents });
         } catch (e) { serverError(res, e); }
       });
       app.post('/api/remote/disconnect', loopbackOnly, (req, res) => {
@@ -734,6 +757,10 @@ export async function startServer({
       remote: binding
         ? { url: binding.url, project: binding.project, connected: remoteProbe.connected, role: remoteProbe.role, projectName: remoteProbe.projectName }
         : null,
+      // The committed pointer (SCP-242), independent of whether a key is present.
+      // Lets the UI show "this repo is linked to <project> — connect to load it"
+      // on a fresh clone whose event log isn't committed and key isn't set yet.
+      remoteLink: remoteLinkPointer(),
     });
   });
 

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTRB5P9ZA0ASNH4CTNK2GR8P",
+  "ts": "2026-06-10T08:42:51.583Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTRAYVZSQ9STBCN7AZYRFDNP",
+    "commentId": "01KTRB5P9YD30YAMYREZTFXPM3",
+    "author": "claude",
+    "body": "DECIDED: hosted UI has NO project creation at all (no attach, no new-project). Rationale (user): a project created remotely has no local repo to attach, which breaks the model — projects are repos. So creation only happens via a local workspace connecting (SCP-241). Hosted empty state explains this."
+  }
+}

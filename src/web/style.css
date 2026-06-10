@@ -959,6 +959,44 @@ button { font-family: inherit; }
 .remote-disconnect { color: var(--red); }
 .remote-connect-cta { color: var(--accent); }
 
+/* ------- Add a board chooser (SCP-239) ------- */
+.addboard-choices { display: flex; flex-direction: column; gap: 8px; }
+.addboard-choice {
+  display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left;
+  background: var(--bg-elev-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px; cursor: pointer;
+  color: var(--text); font-family: inherit;
+}
+.addboard-choice:hover { border-color: var(--accent); }
+.addboard-choice-icon { font-size: 18px; line-height: 1.2; flex: 0 0 auto; }
+.addboard-choice-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.addboard-choice-title { font-size: 13px; font-weight: 600; }
+.addboard-choice-sub { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+.addboard-choice-sub code {
+  font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-muted);
+}
+
+/* ------- Connect step 2: create-vs-join (SCP-241) ------- */
+.remote-modeseg {
+  display: flex; gap: 4px; margin-bottom: 12px;
+  background: var(--bg-elev-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 3px;
+}
+.remote-mode {
+  flex: 1 1 0; padding: 6px 8px; border: 0; border-radius: 4px;
+  background: transparent; color: var(--text-muted);
+  font-family: inherit; font-size: 12px; cursor: pointer;
+}
+.remote-mode.active { background: var(--accent); color: #fff; }
+.remote-mode:disabled { opacity: 0.4; cursor: default; }
+.remote-mode-pane[hidden] { display: none; }
+.remote-mode-hint { margin: 6px 0 0; font-size: 11px; color: var(--text-dim); line-height: 1.4; }
+.remote-gitignore {
+  display: flex; align-items: flex-start; gap: 8px; margin-top: 14px;
+  font-size: 12px; color: var(--text-muted); cursor: pointer;
+}
+.remote-gitignore input { width: auto; flex: 0 0 auto; margin-top: 1px; }
+
 /* Role-aware chrome (SCP-191): viewers can't create tickets — hide the dead
  * controls. body.role-viewer is toggled on workspace switch, hosted only. */
 body.role-viewer #new-ticket,
