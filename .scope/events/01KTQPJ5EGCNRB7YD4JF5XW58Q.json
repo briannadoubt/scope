@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EGCNRB7YD4JF5XW58Q",
+  "ts": "2026-06-10T02:42:40.208Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNRMZDAXZ3HJ5K3VCJQFXP",
+    "commentId": "01KTQPJ5EGCNRB7YD4JF5XW58P",
+    "author": "claude",
+    "body": "FIXED + tested (security-pg): claimAlias refuses an alias equal to another account id (ALIAS_TAKEN/409). Plain local names still claimable."
+  }
+}

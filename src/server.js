@@ -50,7 +50,12 @@ import {
   hostedAuthEnabled, hostedAuthMiddleware, publicAuthRouter, apiKeyRouter,
   ensureHostedAuthReady, loginProviderConfigured, csrfGuard,
 } from './auth_hosted/cloud-auth.js';
-import { authorizeUploadActors, statusForReject } from './auth_hosted/authz.js';
+import { authorizeUploadActors, statusForReject, ON_BEHALF_MARKER } from './auth_hosted/authz.js';
+
+// Cap events accepted in a single sync push. Bounds the per-request work (and,
+// on the interim file path, the replay cost) so one client can't wedge the node
+// with an oversized batch (SCP-206). Generous — real pushes are far smaller.
+const SYNC_MAX_BATCH = 2000;
 import { requireTenantRole } from './auth_hosted/tenancy.js';
 import { getRole, claimAlias, removeAlias, listAliases, allowedActorsFor } from './auth_hosted/membership.js';
 import {
@@ -59,6 +64,7 @@ import {
 } from './auth_hosted/tenant-board.js';
 import { ensureReplica, refreshReplica, flushReplica, closeAllReplicas, evictReplica } from './auth_hosted/tenant-replica.js';
 import { uploadEvents, pullEvents } from './pg/store.js';
+import { serverError } from './http-errors.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
@@ -282,12 +288,14 @@ export async function startServer({
     };
     app.use(rateLimitMiddleware({
       getPrincipal: (req) => req.principal?.accountId ?? null,
-      // The limiter FAILS CLOSED on a null key, and plenty of authenticated
-      // requests are tenantless (/api/meta, /api/projects, invite accept) —
-      // key those on the account instead so they share the principal's window.
+      // Key the per-tenant window ONLY on a resolved+authorized tenant (set by
+      // the replica/requireTenantRole gate), else on the account — NEVER on the
+      // raw ?project/?workspace selector, which is unauthenticated here and would
+      // let one account fill another tenant's window (SCP-214). Tenantless
+      // authed requests (/api/meta, /api/projects, invite accept) share the
+      // principal's window.
       getTenant: (req) =>
-        req.tenantId ?? req.query?.project ?? req.query?.workspace ??
-        (req.principal ? `acct:${req.principal.accountId}` : null),
+        req.tenantId ?? (req.principal ? `acct:${req.principal.accountId}` : null),
     }));
 
     // Members + invites (SCP-190): per-project member list / role management /
@@ -306,7 +314,7 @@ export async function startServer({
     // The caller's projects (boards) + role on each.
     tApi.get('/api/projects', async (req, res) => {
       try { res.json(await listProjects(pool, req.principal.accountId)); }
-      catch (e) { res.status(500).json({ error: e.message }); }
+      catch (e) { serverError(res, e); }
     });
     // Create a project + seed its board; the creator becomes owner.
     tApi.post('/api/projects', async (req, res) => {
@@ -326,7 +334,7 @@ export async function startServer({
         if (role !== 'owner') return res.status(403).json({ error: 'insufficient role', code: 'FORBIDDEN_ROLE' });
         req.tenantId = tenantId;
         next();
-      } catch (e) { res.status(500).json({ error: e.message }); }
+      } catch (e) { serverError(res, e); }
     };
     tApi.patch('/api/projects/:tenantId', ownerOf('tenantId'), async (req, res) => {
       const name = req.body && req.body.name;
@@ -344,12 +352,12 @@ export async function startServer({
     // Read the active board (>= viewer).
     tApi.get('/api/board', requireTenantRole(pool, 'viewer'), async (req, res) => {
       try { res.json(await readBoard(pool, req.tenantId)); }
-      catch (e) { res.status(500).json({ error: e.message }); }
+      catch (e) { serverError(res, e); }
     });
     // Sync pull (>= viewer) / push (>= member) against the tenant's PG log.
     tApi.get('/api/sync/pull', requireTenantRole(pool, 'viewer'), async (req, res) => {
       try { res.json(await pullEvents(pool, req.tenantId, { since: req.query.since || null })); }
-      catch (e) { res.status(500).json({ error: e.message }); }
+      catch (e) { serverError(res, e); }
     });
     // Actor aliases (SCP-184): map local event-actor names onto hosted accounts
     // so sync authz accepts a member's own local history. Claim is first-come
@@ -361,7 +369,7 @@ export async function startServer({
         const role = await getRole(pool, req.params.tenantId, req.principal.accountId);
         if (!role) return res.status(404).json({ error: 'no such project', code: 'NO_PROJECT' });
         res.json(await listAliases(pool, req.params.tenantId));
-      } catch (e) { res.status(500).json({ error: e.message }); }
+      } catch (e) { serverError(res, e); }
     });
     tApi.post('/api/projects/:tenantId/aliases', async (req, res) => {
       try {
@@ -397,12 +405,15 @@ export async function startServer({
         }
         await removeAlias(pool, { tenantId, alias: req.params.alias });
         res.json({ ok: true });
-      } catch (e) { res.status(500).json({ error: e.message }); }
+      } catch (e) { serverError(res, e); }
     });
 
     tApi.post('/api/sync/push', requireTenantRole(pool, 'member'), async (req, res) => {
       const events = Array.isArray(req.body?.events) ? req.body.events : null;
       if (!events) return res.status(400).json({ error: 'body.events must be an array' });
+      if (events.length > SYNC_MAX_BATCH) {
+        return res.status(413).json({ error: `too many events in one push (max ${SYNC_MAX_BATCH})`, code: 'BATCH_TOO_LARGE' });
+      }
       // Actor authz (SCP-172) + aliases (SCP-184): every event's actor must be
       // the authenticated principal or one of its claimed aliases on this board.
       const allowedActors = await allowedActorsFor(pool, req.tenantId, req.principal.accountId);
@@ -432,7 +443,7 @@ export async function startServer({
     // Per-tenant usage vs plan limits (SCP-165).
     tApi.get('/api/usage', requireTenantRole(pool, 'viewer'), async (req, res) => {
       try { res.json(await getUsage(pool, req.tenantId, { connections: sseTracker })); }
-      catch (e) { res.status(500).json({ error: e.message }); }
+      catch (e) { serverError(res, e); }
     });
 
     // The web app's workspace switcher reads /api/workspaces — in hosted mode a
@@ -440,7 +451,7 @@ export async function startServer({
     // side dir attach/detach is meaningless (and unsafe) for hosted tenants.
     tApi.get('/api/workspaces', async (req, res) => {
       try { res.json(await listProjectBoards(pool, req.principal.accountId)); }
-      catch (e) { res.status(500).json({ error: e.message }); }
+      catch (e) { serverError(res, e); }
     });
     tApi.post('/api/workspaces', (_req, res) =>
       res.status(403).json({ error: 'hosted boards are projects — create via POST /api/projects' }));
@@ -489,7 +500,7 @@ export async function startServer({
           }
           next();
         } catch (e) {
-          res.status(500).json({ error: e.message });
+          serverError(res, e);
         }
       });
     });
@@ -525,6 +536,16 @@ export async function startServer({
       process.stderr.write('[hub] hosted auth on, but no login provider configured (API keys only)\n');
     }
   } else {
+    // Interim cloud (cloud + shared token, no Postgres): still internet-facing,
+    // so apply a per-IP rate limiter even though the hosted per-principal limiter
+    // isn't available here (SCP-205). The local/LAN path stays unthrottled.
+    if (cloud) {
+      const { rateLimitMiddleware } = await import('./quota/ratelimit.js');
+      app.use(rateLimitMiddleware({
+        getPrincipal: (req) => req.ip || req.socket?.remoteAddress || 'anon',
+        getTenant: (req) => `ip:${req.ip || req.socket?.remoteAddress || 'anon'}`,
+      }));
+    }
     app.use(
       cloud
         ? authMiddleware({ token, allowedHosts: [], trustLoopback: false })
@@ -863,32 +884,39 @@ export async function startServer({
   app.post('/api/sync/push', ws((req, res, w) => {
     const incoming = Array.isArray(req.body?.events) ? req.body.events : null;
     if (!incoming) return res.status(400).json({ error: 'body.events must be an array' });
+    if (incoming.length > SYNC_MAX_BATCH) {
+      return res.status(413).json({ error: `too many events in one push (max ${SYNC_MAX_BATCH})`, code: 'BATCH_TOO_LARGE' });
+    }
     // Validate the whole batch up front so a bad event lands nothing (atomic).
     try {
       for (const e of incoming) validateEvent(e);
     } catch (e) {
       return res.status(400).json({ error: `invalid event: ${e.message}` });
     }
-    // Hosted authz (SCP-172, ADR 0003 §4): every event's actor must equal the
-    // authenticated principal — the public sync path must not let one user
-    // upload events attributed to another. Skipped on the local/LAN path.
-    if (hostedAuth) {
-      const verdict = authorizeUploadActors(incoming, req.principal?.accountId);
-      if (!verdict.ok) {
-        return res.status(statusForReject(verdict.code)).json({ error: verdict.message, code: verdict.code });
-      }
+    // Actor sanity on the LAN/interim path (SCP-213): even without per-user authz
+    // here, reject events whose raw actor carries the rendered "{model} on behalf
+    // of {user}" form — a well-formed event never stores that in the actor slot,
+    // so its presence is an attempt to smuggle a display string as the principal.
+    const rendered = incoming.find((e) => typeof e.actor === 'string' && e.actor.includes(ON_BEHALF_MARKER));
+    if (rendered) {
+      return res.status(400).json({ error: 'event actor must be a bare principal, not a rendered string', code: 'ACTOR_RENDERED' });
     }
     const dir = eventsDirForDb(w.db);
-    const existing = new Set(readAllEvents(dir).map((e) => e.id));
+    // Read the log ONCE (SCP-206): build the dedup set from it and reuse the same
+    // array for replay instead of re-reading the whole directory afterward.
+    const existingEvents = readAllEvents(dir);
+    const existing = new Set(existingEvents.map((e) => e.id));
     const accepted = [];
+    const acceptedEvents = [];
     const duplicates = [];
     for (const e of incoming) {
       if (existing.has(e.id)) { duplicates.push(e.id); continue; }
       appendEvent(dir, e); // atomic tmp+rename; ULID filename => union semantics
       existing.add(e.id);
       accepted.push(e.id);
+      acceptedEvents.push(e);
     }
-    const all = readAllEvents(dir);
+    const all = existingEvents.concat(acceptedEvents);
     let renumbered = [];
     if (accepted.length) {
       // Full re-replay (SCP-143 will make this incremental). Keep the cache's

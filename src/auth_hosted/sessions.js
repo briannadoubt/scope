@@ -60,6 +60,12 @@ function sign(signingInput, secret) {
   return b64url(createHmac('sha256', secret).update(signingInput).digest());
 }
 
+// Issuer/audience binding (SCP-215): stamped on mint and enforced on verify so a
+// token can't be replayed across a differently-purposed service that happens to
+// share the secret. Fixed identifiers (overridable by env for multi-service).
+const TOKEN_ISS = process.env.SCOPE_JWT_ISS || 'scope-hub';
+const TOKEN_AUD = process.env.SCOPE_JWT_AUD || 'scope-hub-api';
+
 /* ------------------------------ access tokens ----------------------------- */
 
 /**
@@ -77,7 +83,7 @@ export function mintAccessToken(claims, { ttlSeconds = DEFAULT_ACCESS_TTL, secre
   }
   const secretKey = secret || jwtSecret();
   const iat = Number.isFinite(now) ? now : Math.floor(Date.now() / 1000);
-  const payload = { ...claims, iat, exp: iat + ttlSeconds };
+  const payload = { iss: TOKEN_ISS, aud: TOKEN_AUD, ...claims, iat, exp: iat + ttlSeconds };
   const header = { alg: 'HS256', typ: 'JWT' };
   const signingInput = `${b64urlJson(header)}.${b64urlJson(payload)}`;
   return `${signingInput}.${sign(signingInput, secretKey)}`;
@@ -116,6 +122,9 @@ export function verifyAccessToken(token, { secret, now } = {}) {
   const t = Number.isFinite(now) ? now : Math.floor(Date.now() / 1000);
   if (typeof claims.exp === 'number' && t >= claims.exp) throw new Error('token expired');
   if (typeof claims.sub !== 'string' || !claims.sub) throw new Error('token missing sub');
+  // Enforce issuer/audience (SCP-215) — reject tokens minted for another service.
+  if (claims.iss !== TOKEN_ISS) throw new Error('bad token issuer');
+  if (claims.aud !== TOKEN_AUD) throw new Error('bad token audience');
   return claims;
 }
 

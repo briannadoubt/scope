@@ -18,6 +18,7 @@
  *     model still rides per-request in X-Scope-Model (SCP-128, unchanged).
  */
 import express from 'express';
+import { serverError } from '../http-errors.js';
 
 import { pgConfigured, getPool } from '../pg/pool.js';
 import { ensureSchema } from '../pg/schema.js';
@@ -242,19 +243,21 @@ export function publicAuthRouter({ pool, appPath = '/app' }) {
     }
     try {
       if (githubConfigured()) {
-        const { url, state } = buildGithubAuthUrl();
-        appendCookie(res, cookie(STATE_COOKIE, `gh:${state}`, { maxAge: 600 }));
+        // SCP-208: stash the PKCE verifier alongside state -> gh:<state>:<verifier>.
+        const { url, state, codeVerifier } = buildGithubAuthUrl();
+        appendCookie(res, cookie(STATE_COOKIE, `gh:${state}:${codeVerifier}`, { maxAge: 600 }));
         return res.redirect(url);
       }
       if (oidcConfigured()) {
         const disc = await discover();
-        const { url, state, codeVerifier } = buildAuthUrl({ authorizationEndpoint: disc.authorization_endpoint });
-        appendCookie(res, cookie(STATE_COOKIE, `oidc:${state}:${codeVerifier}`, { maxAge: 600 }));
+        // SCP-207/208: stash verifier AND nonce -> oidc:<state>:<verifier>:<nonce>.
+        const { url, state, codeVerifier, nonce } = buildAuthUrl({ authorizationEndpoint: disc.authorization_endpoint });
+        appendCookie(res, cookie(STATE_COOKIE, `oidc:${state}:${codeVerifier}:${nonce}`, { maxAge: 600 }));
         return res.redirect(url);
       }
       return res.status(200).type('html').send(signinUnavailablePage());
     } catch (e) {
-      return res.status(500).json({ error: e.message });
+      return serverError(res, e);
     }
   });
 
@@ -269,12 +272,16 @@ export function publicAuthRouter({ pool, appPath = '/app' }) {
 
       let identity;
       if (stash.startsWith('gh:')) {
-        ({ identity } = await handleGithubCallback({ code, state, expectedState: stash.slice(3) }));
-      } else if (stash.startsWith('oidc:')) {
+        // SCP-208: gh:<state>:<verifier> — feed the PKCE verifier to the exchange.
         const [, expectedState, codeVerifier] = stash.split(':');
+        ({ identity } = await handleGithubCallback({ code, state, expectedState, codeVerifier }));
+      } else if (stash.startsWith('oidc:')) {
+        // SCP-207/208: oidc:<state>:<verifier>:<nonce>.
+        const [, expectedState, codeVerifier, nonce] = stash.split(':');
         const disc = await discover();
         ({ identity } = await handleCallback({
-          code, state, expectedState, codeVerifier, tokenEndpoint: disc.token_endpoint,
+          code, state, expectedState, codeVerifier, nonce,
+          tokenEndpoint: disc.token_endpoint, jwksUri: disc.jwks_uri,
         }));
       } else {
         return res.status(400).json({ error: 'missing or expired oauth state' });

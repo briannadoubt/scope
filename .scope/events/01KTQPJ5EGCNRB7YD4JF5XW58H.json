@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EGCNRB7YD4JF5XW58H",
+  "ts": "2026-06-10T02:42:40.208Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNRMZBW95M62ABM7JS17ZZ",
+    "commentId": "01KTQPJ5EGCNRB7YD4JF5XW58G",
+    "author": "claude",
+    "body": "FIXED + tested (security-pg): revokeApiKey scoped to WHERE id AND account_id; route 404s on a foreign/unknown id. Cross-account revoke refused; victim key still authenticates."
+  }
+}

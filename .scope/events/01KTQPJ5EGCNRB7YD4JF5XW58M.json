@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EGCNRB7YD4JF5XW58M",
+  "ts": "2026-06-10T02:42:40.208Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNRMZCSSJX9V83D5KJ4JZR",
+    "commentId": "01KTQPJ5EGCNRB7YD4JF5XW58K",
+    "author": "claude",
+    "body": "FIXED + tested (security-pg): GET aliases authorizes on req.params.tenantId (getRole), not the selector. Non-member -> 404."
+  }
+}

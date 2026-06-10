@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EHF65XZDTQPB8W1VTT",
+  "ts": "2026-06-10T02:42:40.209Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNSYMT64P0C8328FG4R9PP",
+    "commentId": "01KTQPJ5EHF65XZDTQPB8W1VTS",
+    "author": "claude",
+    "body": "FIXED + tested (security-pg): changeRoleGuarded/removeMemberGuarded lock owner rows FOR UPDATE inside a txn so concurrent demotions/removals can't orphan a board. Last owner cannot be demoted/removed."
+  }
+}

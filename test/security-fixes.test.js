@@ -7,7 +7,10 @@ import { join } from 'node:path';
 import { validateEvent, makeEvent } from '../src/event-schema.js';
 import { appendEvent } from '../src/event-store.js';
 import { csrfGuard } from '../src/auth_hosted/cloud-auth.js';
-import { isStrongSecret } from '../src/auth_hosted/sessions.js';
+import { isStrongSecret, mintAccessToken, verifyAccessToken } from '../src/auth_hosted/sessions.js';
+import { createTempScope } from './helpers.js';
+import { WorkspaceManager } from '../src/workspaces.js';
+import { startServer } from '../src/server.js';
 
 /** Regression tests for the security audit fixes that need no Postgres. */
 
@@ -66,4 +69,57 @@ test('SCP-204: csrfGuard blocks cross-site cookie mutations, allows safe + token
   assert.ok(run({ 'sec-fetch-site': 'cross-site', authorization: 'Bearer sk_x.y' }).nexted);
   // safe method → allowed
   assert.ok(run({ 'sec-fetch-site': 'cross-site' }, 'GET').nexted);
+});
+
+test('SCP-215: access tokens carry + enforce iss/aud', () => {
+  const prev = process.env.SCOPE_JWT_SECRET;
+  process.env.SCOPE_JWT_SECRET = 'scope-test-jwt-secret-9f3a7c1e2b8d4506';
+  try {
+    const tok = mintAccessToken({ sub: 'acct_1' });
+    const claims = verifyAccessToken(tok);
+    assert.equal(claims.iss, 'scope-hub');
+    assert.equal(claims.aud, 'scope-hub-api');
+    // A token minted with a foreign audience is rejected.
+    const foreign = mintAccessToken({ sub: 'acct_1', aud: 'someone-else' });
+    assert.throws(() => verifyAccessToken(foreign), /audience/);
+  } finally {
+    if (prev === undefined) delete process.env.SCOPE_JWT_SECRET; else process.env.SCOPE_JWT_SECRET = prev;
+  }
+});
+
+// Local (non-cloud) server harness — loopback bypass means no auth needed.
+async function startLocalHub() {
+  const scope = createTempScope();
+  const mgr = new WorkspaceManager();
+  const ws = mgr.attach(scope.scopeDir, { persist: false, broadcast: false });
+  try { ws.db.close(); } catch {}
+  ws.db = scope.db;
+  const server = await startServer({ workspaces: mgr, port: 0, silent: true, discoverable: false, tls: false, cloud: false });
+  return { server, wsId: ws.id, base: `http://127.0.0.1:${server.address().port}`,
+    async close() { await new Promise((r) => server.close(() => r())); scope.cleanup(); } };
+}
+
+test('SCP-206: sync push rejects an oversized batch', async () => {
+  const hub = await startLocalHub();
+  try {
+    const events = Array.from({ length: 2001 }, () => ({})); // count checked before validation
+    const r = await fetch(`${hub.base}/api/sync/push?workspace=${hub.wsId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events }),
+    });
+    assert.equal(r.status, 413);
+    assert.equal((await r.json()).code, 'BATCH_TOO_LARGE');
+  } finally { await hub.close(); }
+});
+
+test('SCP-213: sync push rejects a rendered "on behalf of" actor', async () => {
+  const hub = await startLocalHub();
+  try {
+    const evt = makeEvent('comment.add', { ticketId: ULID, commentId: ULID, author: 'a', body: 'x' },
+      { actor: 'Opus on behalf of bob' });
+    const r = await fetch(`${hub.base}/api/sync/push?workspace=${hub.wsId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events: [evt] }),
+    });
+    assert.equal(r.status, 400);
+    assert.equal((await r.json()).code, 'ACTOR_RENDERED');
+  } finally { await hub.close(); }
 });

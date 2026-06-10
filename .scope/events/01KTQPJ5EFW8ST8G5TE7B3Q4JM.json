@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EFW8ST8G5TE7B3Q4JM",
+  "ts": "2026-06-10T02:42:40.207Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNRMZ9YWAHZW5A42P57925",
+    "commentId": "01KTQPJ5EFW8ST8G5TE7B3Q4JK",
+    "author": "claude",
+    "body": "FIXED + tested (test/security-fixes.test.js): validateEvent now requires a canonical 26-char ULID (isUlid); appendEvent adds basename + resolve-within-dir guards. Verified: traversal ids rejected, nothing written outside the events dir."
+  }
+}

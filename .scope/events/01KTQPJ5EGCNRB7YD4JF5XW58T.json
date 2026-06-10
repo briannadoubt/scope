@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EGCNRB7YD4JF5XW58T",
+  "ts": "2026-06-10T02:42:40.208Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNRMZDAXZ3HJ5K3VCJQFXR",
+    "commentId": "01KTQPJ5EGCNRB7YD4JF5XW58S",
+    "author": "claude",
+    "body": "FIXED: SSE guard checks lease.allowed (acquire always returns an object) and returns 429 + Retry-After; the per-tenant ceiling is now live."
+  }
+}

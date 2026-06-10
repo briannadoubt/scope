@@ -14,6 +14,7 @@
  * requests pick a board, so isolation can't be bypassed by spoofing a header.
  */
 import { hasRole, getRole } from './membership.js';
+import { serverError } from '../http-errors.js';
 
 /**
  * The board the request is asking for: explicit selector, else the claim
@@ -61,7 +62,7 @@ export function requireTenantRole(pool, minRole) {
       req.tenantRole = role;
       next();
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      serverError(res, e);
     }
   };
 }

@@ -200,15 +200,19 @@ test('handleCallback rejects a state mismatch before any network call', async ()
   assert.equal(called, false, 'no token exchange attempted on CSRF');
 });
 
-test('handleCallback exchanges code via injected fetch (provider stubbed)', async () => {
-  // Real provider round-trip is UNVERIFIABLE without a provider; this exercises
-  // the exchange wiring with a stub so the parsing/decoding path is covered.
+test('handleCallback REJECTS an unsigned/unverifiable id_token (SCP-207)', async () => {
+  // Pre-SCP-207 this token was trusted after a bare base64 decode. Now the
+  // id_token must pass real signature/claim verification, so an unsigned token
+  // with a fake "sig" and an empty JWKS is rejected. The full happy path (valid
+  // RS256/ES256 signature + JWKS) is covered in test/oidc-verify.test.js.
   const idToken = `h.${Buffer.from(JSON.stringify({ sub: 's1', email: 'e@x', iss: 'https://issuer.example' })).toString('base64url')}.sig`;
-  const fetchImpl = async () => ({ ok: true, json: async () => ({ id_token: idToken, access_token: 'at' }) });
-  const { identity, tokens } = await handleCallback({
+  const fetchImpl = async (url) =>
+    url.includes('jwks')
+      ? ({ ok: true, json: async () => ({ keys: [] }) })
+      : ({ ok: true, json: async () => ({ id_token: idToken, access_token: 'at' }) });
+  await assert.rejects(() => handleCallback({
     code: 'c', state: 's', expectedState: 's', codeVerifier: 'v',
-    issuer: 'https://issuer.example', clientId: 'cid', redirectUri: 'https://app/cb', fetchImpl,
-  });
-  assert.equal(identity.providerSub, 's1');
-  assert.equal(tokens.access_token, 'at');
+    issuer: 'https://issuer.example', clientId: 'cid', redirectUri: 'https://app/cb',
+    jwksUri: 'https://issuer.example/jwks', fetchImpl,
+  }));
 });

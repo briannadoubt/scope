@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EGCNRB7YD4JF5XW590",
+  "ts": "2026-06-10T02:42:40.208Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNRMZEKFFHTEQNXQ7Q4XBC",
+    "commentId": "01KTQPJ5EGCNRB7YD4JF5XW58Z",
+    "author": "claude",
+    "body": "FIXED + tested (security-fixes csrfGuard unit): cookie-authenticated POST/PATCH/DELETE require a same-site Origin/Sec-Fetch-Site; token-auth + safe methods exempt. Mounted before /auth/refresh + /auth/logout. Cross-site cookie mutations -> 403 CSRF."
+  }
+}

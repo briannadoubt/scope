@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EFW8ST8G5TE7B3Q4JQ",
+  "ts": "2026-06-10T02:42:40.207Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNRMZBW95M62ABM7JS17ZV",
+    "commentId": "01KTQPJ5EFW8ST8G5TE7B3Q4JP",
+    "author": "claude",
+    "body": "FIXED: escapeHtml on branch/pr_url/assignee/labels/parent_id in renderDrawer (app.js)."
+  }
+}

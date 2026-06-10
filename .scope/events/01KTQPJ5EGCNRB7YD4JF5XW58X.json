@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EGCNRB7YD4JF5XW58X",
+  "ts": "2026-06-10T02:42:40.208Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNRMZDAXZ3HJ5K3VCJQFXT",
+    "commentId": "01KTQPJ5EGCNRB7YD4JF5XW58W",
+    "author": "claude",
+    "body": "FIXED: OAuth callback requires identity.emailVerified===true before upsertAccount, closing unverified-email account linking/takeover. GitHub adapter already derives verified from primary email."
+  }
+}

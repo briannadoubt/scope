@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EHF65XZDTQPB8W1VV3",
+  "ts": "2026-06-10T02:42:40.209Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNSYVY3YMRWFW7Q59THPCQ",
+    "commentId": "01KTQPJ5EHF65XZDTQPB8W1VV2",
+    "author": "claude",
+    "body": "FIXED: card PR chip href only set for http(s) urls; non-http (javascript:) rendered inert."
+  }
+}

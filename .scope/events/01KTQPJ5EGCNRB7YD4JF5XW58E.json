@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQPJ5EGCNRB7YD4JF5XW58E",
+  "ts": "2026-06-10T02:42:40.208Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNRMZBW95M62ABM7JS17ZX",
+    "commentId": "01KTQPJ5EGCNRB7YD4JF5XW58D",
+    "author": "claude",
+    "body": "FIXED + tested: escapeHtml the overview key sink + enforce isKeyPrefix on workspace.init/set so the sync-push path can no longer inject an XSS key."
+  }
+}

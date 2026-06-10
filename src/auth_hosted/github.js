@@ -27,7 +27,7 @@
  * offline. The two network round-trips (token POST, /user GET) need a live
  * provider; both take an injectable `fetchImpl` so tests stub them.
  */
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 
 const AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 const TOKEN_URL = 'https://github.com/login/oauth/access_token';
@@ -48,11 +48,18 @@ function b64url(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+/** PKCE S256 challenge from a verifier (SCP-208). */
+function pkceChallenge(verifier) {
+  return b64url(createHash('sha256').update(verifier).digest());
+}
+
 /**
- * Build the GitHub authorize redirect URL with an anti-CSRF `state`. Pure (no
- * network). Stash the returned `state` in a signed, short-lived cookie and
- * compare it on the callback.
- * @returns {{ url: string, state: string }}
+ * Build the GitHub authorize redirect URL with an anti-CSRF `state` plus PKCE
+ * (SCP-208). GitHub supports PKCE for the web flow, so we send a S256
+ * code_challenge and return the matching codeVerifier; stash BOTH state and
+ * verifier in a signed, short-lived cookie and pass the verifier to the callback.
+ * Pure (no network).
+ * @returns {{ url: string, state: string, codeVerifier: string }}
  */
 export function buildGithubAuthUrl({ clientId, redirectUri, scope } = {}) {
   clientId = clientId || env('SCOPE_GITHUB_CLIENT_ID');
@@ -62,13 +69,16 @@ export function buildGithubAuthUrl({ clientId, redirectUri, scope } = {}) {
     throw new Error('GitHub OAuth not configured: set SCOPE_GITHUB_CLIENT_ID/REDIRECT');
   }
   const state = b64url(randomBytes(16));
+  const codeVerifier = b64url(randomBytes(32)); // SCP-208 PKCE
   const u = new URL(AUTHORIZE_URL);
   u.searchParams.set('client_id', clientId);
   u.searchParams.set('redirect_uri', redirectUri);
   u.searchParams.set('scope', scope);
   u.searchParams.set('state', state);
+  u.searchParams.set('code_challenge', pkceChallenge(codeVerifier));
+  u.searchParams.set('code_challenge_method', 'S256');
   u.searchParams.set('allow_signup', 'true');
-  return { url: u.toString(), state };
+  return { url: u.toString(), state, codeVerifier };
 }
 
 /** Map a GitHub /user (+ primary email) response onto our identity shape. */
@@ -90,7 +100,7 @@ export function identityFromGithubUser(user, email = null, emailVerified = null)
  * @returns {Promise<{ identity: object, tokens: object }>}
  */
 export async function handleGithubCallback({
-  code, state, expectedState,
+  code, state, expectedState, codeVerifier,
   clientId, clientSecret, redirectUri, fetchImpl = fetch,
 } = {}) {
   if (!state || !expectedState || state !== expectedState) {
@@ -105,12 +115,16 @@ export async function handleGithubCallback({
   redirectUri = redirectUri || env('SCOPE_GITHUB_REDIRECT');
 
   // --- token exchange (UNVERIFIABLE without a real provider) ---
+  // SCP-208: include the PKCE code_verifier so a stolen auth code can't be
+  // redeemed without the verifier we kept in the state cookie.
+  const tokenBody = new URLSearchParams({
+    client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri,
+  });
+  if (codeVerifier) tokenBody.set('code_verifier', codeVerifier);
   const tokenRes = await fetchImpl(TOKEN_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
-    body: new URLSearchParams({
-      client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri,
-    }).toString(),
+    body: tokenBody.toString(),
   });
   if (!tokenRes.ok) {
     const text = await tokenRes.text().catch(() => '');

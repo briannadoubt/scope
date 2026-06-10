@@ -15,6 +15,7 @@
  * Mount AFTER that gate and after express.json().
  */
 import { randomBytes, createHash } from 'node:crypto';
+import { serverError } from '../http-errors.js';
 import express from 'express';
 
 import { ROLES, ROLE_RANK } from './schema.js';
@@ -59,7 +60,7 @@ function requireParamTenantRole(pool, minRole) {
       req.tenantRole = role;
       next();
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      serverError(res, e);
     }
   };
 }
@@ -93,7 +94,7 @@ export function membersRouter({ pool }) {
       )).rows;
       res.json(rows);
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      serverError(res, e);
     }
   });
 
@@ -112,7 +113,7 @@ export function membersRouter({ pool }) {
     } catch (e) {
       if (e.code === 'LAST_OWNER') return res.status(400).json({ error: 'cannot demote the last owner', code: 'LAST_OWNER' });
       if (e.code === 'NO_MEMBER') return res.status(404).json({ error: 'no such member', code: 'NO_MEMBER' });
-      res.status(500).json({ error: e.message });
+      serverError(res, e);
     }
   });
 
@@ -131,7 +132,7 @@ export function membersRouter({ pool }) {
       res.json({ ok: true });
     } catch (e) {
       if (e.code === 'LAST_OWNER') return res.status(400).json({ error: 'cannot remove the last owner', code: 'LAST_OWNER' });
-      res.status(500).json({ error: e.message });
+      serverError(res, e);
     }
   });
 
@@ -163,7 +164,7 @@ export function membersRouter({ pool }) {
       // The code is shown exactly once — the UI turns it into a shareable link.
       res.status(201).json({ code, email: email ? email.trim() : null, role, expires_at: expiresAt });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      serverError(res, e);
     }
   });
 
@@ -179,7 +180,7 @@ export function membersRouter({ pool }) {
       )).rows;
       res.json(rows);
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      serverError(res, e);
     }
   });
 
@@ -193,7 +194,7 @@ export function membersRouter({ pool }) {
       );
       res.json({ ok: true });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      serverError(res, e);
     }
   });
 
@@ -248,7 +249,7 @@ export function membersRouter({ pool }) {
       }
       res.json(out);
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      serverError(res, e);
     }
   });
 
