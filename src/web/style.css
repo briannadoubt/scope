@@ -309,6 +309,17 @@ button { font-family: inherit; }
 .topbar > * { flex-shrink: 0; }   /* never compress controls; spacer is the only flex slot */
 .switch { flex-shrink: 0; }
 .live-dot { flex-shrink: 0; }
+/* Presence pill (SCP-225): "● N" online on the active board. */
+.presence-pill {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--green, #3fb950);
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: default;
+  user-select: none;
+}
 .switch-field { flex-shrink: 0; }
 .trigger { flex-shrink: 0; }
 .breadcrumb { min-width: 0; }     /* the one trigger that's allowed to ellipsize */

@@ -184,6 +184,7 @@ function updateViewTrigger() {
 
 async function refresh() {
   if (!state.currentWorkspace) return renderEmpty();
+  refreshPresence(); // SCP-225: keep the online-roster pill in step with the board
   // The graph view repurposes #board with its own host class; clear it on every
   // refresh so non-graph views aren't constrained by the graph's layout rules.
   document.getElementById('board').classList.remove('graph-host');
@@ -1046,6 +1047,31 @@ function flashIndicator(klass = 'tick') {
 }
 
 /**
+ * Presence pill (SCP-225): "● N" of accounts currently connected to the active
+ * board, with their names on hover. Hosted-only; a no-op (and hidden) locally.
+ * Refreshed on board load + on 'presence' SSE ticks.
+ */
+async function refreshPresence() {
+  let pill = document.getElementById('presence-indicator');
+  if (!state.meta?.hosted || !state.currentWorkspace) { if (pill) pill.hidden = true; return; }
+  let people;
+  try {
+    people = await api(`/api/projects/${encodeURIComponent(state.currentWorkspace)}/presence`);
+  } catch { return; }
+  if (!pill) {
+    pill = document.createElement('span');
+    pill.id = 'presence-indicator';
+    pill.className = 'presence-pill';
+    const dot = document.getElementById('live-indicator');
+    dot?.parentNode?.insertBefore(pill, dot);
+  }
+  const names = people.map((p) => p.name || p.email || p.account_id);
+  pill.hidden = people.length === 0;
+  pill.textContent = `● ${people.length}`;
+  pill.title = names.length ? `Online: ${names.join(', ')}` : 'No one else online';
+}
+
+/**
  * "Runtime repair" from the UI side. The refresh button calls this — and it
  * also runs automatically when we notice the SSE stream has dropped.
  *
@@ -1148,6 +1174,12 @@ function startEventStream() {
   eventSource.addEventListener('hello', resumeOnConnect);
   eventSource.addEventListener('change', async (e) => {
     const detail = safeParse(e.data);
+    // Presence (SCP-225): a peer joined/left the board — refresh the roster pill,
+    // don't trigger a board refresh.
+    if (detail?.type === 'presence') {
+      if (!detail.workspace || detail.workspace === state.currentWorkspace) refreshPresence();
+      return;
+    }
     if (
       detail?.type === 'workspace.attached' ||
       detail?.type === 'workspace.detached' ||

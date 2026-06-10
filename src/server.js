@@ -282,6 +282,19 @@ export async function startServer({
     const pgBus = makePgBus({ pool });
     hostedRuntime = { pgBus };
     const sseTracker = createConnectionTracker();
+    // Presence registry (SCP-225): tenantId -> Map(accountId -> open-conn count).
+    // In-process per node; fed by the /events SSE connect/close below.
+    const presence = new Map();
+    const presenceAdd = (t, a) => {
+      let m = presence.get(t); if (!m) { m = new Map(); presence.set(t, m); }
+      m.set(a, (m.get(a) || 0) + 1);
+    };
+    const presenceRemove = (t, a) => {
+      const m = presence.get(t); if (!m) return;
+      const n = (m.get(a) || 0) - 1;
+      if (n > 0) m.set(a, n); else m.delete(a);
+      if (m.size === 0) presence.delete(t);
+    };
     const announce = (tenantId, cursor) => {
       pgBus.publish(topicForTenant(tenantId), { tenant: tenantId, cursor: cursor ?? null })
         .catch(() => {}); // fan-out is best-effort; pull-refresh is the backstop
@@ -525,12 +538,36 @@ export async function startServer({
           emitChange({ type: 'sync.applied', workspace: payload?.tenant || req.tenantId });
         });
       } catch { /* single-node still works via the in-process bus */ }
+      // Presence (SCP-225): track who's connected to this board (this node) and
+      // nudge viewers to refresh the roster on join/leave.
+      presenceAdd(req.tenantId, req.principal.accountId);
+      emitChange({ type: 'presence', workspace: req.tenantId });
       req.on('close', () => {
         lease.release();
+        presenceRemove(req.tenantId, req.principal.accountId);
+        emitChange({ type: 'presence', workspace: req.tenantId });
         if (off) Promise.resolve(off()).catch(() => {});
       });
       next();
     }));
+
+    // Who is currently connected to a board (this node). In-process per node;
+    // cross-node aggregation would ride the pgBus — deferred (SCP-225 stretch).
+    // Authorize on the ROUTE PARAM, not the selector (avoid the SCP-200 IDOR
+    // class): a non-member gets 404, never another board's roster.
+    tApi.get('/api/projects/:tenantId/presence', async (req, res) => {
+      try {
+        const tenantId = req.params.tenantId;
+        const role = await getRole(pool, tenantId, req.principal.accountId);
+        if (!role) return res.status(404).json({ error: 'no such project', code: 'NO_PROJECT' });
+        const ids = [...(presence.get(tenantId)?.keys() || [])];
+        if (!ids.length) return res.json([]);
+        const rows = (await pool.query(
+          `SELECT id AS account_id, name, email FROM accounts WHERE id = ANY($1)`, [ids]
+        )).rows;
+        res.json(rows);
+      } catch (e) { serverError(res, e); }
+    });
 
     if (!quiet && !loginProviderConfigured()) {
       process.stderr.write('[hub] hosted auth on, but no login provider configured (API keys only)\n');

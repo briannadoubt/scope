@@ -25,6 +25,7 @@ import {
 import { ensureEventLog } from './backfill.js';
 import { syncFromLog } from './replay.js';
 import { syncWithRemote } from './sync-client.js';
+import { startRemoteSync } from './remote-sync.js';
 import { readRemoteConfig, writeRemoteConfig, resolveRemote, remoteConfigPath } from './remote-config.js';
 import {
   getWorkspace,
@@ -931,6 +932,7 @@ export function buildProgram() {
     .option('--project <tenantId>', 'the remote project (tenant) to sync with (falls back to $SCOPE_PROJECT, then .scope/remote.json)')
     .option('--token <token>', 'credential for the remote hub: a per-user API key (sk_…) or shared token. Falls back to $SCOPE_API_KEY then $SCOPE_TOKEN.')
     .option('--model <name>', 'acting model for attribution (X-Scope-Model). Falls back to $SCOPE_MODEL.')
+    .option('--watch', 'stay running and continuously mirror the remote in realtime (SCP-222) instead of a one-shot sync')
     .action(async (opts, cmd) => {
       const { db, scopeDir } = openOrDie();
       // SCP-193: flags > env > committed .scope/remote.json. The legacy
@@ -949,12 +951,38 @@ export function buildProgram() {
       if (!target.project) {
         fail('remote workspace id is required (--remote-workspace). Configure one with `scope remote set --project <tenantId>`.');
       }
+      const token = opts.token || process.env.SCOPE_API_KEY || process.env.SCOPE_TOKEN || '';
+      const model = opts.model || process.env.SCOPE_MODEL || '';
+
+      // --watch (SCP-222): a continuous, bidirectional live mirror — push on
+      // local change, pull via the hub's SSE — instead of the one-shot sync.
+      // The idempotent one-shot stays the default (offline/CI fallback).
+      if (opts.watch) {
+        const agent = startRemoteSync(db, scopeDir, {
+          remote: target.url, project: target.project, token, model,
+          onStatus: (s) => {
+            const dot = s.connected ? chalk.green('●') : chalk.yellow('○');
+            process.stderr.write(
+              `\r${dot} live-sync ${s.connected ? 'connected' : 'offline'} · ` +
+              `pushed ${s.pushed} pulled ${s.pulled}` +
+              (s.lastError ? chalk.gray(` · ${s.lastError}`) : '') + '          '
+            );
+          },
+        });
+        process.stderr.write(chalk.green('✓') + ` watching ${target.url} (project ${target.project}) — Ctrl-C to stop\n`);
+        const stop = () => { agent.stop(); process.exit(0); };
+        process.on('SIGINT', stop);
+        process.on('SIGTERM', stop);
+        await new Promise(() => {}); // idle until signaled
+        return;
+      }
+
       try {
         const r = await syncWithRemote(db, scopeDir, {
           remote: target.url,
           remoteWorkspace: target.project,
-          token: opts.token || process.env.SCOPE_API_KEY || process.env.SCOPE_TOKEN || '',
-          model: opts.model || process.env.SCOPE_MODEL || '',
+          token,
+          model,
         });
         out(cmd, r, (r) =>
           chalk.green('✓') +
@@ -1816,6 +1844,7 @@ export function buildProgram() {
     .option('--gossip-cert <pem>', 'client cert for peer mTLS ($SCOPE_GOSSIP_CERT)')
     .option('--gossip-key <pem>', 'client key for peer mTLS ($SCOPE_GOSSIP_KEY)')
     .option('--gossip-ca <pem>', "peer hub's CA cert ($SCOPE_GOSSIP_CA)")
+    .option('--no-sync', 'do not auto-start the realtime remote mirror even if .scope/remote.json is configured (SCP-222)')
     .action(async (opts) => {
       const { db, scopeDir } = openOrDie();
       const preferredPort = Number.parseInt(opts.port, 10);
@@ -1861,6 +1890,26 @@ export function buildProgram() {
         process.on('SIGINT', stopGossip);
         process.on('SIGTERM', stopGossip);
       }
+      // Realtime remote mirror (SCP-222): if this repo is bound to a hosted
+      // project (.scope/remote.json) and a credential is available, keep the
+      // local board continuously converged with the hub — no manual `scope sync`.
+      // Opt out with --no-sync. Failures here never block the local hub.
+      if (opts.sync !== false) {
+        try {
+          const target = resolveRemote(scopeDir);
+          const token = process.env.SCOPE_API_KEY || process.env.SCOPE_TOKEN || '';
+          if (target.url && target.project && token) {
+            const agent = startRemoteSync(db, scopeDir, { remote: target.url, project: target.project, token });
+            process.stdout.write(chalk.green('✓') + ` live-sync on — mirroring ${target.url} (project ${target.project})\n`);
+            const stopSync = () => { try { agent.stop(); } catch {} };
+            process.on('SIGINT', stopSync);
+            process.on('SIGTERM', stopSync);
+          } else if (target.url && target.project && !token) {
+            process.stderr.write(chalk.gray('  (remote configured but no $SCOPE_API_KEY — run `scope sync --watch` or set a key to mirror live)\n'));
+          }
+        } catch { /* no remote configured — local-only, fine */ }
+      }
+
       startHubWatchdog(res, ensureOpts, {
         onEvent: (e) => {
           if (e.type === 'repair.done') {
