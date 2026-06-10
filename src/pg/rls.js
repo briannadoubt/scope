@@ -135,6 +135,14 @@ export async function ensureRls(clientOrPool) {
            FROM unnest($1::text[]) AS t`,
         [RLS_TABLES, role]
       )).rows[0].ok === true;
+      // Also require USAGE on the events seq (SCP-226) — inserts call nextval();
+      // without this the fast path would skip and INSERTs 'permission denied'.
+      if (granted) {
+        granted = (await clientOrPool.query(
+          `SELECT has_sequence_privilege($1, 'public.events_seq_seq', 'USAGE') AS ok`,
+          [role]
+        )).rows[0].ok === true;
+      }
     }
     if (applied && policies && granted) return;
   } catch { /* fall through to the full DDL path */ }
@@ -151,6 +159,9 @@ export async function ensureRls(clientOrPool) {
         for (const t of RLS_TABLES) {
           await db.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${t} TO "${role}"`);
         }
+        // events.seq is a bigserial (SCP-226): inserts call nextval() on its
+        // sequence, so the app role needs USAGE on it (and any future sequence).
+        await db.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "${role}"`);
       }
       await db.query('COMMIT');
       return;

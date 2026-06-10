@@ -41,6 +41,73 @@ export async function replayWithinTx(client, tenantId, events) {
   await client.query('SELECT set_config($1, $2, true)', [TENANT_GUC, tenantId]);
 
   const ordered = events.slice().sort(compareEvents);
+  const { assignments, renumbered, human } = resolveProjection(ordered);
+
+  const T = tenantId;
+  const now = new Date().toISOString();
+
+  // Wipe this tenant's derived rows (workspace row is upserted, not deleted).
+  for (const t of ['ticket_history', 'ticket_comments', 'ticket_relations', 'tickets'])
+    await client.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [T]);
+  await ensureWorkspaceRow(client, T, now);
+
+  const { applied, wsKey } = await applyEventLoop(client, T, ordered, human, assignments);
+
+  await cleanupOrphans(client, T);
+  await advanceWorkspace(client, T, now, nextNumberSeed(assignments), wsKey);
+
+  return { applied, renumbered };
+}
+
+/**
+ * Incremental replay (SCP-219), the PG twin of replay.js applyEvents. Folds ONLY
+ * `newEvents` onto the tenant's existing cache within the caller's open
+ * transaction, instead of wiping + re-replaying the whole log. The caller
+ * (store.js uploadEvents) has ALREADY decided this batch is a clean tail-append
+ * (ordering half via isTailAppend + the create-number-collision half against the
+ * existing number set), so this routine just applies the fold.
+ *
+ * `allEvents` is the full post-batch log; the projection is resolved over it so
+ * existing tickets referenced by new events map to their already-cached
+ * humanIds (unchanged by a clean tail-append), but only the new events are
+ * WRITTEN. The full `replayWithinTx` remains the always-correct fallback.
+ *
+ * @param {import('pg').PoolClient} client - client with an open transaction
+ * @param {string} tenantId
+ * @param {Array<object>} allEvents - full log after the batch (any order)
+ * @param {Array<object>} newEvents - freshly-accepted events (any order)
+ * @returns {Promise<{ applied: number, renumbered: Array }>}
+ */
+export async function applyIncrementalWithinTx(client, tenantId, allEvents, newEvents) {
+  await client.query('SELECT set_config($1, $2, true)', [TENANT_GUC, tenantId]);
+
+  const T = tenantId;
+  const now = new Date().toISOString();
+
+  // Projection over the FULL set (pure); the renumbered list it yields is what a
+  // full replay would report, keeping the return contract identical.
+  const orderedAll = allEvents.slice().sort(compareEvents);
+  const { assignments, renumbered, human } = resolveProjection(orderedAll);
+  const orderedNew = newEvents.slice().sort(compareEvents);
+
+  // The workspace row already exists for any tenant with prior events, but a
+  // first-ever push (empty existing log) is also a valid tail-append, so ensure.
+  await ensureWorkspaceRow(client, T, now);
+
+  const { applied, wsKey } = await applyEventLoop(client, T, orderedNew, human, assignments);
+
+  await cleanupOrphans(client, T);
+  await advanceWorkspace(client, T, now, nextNumberSeed(assignments), wsKey);
+
+  return { applied, renumbered };
+}
+
+/**
+ * Pure projection (SCP-219): canonical display numbers + uid->humanId map with
+ * the SCP-118 rekey override. Shared by the full and incremental PG replays so
+ * both compute the identical projection.
+ */
+function resolveProjection(ordered) {
   const { assignments, renumbered } = resolveDisplayNumbers(ordered);
 
   // Last rekey in canonical order reprefixes every display id (SCP-118).
@@ -57,19 +124,23 @@ export async function replayWithinTx(client, tenantId, events) {
   const human = new Map();
   for (const [uid, a] of assignments) human.set(uid, a.humanId);
 
-  const T = tenantId;
-  const now = new Date().toISOString();
+  return { assignments, renumbered, human };
+}
 
-  // Wipe this tenant's derived rows (workspace row is upserted, not deleted).
-  for (const t of ['ticket_history', 'ticket_comments', 'ticket_relations', 'tickets'])
-    await client.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [T]);
-  // Ensure a workspace row exists; workspace.* events UPDATE it below.
+/** Ensure a tenant workspace row exists; workspace.* events UPDATE it. */
+async function ensureWorkspaceRow(client, T, now) {
   await client.query(
     `INSERT INTO workspace (tenant_id, key, name, created_at, updated_at)
      VALUES ($1, '', 'Workspace', $2, $2) ON CONFLICT (tenant_id) DO NOTHING`,
     [T, now]
   );
+}
 
+/**
+ * Apply `ordered` events for a tenant. Shared loop body for the full and
+ * incremental PG replays. Returns { applied, wsKey } (last workspace key seen).
+ */
+async function applyEventLoop(client, T, ordered, human, assignments) {
   let wsKey = null;
   let applied = 0;
   for (const e of ordered) {
@@ -80,8 +151,11 @@ export async function replayWithinTx(client, tenantId, events) {
       wsKey = e.payload.to;
     }
   }
+  return { applied, wsKey };
+}
 
-  // Orphan cleanup mirrors the FK CASCADE the SQLite path relies on.
+/** Orphan cleanup mirroring the SQLite FK CASCADE for a tenant. */
+async function cleanupOrphans(client, T) {
   await client.query(
     `DELETE FROM ticket_comments WHERE tenant_id=$1
        AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
@@ -92,15 +166,15 @@ export async function replayWithinTx(client, tenantId, events) {
   await client.query(
     `DELETE FROM ticket_history WHERE tenant_id=$1
        AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
+}
 
-  // Advance the allocator past every assigned number; follow the rekey/set key.
+/** Advance the allocator past every assigned number; follow the rekey/set key. */
+async function advanceWorkspace(client, T, now, seed, wsKey) {
   await client.query(
     'UPDATE workspace SET next_ticket_number=$2, updated_at=$3 WHERE tenant_id=$1',
-    [T, nextNumberSeed(assignments), now]
+    [T, seed, now]
   );
   if (wsKey) await client.query('UPDATE workspace SET key=$2 WHERE tenant_id=$1', [T, wsKey]);
-
-  return { applied, renumbered };
 }
 
 /**

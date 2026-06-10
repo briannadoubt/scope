@@ -9,7 +9,7 @@
  * real hub (inject `fetchImpl`).
  */
 import { readAllEvents, appendEvent, eventsDir } from './event-store.js';
-import { syncFromLog } from './replay.js';
+import { syncFromLog, applyEvents } from './replay.js';
 import { getMeta, setMeta } from './db.js';
 
 /**
@@ -57,10 +57,19 @@ export async function syncWithRemote(db, scopeDir, { remote, remoteWorkspace, to
   const pull = await pullResp.json();
 
   // Union the remote events into the local log (ULID filenames => idempotent),
-  // then rebuild the cache from the merged log.
+  // then fold only the GENUINELY-NEW events onto the cache. A pull can echo back
+  // our own just-pushed events (the cursor was pre-push) or redeliver ones we
+  // already hold; those are already applied to the cache, so handing them to
+  // applyEvents as "new" would double-insert (UNIQUE violation). Disk append
+  // stays a full idempotent union by ULID; the cache apply uses only the events
+  // not already on the log. applyEvents then takes the incremental fast path on a
+  // clean tail-append (the realtime common case, SCP-219), else a full replay
+  // (which also covers cross-replica display-number collisions via renumber).
   const events = pull.events || [];
+  const known = new Set(readAllEvents(dir).map((e) => e.id));
+  const fresh = events.filter((e) => !known.has(e.id));
   for (const e of events) appendEvent(dir, e);
-  if (events.length) syncFromLog(db, scopeDir);
+  if (fresh.length) applyEvents(db, readAllEvents(dir), fresh);
   if (pull.cursor) setMeta(db, cursorKey, pull.cursor);
 
   return {

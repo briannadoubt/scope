@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQQKBGZRRS28P7AWE4AEZ0T",
+  "ts": "2026-06-10T03:00:47.775Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNSYVY3YMRWFW7Q59THPCK",
+    "commentId": "01KTQQKBGZRRS28P7AWE4AEZ0S",
+    "author": "claude",
+    "body": "FIXED + tested (security-fixes): access tokens carry iss=scope-hub / aud=scope-hub-api (env-overridable) and verifyAccessToken rejects mismatched iss/aud."
+  }
+}

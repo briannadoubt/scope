@@ -30,6 +30,12 @@ CREATE TABLE IF NOT EXISTS events (
 );
 -- canonical-order reads within a tenant (ts then id, matching compareEvents)
 CREATE INDEX IF NOT EXISTS idx_events_canonical ON events (tenant_id, ts, event_id);
+-- server-assigned insertion order (SCP-226): the sync PULL orders + filters by
+-- this monotonic seq, not the event ULID, so a multi-writer push of an event
+-- with a low ULID that arrives AFTER a puller's cursor is never skipped. The
+-- ULID stays the identity/merge key; seq is only the changefeed cursor.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS seq bigserial;
+CREATE INDEX IF NOT EXISTS idx_events_seq ON events (tenant_id, seq);
 
 -- replayed cache: workspace singleton (one per tenant/project) -------------
 CREATE TABLE IF NOT EXISTS workspace (
@@ -126,7 +132,8 @@ export async function ensureSchema(clientOrPool) {
          AND to_regclass('public.ticket_relations') IS NOT NULL
          AND to_regclass('public.ticket_comments')  IS NOT NULL
          AND to_regclass('public.ticket_history')   IS NOT NULL
-         AND to_regclass('public.idx_history_ticket') IS NOT NULL AS ok`)).rows[0].ok;
+         AND to_regclass('public.idx_history_ticket') IS NOT NULL
+         AND to_regclass('public.idx_events_seq')   IS NOT NULL AS ok`)).rows[0].ok;
     if (probe === true) return;
   } catch { /* fall through to the full DDL path */ }
 

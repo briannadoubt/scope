@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQQKBGYSG6KT7KFK4TPPZRS",
+  "ts": "2026-06-10T03:00:47.774Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNSYMT64P0C8328FG4R9PG",
+    "commentId": "01KTQQKBGYSG6KT7KFK4TPPZRR",
+    "author": "claude",
+    "body": "FIXED + tested (oidc-verify, 18 cases): verifyIdToken does real JWKS signature verification (RS256/ES256), rejects alg none/HS*, and asserts iss/aud/exp/iat-skew/nonce. handleCallback calls it instead of decode-and-trust."
+  }
+}

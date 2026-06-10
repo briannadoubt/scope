@@ -71,7 +71,14 @@ export async function ensureReplica(pool, tenantId) {
   const scopeDir = join(tenantReplicaRoot(), tenantId, '.scope');
   mkdirSync(join(scopeDir, 'events'), { recursive: true });
   const db = openDb(scopeDir);
-  rep = { tenantId, scopeDir, db, cursor: '', lock: Promise.resolve() };
+  // `cursor` is the PG PULL high-water (a server seq, SCP-226). `pushed` is a
+  // SEPARATE set of event ids known to be in PG (everything we pulled down or
+  // uploaded up) — the flush watermark. These are two different namespaces: the
+  // pull cursor is a seq, event ids are ULIDs, so the flush MUST decide by id
+  // membership, not by comparing an id against the seq cursor (a low-ULID local
+  // event must still flush even when the seq cursor is high — same multi-writer
+  // skip class the seq cursor itself fixes).
+  rep = { tenantId, scopeDir, db, cursor: '', pushed: new Set(), lock: Promise.resolve() };
   replicas.set(tenantId, rep);
 
   await withLock(rep, async () => {
@@ -80,31 +87,35 @@ export async function ensureReplica(pool, tenantId) {
     let since = null;
     for (;;) {
       const page = await pullEvents(pool, tenantId, { since });
-      for (const e of page.events) appendEvent(eventsDir(scopeDir), e);
+      for (const e of page.events) { appendEvent(eventsDir(scopeDir), e); rep.pushed.add(e.id); }
       since = page.cursor;
       if (!page.more) break;
     }
     syncFromLog(db, scopeDir);
-    // Cursor = PG high-water. Anything on disk above it (a crash between emit
-    // and flush) gets pushed by the first flush below.
     rep.cursor = since || '';
+    // Anything on disk NOT yet in PG (a crash between emit and flush) gets pushed.
     const local = readAllEvents(eventsDir(scopeDir));
-    const unflushed = local.filter((e) => e.id > rep.cursor);
+    const unflushed = local.filter((e) => !rep.pushed.has(e.id));
     if (unflushed.length) {
       const r = await uploadEvents(pool, tenantId, unflushed);
+      for (const e of unflushed) rep.pushed.add(e.id);
       rep.cursor = r.cursor || rep.cursor;
     }
   });
   return rep;
 }
 
-/** Pull events newer than our cursor into the local log; replay if any. */
+/** Pull events newer than our seq cursor into the local log; replay if any. */
 export function refreshReplica(pool, rep) {
   return withLock(rep, async () => {
     let appended = 0;
     for (;;) {
       const page = await pullEvents(pool, rep.tenantId, { since: rep.cursor || null });
-      for (const e of page.events) { appendEvent(eventsDir(rep.scopeDir), e); appended++; }
+      for (const e of page.events) {
+        appendEvent(eventsDir(rep.scopeDir), e);
+        rep.pushed.add(e.id); // pulled from PG => already canonical, never re-flush
+        appended++;
+      }
       if (page.cursor) rep.cursor = page.cursor;
       if (!page.more) break;
     }
@@ -112,13 +123,14 @@ export function refreshReplica(pool, rep) {
   });
 }
 
-/** Push every locally-emitted event above the PG cursor up to the canonical log. */
+/** Push every locally-emitted event not yet in the canonical PG log. */
 export function flushReplica(pool, rep) {
   return withLock(rep, async () => {
     const local = readAllEvents(eventsDir(rep.scopeDir));
-    const pending = local.filter((e) => e.id > rep.cursor);
+    const pending = local.filter((e) => !rep.pushed.has(e.id));
     if (!pending.length) return { pushed: 0 };
     const r = await uploadEvents(pool, rep.tenantId, pending);
+    for (const e of pending) rep.pushed.add(e.id);
     rep.cursor = r.cursor || rep.cursor;
     return { pushed: r.accepted.length };
   });

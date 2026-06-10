@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQW2YYCQQ45KT2YP8CNXPAV",
+  "ts": "2026-06-10T04:19:13.484Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQW2YYCQQ45KT2YP8CNXPAT",
+    "number": 220,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "RemoteSyncAgent: continuous bidirectional sync to a hosted hub",
+    "description": "A long-running agent (generalize gossip.js from LAN-peer to remote-hub) that keeps a local .scope continuously converged with one hosted project: (a) PUSH on local change - subscribe to bus.on('change'), debounce ~50ms, push new events via syncWithRemote/uploadEvents with the API key + alias; (b) PULL via SSE - hold an open /events?project=<tenant> connection, and on each change/pointer notification do an incremental pull since the persisted cursor, append, replay (uses the incremental-replay story). One round at a time, error-isolated, cursor persisted in meta. Idempotent throughout so missed/duplicate events self-heal.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTQW2YYAFTMHYFCGNQAAT8T7",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

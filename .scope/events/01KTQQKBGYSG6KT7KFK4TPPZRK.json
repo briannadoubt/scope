@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQQKBGYSG6KT7KFK4TPPZRK",
+  "ts": "2026-06-10T03:00:47.774Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNSYMR2PVD1JNTSG14000G",
+    "commentId": "01KTQQKBGX27P5KPN1MDGQJKXP",
+    "author": "claude",
+    "body": "FIXED: rateLimitMiddleware now also mounted on the cloud-interim (shared-token, no-PG) path, keyed per-IP. Local/LAN stays unthrottled."
+  }
+}

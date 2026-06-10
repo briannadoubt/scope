@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQQKBGYSG6KT7KFK4TPPZRP",
+  "ts": "2026-06-10T03:00:47.774Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNSYMSBQP8CWKBK2C691K3",
+    "commentId": "01KTQQKBGYSG6KT7KFK4TPPZRN",
+    "author": "claude",
+    "body": "FIXED + tested (security-fixes): SYNC_MAX_BATCH=2000 cap (413 BATCH_TOO_LARGE) on hosted + interim push; interim path reads the event log once and reuses it for replay instead of two full reads. Incremental replay itself remains the SCP-143 follow-up; the cap bounds the amplification."
+  }
+}

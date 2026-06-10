@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQW2YYBCG3K73G9NZX8XFDQ",
+  "ts": "2026-06-10T04:19:13.483Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQW2YYAFTMHYFCGNQAAT8T7",
+    "number": 218,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Seamless realtime sync: live local<->hosted mirror (no manual sync call)",
+    "description": "Today the local working copy converges with the hosted hub only when a human runs `scope sync` (idempotent one-shot). Hosted->viewer SSE and LAN gossip are already realtime; the gap is the local-copy<->hosted link. Goal: turn the one-shot into a continuous bidirectional sync agent so a laptop's .scope is a LIVE mirror of its hosted project (~100ms), while keeping the offline-first idempotent sync as the reconnect/catch-up fallback. Reuses ~80% of existing machinery: gossip.js push-on-change loop, /events SSE + Milestone-B pgBus {tenant,cursor} pointers, pullEvents(since) + persisted cursor, syncWithRemote. Build like SCP-185: sequential spine then parallel leaves. Relates SCP-185 (hosted), SCP-114 (gossip), SCP-165 (fan-out).",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

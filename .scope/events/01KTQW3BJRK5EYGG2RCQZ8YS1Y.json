@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "id": "01KTQW3BJRK5EYGG2RCQZ8YS1Y",
+  "ts": "2026-06-10T04:19:26.424Z",
+  "actor": "claude",
+  "kind": "relation.add",
+  "payload": {
+    "fromId": "01KTQW2YYCQQ45KT2YP8CNXPB0",
+    "toId": "01KTQW2YYCQQ45KT2YP8CNXPAT",
+    "type": "blocked_by"
+  }
+}

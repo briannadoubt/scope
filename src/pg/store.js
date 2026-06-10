@@ -21,7 +21,9 @@
  * database itself refuses cross-tenant rows.
  */
 import { validateEvent } from '../event-schema.js';
-import { replayWithinTx } from './replay.js';
+import { resolveDisplayNumbers } from '../identity.js';
+import { replayWithinTx, applyIncrementalWithinTx } from './replay.js';
+import { isTailAppend, canonicalMax } from './incremental.js';
 import { withTenant } from './rls.js';
 
 /**
@@ -52,23 +54,62 @@ export async function uploadEvents(pool, tenantId, events) {
 
     let renumbered = [];
     if (accepted.length) {
-      // Re-replay the full tenant log within this same transaction so the cache
-      // matches the log atomically (incremental replay is SCP-143).
+      // SCP-219 incremental fast path. The hot realtime loop pushes a handful of
+      // brand-new events that sort AFTER everything already applied; folding just
+      // those onto the cache is O(batch) instead of O(whole log). The full
+      // replay stays the always-correct fallback.
+      //
+      // Read the EXISTING log (everything except the just-accepted ids) to decide
+      // the tail-append invariant. We need the existing rows anyway for the full
+      // replay fallback, so this read isn't extra work on the slow path.
+      const acceptedIds = new Set(accepted.map((e) => e.id));
       const all = (
         await client.query('SELECT body FROM events WHERE tenant_id=$1', [tenantId])
       ).rows.map((row) => row.body);
-      ({ renumbered } = await replayWithinTx(client, tenantId, all));
+      const existing = all.filter((row) => !acceptedIds.has(row.id));
+
+      // SCP-219: only fast-path onto a POPULATED existing log. From an empty log
+      // the full replay is already cheap AND it wipes the tenant's cache rows
+      // first, which is the safe behavior if the cache ever sits out of sync with
+      // an empty log (incremental assumes the cache already reflects `existing`).
+      // Half 1 (ordering): every accepted event must sort strictly after the
+      // canonical max of the existing log.
+      let fastPath = existing.length > 0 && isTailAppend(canonicalMax(existing), accepted);
+
+      // Half 2 (collision): a new ticket.create whose claimed number duplicates
+      // one already assigned to an existing ticket forces SCP-110 renumbering of
+      // existing rows — NOT a clean append. Resolve the existing number set once.
+      if (fastPath) {
+        const existingNumbers = new Set();
+        for (const a of resolveDisplayNumbers(existing).assignments.values()) {
+          existingNumbers.add(a.number);
+        }
+        for (const e of accepted) {
+          if (e.kind === 'ticket.create' && existingNumbers.has(e.payload.number)) {
+            fastPath = false;
+            break;
+          }
+        }
+      }
+
+      if (fastPath) {
+        ({ renumbered } = await applyIncrementalWithinTx(client, tenantId, all, accepted));
+      } else {
+        // Fall back to the full tenant-log replay within this same transaction so
+        // renumbered ids + their FK/relation rewrites cascade correctly.
+        ({ renumbered } = await replayWithinTx(client, tenantId, all));
+      }
     }
 
     const agg = await client.query(
-      'SELECT max(event_id) AS cursor, count(*)::int AS count FROM events WHERE tenant_id=$1',
+      'SELECT max(seq) AS cursor, count(*)::int AS count FROM events WHERE tenant_id=$1',
       [tenantId]
     );
     return {
       accepted,
       duplicates,
       renumbered,
-      cursor: agg.rows[0].cursor,
+      cursor: agg.rows[0].cursor != null ? String(agg.rows[0].cursor) : null,
       count: agg.rows[0].count,
     };
   });
@@ -86,22 +127,28 @@ export async function pullEvents(pool, tenantId, { since = null, limit = 1000 } 
   // SCP-189: reads run inside the tenant's RLS context too — the database
   // refuses cross-tenant rows even if the WHERE below ever regressed.
   return withTenant(pool, tenantId, async (client) => {
+    // Cursor is the server-assigned monotonic seq (SCP-226), NOT the event ULID:
+    // an event inserted later always has a higher seq than anything already
+    // returned, so a pull never skips a low-ULID event that arrived after the
+    // cursor passed it (the multi-writer convergence bug). A legacy/non-numeric
+    // cursor (an old ULID) falls back to a full pull, which self-heals it to seq.
+    const sinceSeq = since != null && /^\d+$/.test(String(since)) ? String(since) : null;
     const rows = (
       await client.query(
-        `SELECT body FROM events
-         WHERE tenant_id=$1 AND ($2::text IS NULL OR event_id > $2)
-         ORDER BY event_id ASC LIMIT $3`,
-        [tenantId, since, cap + 1] // fetch one extra to detect `more`
+        `SELECT seq, body FROM events
+         WHERE tenant_id=$1 AND ($2::bigint IS NULL OR seq > $2::bigint)
+         ORDER BY seq ASC LIMIT $3`,
+        [tenantId, sinceSeq, cap + 1] // fetch one extra to detect `more`
       )
-    ).rows.map((r) => r.body);
+    ).rows;
     const more = rows.length > cap;
     const page = more ? rows.slice(0, cap) : rows;
     const total = (
       await client.query('SELECT count(*)::int AS c FROM events WHERE tenant_id=$1', [tenantId])
     ).rows[0].c;
     return {
-      events: page,
-      cursor: page.length ? page[page.length - 1].id : since,
+      events: page.map((r) => r.body),
+      cursor: page.length ? String(page[page.length - 1].seq) : (sinceSeq ?? since),
       count: total,
       more,
     };
@@ -127,14 +174,14 @@ export async function snapshotState(pool, tenantId) {
   // client), and as a bonus the snapshot is now a consistent single-txn read.
   return withTenant(pool, tenantId, async (client) => {
     const q = (sql) => client.query(sql, [tenantId]).then((r) => r.rows);
-    const agg = await client.query('SELECT max(event_id) AS cursor, count(*)::int AS count FROM events WHERE tenant_id=$1', [tenantId]);
+    const agg = await client.query('SELECT max(seq) AS cursor, count(*)::int AS count FROM events WHERE tenant_id=$1', [tenantId]);
     const workspace = await q('SELECT key, name, description, overview, next_ticket_number FROM workspace WHERE tenant_id=$1');
     const tickets = await q('SELECT id, uid, number, type, title, description, status, priority, parent_id, branch, pr_url, assignee, labels, created_at, updated_at FROM tickets WHERE tenant_id=$1 ORDER BY number');
     const relations = await q('SELECT from_ticket_id, to_ticket_id, type, created_at FROM ticket_relations WHERE tenant_id=$1');
     const comments = await q('SELECT ticket_id, author, body, created_at FROM ticket_comments WHERE tenant_id=$1 ORDER BY id');
     const history = await q('SELECT ticket_id, field, old_value, new_value, changed_by, changed_at FROM ticket_history WHERE tenant_id=$1 ORDER BY id');
     return {
-      cursor: agg.rows[0].cursor,
+      cursor: agg.rows[0].cursor != null ? String(agg.rows[0].cursor) : null,
       count: agg.rows[0].count,
       state: { workspace: workspace[0] ?? null, tickets, relations, comments, history },
     };

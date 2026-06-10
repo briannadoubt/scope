@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQW2YYBCG3K73G9NZX8XFDS",
+  "ts": "2026-06-10T04:19:13.483Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQW2YYBCG3K73G9NZX8XFDR",
+    "number": 219,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Incremental replay: apply new events without re-replaying the whole log",
+    "description": "PREREQUISITE for a high-frequency realtime loop. Today every applied sync batch re-replays the entire log (local replayInto + PG replayWithinTx, full). Implement incremental apply: given the current cache + N new (ULID-ordered, tail-appended) events, apply just those. Detect the fast path (pure tail-append, src/pg/incremental.js isTailAppend/canonicalMax already exists) vs. the rare out-of-order insert that still needs a full replay. Both SQLite (replay.js) and PG (pg/replay.js) paths. This is SCP-143; without it the realtime loop's cost grows with board size.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KTQW2YYAFTMHYFCGNQAAT8T7",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

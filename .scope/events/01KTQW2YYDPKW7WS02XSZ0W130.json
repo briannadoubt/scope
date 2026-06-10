@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQW2YYDPKW7WS02XSZ0W130",
+  "ts": "2026-06-10T04:19:13.485Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQW2YYCQQ45KT2YP8CNXPB2",
+    "number": 224,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "E2E realtime tests: two clients converge live; offline/reconnect catch-up",
+    "description": "Against real Postgres: two RemoteSyncAgents on one hosted project - a write on client A appears on client B within ~1s with NO manual sync; kill B's connection, write on A, reconnect B => B catches up via the cursor; idempotence under concurrent writes from both; incremental-replay correctness vs. a full-replay oracle (identical boards). Plus a perf assertion that applying one new event does not re-read/replay the whole log.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTQW2YYAFTMHYFCGNQAAT8T7",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQW2YYDPKW7WS02XSZ0W132",
+  "ts": "2026-06-10T04:19:13.485Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQW2YYDPKW7WS02XSZ0W131",
+    "number": 225,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "(Stretch) Presence / awareness: who is online on a board",
+    "description": "Stretch nicety once the realtime channel exists: lightweight presence over the same SSE/bus (which accounts/agents are currently connected to a project), shown in the web UI. Not required for seamless sync; purely collaborative polish.",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KTQW2YYAFTMHYFCGNQAAT8T7",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

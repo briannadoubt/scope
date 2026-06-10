@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQQKBGZRRS28P7AWE4AEZ10",
+  "ts": "2026-06-10T03:00:47.775Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "commentId": "01KTQQKBGZRRS28P7AWE4AEZ0Z",
+    "author": "claude",
+    "body": "EPIC DONE. All 22 audit findings fixed and regression-tested. Full suite 322/322, 0 skipped, x3 consecutive runs vs real Postgres. Residual hardening noted for later (not vulnerabilities): CSP still allows unsafe-inline for the SPA; SCOPE_PG_APP_ROLE must be set in prod for RLS to bind; incremental replay (SCP-143) still pending."
+  }
+}

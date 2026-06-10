@@ -70,6 +70,8 @@ if (!skip) {
   for (const t of RLS_TABLES) {
     await pool.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${t} TO ${APP_ROLE}`);
   }
+  // events.seq is a bigserial (SCP-226): inserts call nextval() on its sequence.
+  await pool.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${APP_ROLE}`);
   appPool = new pg.Pool({ connectionString: appUrl(), max: 4 });
 }
 

@@ -16,6 +16,8 @@ import { compareEvents, formatActor } from './event-schema.js';
 import { resolveDisplayNumbers, nextNumberSeed } from './identity.js';
 import { readAllEvents, eventsDir, logHasInit } from './event-store.js';
 import { COLUMN_TO_FIELD, RELATION_INVERSE } from './enums.js';
+// SCP-219: tail-append decision helpers shared with the PG fast path.
+import { isTailAppend, canonicalMax } from './pg/incremental.js';
 
 /** Count event files in a .scope dir (cheap staleness signal; log is append-only). */
 export function countEventFiles(scopeDir) {
@@ -55,16 +57,15 @@ const FIELD_TO_COLUMN = Object.fromEntries(
 );
 
 /**
- * Rebuild the materialized tables of `db` from `events`. Wipes the ticket data
- * first, then applies every event in canonical order. The workspace singleton's
- * mutable fields are rebuilt from workspace.* events (last-writer-wins).
+ * Resolve the canonical display-number assignments + uid->humanId map for an
+ * ordered event set, applying the SCP-118 rekey override. Pure (no DB I/O); used
+ * by both the full replay and the SCP-219 incremental apply so the two compute
+ * identical projections.
  *
- * @param {Database} db - an open better-sqlite3 handle (schema already migrated)
- * @param {Array<object>} events - events (any order; sorted internally)
- * @returns {{ applied: number, renumbered: Array }}
+ * @param {Array<object>} ordered - events already sorted by compareEvents
+ * @returns {{ assignments: Map, renumbered: Array, human: Map<string,string>, rekeyTo: string|null }}
  */
-export function replayInto(db, events) {
-  const ordered = events.slice().sort(compareEvents);
+function resolveProjection(ordered) {
   const { assignments, renumbered } = resolveDisplayNumbers(ordered);
 
   // A workspace.rekey reprefixes ALL tickets to a new key (SCP-118). The last
@@ -84,6 +85,42 @@ export function replayInto(db, events) {
   const human = new Map();
   for (const [uid, a] of assignments) human.set(uid, a.humanId);
 
+  return { assignments, renumbered, human, rekeyTo };
+}
+
+/**
+ * Apply `ordered` events (already sorted) onto `db` using the precomputed
+ * projection. Shared loop body for the full replay and the SCP-219 incremental
+ * apply. Returns { applied, wsKey } where wsKey is the last workspace key seen
+ * in this batch (null if none) so the caller can advance the workspace row.
+ */
+function applyEventLoop(db, ordered, human, assignments) {
+  let wsKey = null;
+  let applied = 0;
+  for (const e of ordered) {
+    applied += applyEvent(db, e, human, assignments);
+    if (e.kind === 'workspace.init' || e.kind === 'workspace.set') {
+      if (typeof e.payload.key === 'string') wsKey = e.payload.key;
+    } else if (e.kind === 'workspace.rekey') {
+      wsKey = e.payload.to; // the workspace key follows the rekey
+    }
+  }
+  return { applied, wsKey };
+}
+
+/**
+ * Rebuild the materialized tables of `db` from `events`. Wipes the ticket data
+ * first, then applies every event in canonical order. The workspace singleton's
+ * mutable fields are rebuilt from workspace.* events (last-writer-wins).
+ *
+ * @param {Database} db - an open better-sqlite3 handle (schema already migrated)
+ * @param {Array<object>} events - events (any order; sorted internally)
+ * @returns {{ applied: number, renumbered: Array }}
+ */
+export function replayInto(db, events) {
+  const ordered = events.slice().sort(compareEvents);
+  const { assignments, renumbered, human } = resolveProjection(ordered);
+
   db.pragma('foreign_keys = OFF');
   const tx = db.transaction(() => {
     // Clear derived state. The workspace row (singleton) is updated in place.
@@ -94,16 +131,7 @@ export function replayInto(db, events) {
       DELETE FROM tickets;
     `);
 
-    let wsKey = null;
-    let applied = 0;
-    for (const e of ordered) {
-      applied += applyEvent(db, e, human, assignments);
-      if (e.kind === 'workspace.init' || e.kind === 'workspace.set') {
-        if (typeof e.payload.key === 'string') wsKey = e.payload.key;
-      } else if (e.kind === 'workspace.rekey') {
-        wsKey = e.payload.to; // the workspace key follows the rekey
-      }
-    }
+    const { applied, wsKey } = applyEventLoop(db, ordered, human, assignments);
 
     // Orphan cleanup mirrors the FK CASCADE the live path relies on: a delete
     // event removes the ticket, so its comments/relations must go too even if
@@ -135,6 +163,122 @@ export function replayInto(db, events) {
     throw new Error(`replay left FK violations: ${JSON.stringify(issues)}`);
   }
   return { applied, renumbered };
+}
+
+/**
+ * Incremental replay (SCP-219). Apply ONLY `newEvents` onto the existing cache
+ * when the batch is a pure tail-append, instead of wiping + re-applying the
+ * whole log. `allEvents` is the full post-batch log (new events included); the
+ * existing applied set is `allEvents \ newEvents`.
+ *
+ * The fast path is taken iff:
+ *   1. every new event sorts strictly after the canonical max of the existing
+ *      applied events (isTailAppend — the ordering half of the invariant), AND
+ *   2. no new `ticket.create` claims a display number already assigned to an
+ *      existing ticket (the collision half — a duplicate would force SCP-110
+ *      renumbering of existing rows, which is NOT a clean append).
+ * Otherwise we fall back to a FULL `replayInto(db, allEvents)` — the
+ * always-correct ground truth (a golden test pins incremental == full).
+ *
+ * Correctness note: because the batch is a tail-append with no collision,
+ * re-resolving display numbers over the FULL ordered set leaves every EXISTING
+ * ticket's number/humanId unchanged, so the rows already in the cache stay
+ * valid and the new events fold on with the correct uid->humanId mapping (which
+ * must cover existing tickets that new events reference). We compute the
+ * projection over the full set (pure, cheap) but only WRITE the new events.
+ *
+ * @param {Database} db - open better-sqlite3 handle (schema migrated)
+ * @param {Array<object>} allEvents - the full log after the batch (any order)
+ * @param {Array<object>} newEvents - the freshly-appended events (any order)
+ * @returns {{ applied: number, renumbered: Array, incremental: boolean }}
+ */
+export function applyEvents(db, allEvents, newEvents) {
+  if (!Array.isArray(newEvents) || newEvents.length === 0) {
+    // Nothing new to fold on; the cache already reflects allEvents.
+    return { applied: 0, renumbered: [], incremental: true };
+  }
+
+  // Derive the existing (already-applied) set = allEvents minus newEvents.
+  const newIds = new Set(newEvents.map((e) => e.id));
+  const existing = allEvents.filter((e) => !newIds.has(e.id));
+  const existingMax = canonicalMax(existing);
+
+  // SCP-219: incremental is an optimization over a POPULATED, consistent cache.
+  // From an empty existing log there is nothing to save (full replay of a tiny
+  // log is cheap) and, crucially, the incremental fold would assume the cache is
+  // already in sync with `existing` — but an empty log can sit beside a stale
+  // cache (e.g. a tenant whose events were cleared without wiping the cache), and
+  // folding onto stale rows is unsafe. So always full-replay the first push.
+  // Ordering half of the invariant (pure) is only consulted when there's a tail
+  // to append to.
+  let fastPath = existing.length > 0 && isTailAppend(existingMax, newEvents);
+
+  // Collision half: a new ticket.create whose resolved number duplicates a
+  // number already assigned to an existing ticket forces a renumber → NOT a
+  // clean append. Compare the canonical assignment of the existing set against
+  // the new creates' requested numbers.
+  if (fastPath) {
+    const existingNumbers = new Set();
+    for (const a of resolveDisplayNumbers(existing).assignments.values()) {
+      existingNumbers.add(a.number);
+    }
+    for (const e of newEvents) {
+      if (e.kind === 'ticket.create' && existingNumbers.has(e.payload.number)) {
+        fastPath = false; // collision → fall back to full replay
+        break;
+      }
+    }
+  }
+
+  if (!fastPath) {
+    // Fall back to the ground-truth full replay (SCP-219: when in doubt, full).
+    const { applied, renumbered } = replayInto(db, allEvents);
+    return { applied, renumbered, incremental: false };
+  }
+
+  // Fast path: fold only the new events onto the existing cache. The projection
+  // is computed over the FULL ordered set so existing tickets the new events
+  // reference resolve to their already-cached humanIds (unchanged by a clean
+  // tail-append), but only the new events are WRITTEN to the db.
+  const orderedAll = allEvents.slice().sort(compareEvents);
+  const { assignments, renumbered, human } = resolveProjection(orderedAll);
+  const orderedNew = newEvents.slice().sort(compareEvents);
+
+  db.pragma('foreign_keys = OFF');
+  const tx = db.transaction(() => {
+    const { applied, wsKey } = applyEventLoop(db, orderedNew, human, assignments);
+
+    // Orphan cleanup: a new ticket.delete must cascade to its comments/relations
+    // (mirrors the FK CASCADE), and any new relation/comment whose ticket was
+    // tombstoned earlier must be dropped — same invariant the full replay holds.
+    db.exec(`
+      DELETE FROM ticket_comments WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM ticket_relations
+        WHERE from_ticket_id NOT IN (SELECT id FROM tickets)
+           OR to_ticket_id   NOT IN (SELECT id FROM tickets);
+      DELETE FROM ticket_history WHERE ticket_id NOT IN (SELECT id FROM tickets);
+    `);
+
+    // Advance the allocator past every assigned number (resolved over the full
+    // set, so it never regresses below what the full replay would set).
+    db.prepare('UPDATE workspace SET next_ticket_number = ?, updated_at = ? WHERE id = 1').run(
+      nextNumberSeed(assignments),
+      nowIso()
+    );
+    if (wsKey) {
+      db.prepare('UPDATE workspace SET key = ? WHERE id = 1').run(wsKey);
+    }
+
+    return applied;
+  });
+  const applied = tx();
+  db.pragma('foreign_keys = ON');
+
+  const issues = db.prepare('PRAGMA foreign_key_check').all();
+  if (issues.length) {
+    throw new Error(`incremental replay left FK violations: ${JSON.stringify(issues)}`);
+  }
+  return { applied, renumbered, incremental: true };
 }
 
 function applyEvent(db, e, human, assignments) {

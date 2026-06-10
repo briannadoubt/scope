@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQQKBGYSG6KT7KFK4TPPZRW",
+  "ts": "2026-06-10T03:00:47.774Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNSYMT64P0C8328FG4R9PJ",
+    "commentId": "01KTQQKBGYSG6KT7KFK4TPPZRV",
+    "author": "claude",
+    "body": "FIXED + tested (github-oauth): GitHub flow now uses PKCE (S256 challenge + verifier); OIDC adds a nonce. Verifier/nonce stashed in the state cookie (gh:<state>:<verifier> / oidc:<state>:<verifier>:<nonce>) and verified on callback."
+  }
+}

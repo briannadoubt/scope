@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQQKBGYSG6KT7KFK4TPPZS2",
+  "ts": "2026-06-10T03:00:47.774Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQNSYVXZJ03REMMGA11PHCX",
+    "commentId": "01KTQQKBGYSG6KT7KFK4TPPZS1",
+    "author": "claude",
+    "body": "FIXED + tested (security-fixes): interim/LAN sync push rejects events whose actor contains the rendered ' on behalf of ' marker (ACTOR_RENDERED). Full per-board key-binding on the LAN path remains a by-design coarse-trust item (documented), but the impersonation-string smuggle is closed."
+  }
+}

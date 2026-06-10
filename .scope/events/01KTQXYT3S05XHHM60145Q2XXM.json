@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQXYT3S05XHHM60145Q2XXM",
+  "ts": "2026-06-10T04:51:54.617Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQXYT3S05XHHM60145Q2XXK",
+    "number": 226,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Multi-writer pull-cursor skip: hosted pull must order by a server-assigned sequence",
+    "description": "Found by the SCP-224 realtime e2e (concurrent two-writer convergence). pg/store.js pullEvents orders by event_id (ULID) and the client cursor is a ULID high-water mark. Under concurrent writers an event created earlier (lower ULID) can be pushed to the hub LATER - after a puller's cursor already passed that ULID - so pull-since-cursor skips it permanently and the replicas never converge. Pre-existing in the sync-cursor protocol (ADR 0002); invisible to single-writer manual sync, surfaced by realtime multi-writer. FIX: give events a server-assigned monotonic seq (bigserial) and make pullEvents order+filter by seq (cursor = max seq, opaque to the client) so an event inserted later always has a higher cursor regardless of its ULID. Disk/ULID union is unchanged; only the hosted pull ORDERING changes.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KTQW2YYAFTMHYFCGNQAAT8T7",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}
