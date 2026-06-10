@@ -1160,6 +1160,10 @@ function startEventStream() {
   const resumeOnConnect = () => {
     setIndicator(null);
     scheduleRefresh();
+    // This connection just registered us in the board's presence roster (SCP-225),
+    // and the initial board-load fetch ran before that — re-fetch now so the pill
+    // reflects our own (and anyone else's) connection without waiting for a tick.
+    refreshPresence();
   };
   eventSource.addEventListener('open', resumeOnConnect);
   eventSource.addEventListener('error', () => {
