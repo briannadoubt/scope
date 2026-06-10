@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYMSBQP8CWKBK2C691K4",
+  "ts": "2026-06-10T02:29:26.809Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYMSBQP8CWKBK2C691K3",
+    "number": 206,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[MEDIUM] Sync-push replay amplification: O(N) re-read + full replay, no batch cap",
+    "description": "Interim /api/sync/push (server.js:838-879) reads the whole log twice and full-replays on every accepted push; only bound is express 5mb. Inflate the log then single-event pushes => quadratic CPU/disk, pins the 512mb node for all tenants. FIX: per-push event-count cap, read log once, incremental replay.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

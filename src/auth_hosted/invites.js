@@ -18,7 +18,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import express from 'express';
 
 import { ROLES, ROLE_RANK } from './schema.js';
-import { setMembership, removeMembership, getRole, roleSatisfies } from './membership.js';
+import { setMembership, getRole, roleSatisfies, changeRoleGuarded, removeMemberGuarded } from './membership.js';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -64,14 +64,6 @@ function requireParamTenantRole(pool, minRole) {
   };
 }
 
-/** Count of owners on a tenant — the LAST_OWNER guard predicate. */
-async function ownerCount(pool, tenantId) {
-  const row = (await pool.query(
-    `SELECT count(*)::int AS c FROM memberships WHERE tenant_id=$1 AND role='owner'`, [tenantId]
-  )).rows[0];
-  return row ? row.c : 0;
-}
-
 /**
  * Member-management + invite endpoints (SCP-190). All routes require
  * `req.principal` (mount after the credential gate). Returns an express.Router.
@@ -113,14 +105,13 @@ export function membersRouter({ pool }) {
         return res.status(400).json({ error: `role must be one of ${ROLES.join('|')}`, code: 'INVALID_ROLE' });
       }
       const target = req.params.accountId;
-      const current = await getRole(pool, req.tenantId, target);
-      if (!current) return res.status(404).json({ error: 'no such member', code: 'NO_MEMBER' });
-      if (current === 'owner' && role !== 'owner' && (await ownerCount(pool, req.tenantId)) <= 1) {
-        return res.status(400).json({ error: 'cannot demote the last owner', code: 'LAST_OWNER' });
-      }
-      await setMembership(pool, { tenantId: req.tenantId, accountId: target, role });
+      // Atomic owner-guard (SCP-210): serialize concurrent demotions so a board
+      // can't be left with zero owners.
+      await changeRoleGuarded(pool, { tenantId: req.tenantId, accountId: target, role });
       res.json({ account_id: target, role });
     } catch (e) {
+      if (e.code === 'LAST_OWNER') return res.status(400).json({ error: 'cannot demote the last owner', code: 'LAST_OWNER' });
+      if (e.code === 'NO_MEMBER') return res.status(404).json({ error: 'no such member', code: 'NO_MEMBER' });
       res.status(500).json({ error: e.message });
     }
   });
@@ -134,13 +125,12 @@ export function membersRouter({ pool }) {
       if (!self && req.tenantRole !== 'owner') {
         return res.status(403).json({ error: 'insufficient role', code: 'FORBIDDEN_ROLE' });
       }
-      const current = await getRole(pool, req.tenantId, target);
-      if (current === 'owner' && (await ownerCount(pool, req.tenantId)) <= 1) {
-        return res.status(400).json({ error: 'cannot remove the last owner', code: 'LAST_OWNER' });
-      }
-      await removeMembership(pool, { tenantId: req.tenantId, accountId: target }); // idempotent
+      // Atomic owner-guard (SCP-210): last owner can never be removed, even
+      // under a concurrent self-leave + demote race.
+      await removeMemberGuarded(pool, { tenantId: req.tenantId, accountId: target }); // idempotent
       res.json({ ok: true });
     } catch (e) {
+      if (e.code === 'LAST_OWNER') return res.status(400).json({ error: 'cannot remove the last owner', code: 'LAST_OWNER' });
       res.status(500).json({ error: e.message });
     }
   });

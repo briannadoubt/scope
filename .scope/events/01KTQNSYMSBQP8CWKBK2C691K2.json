@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYMSBQP8CWKBK2C691K2",
+  "ts": "2026-06-10T02:29:26.809Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYMR2PVD1JNTSG14000G",
+    "number": 205,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[MEDIUM] Cloud-interim path has no rate limiting or connection ceiling",
+    "description": "rateLimitMiddleware + SSE tracker are mounted only inside `if (hostedAuth)` (server.js:241). fly.toml ships SCOPE_CLOUD=1 and documents a Milestone-A state (no SCOPE_PG_URL) = cloud + shared token with NO rate limiting on any path, internet-facing. FIX: gate the limiter/connection cap on `cloud`, keyed on token-hash/IP in interim mode.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

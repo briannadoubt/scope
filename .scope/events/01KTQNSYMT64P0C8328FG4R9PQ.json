@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYMT64P0C8328FG4R9PQ",
+  "ts": "2026-06-10T02:29:26.810Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYMT64P0C8328FG4R9PP",
+    "number": 210,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[MEDIUM] LAST_OWNER guard TOCTOU race can orphan a board",
+    "description": "invites.js member role-change/remove read ownerCount then mutate non-transactionally. Two concurrent owner-demotions/removals both see count>1 and proceed => 0 owners, board permanently unmanageable. (Invite accept is correctly atomic.) FIX: SELECT ... FOR UPDATE / serializable txn around the guard+write.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

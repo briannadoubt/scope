@@ -96,7 +96,7 @@ test('hostedAuthEnabled gate: off unless cloud + Postgres + JWT secret', () => {
     process.env.SCOPE_PG_URL = 'postgres://x';
     assert.equal(hostedAuthEnabled(true), false, 'PG without a JWT secret is not enough');
 
-    process.env.SCOPE_JWT_SECRET = 'y'.repeat(32);
+    process.env.SCOPE_JWT_SECRET = 'scope-test-jwt-secret-9f3a7c1e2b8d4506';
     assert.equal(hostedAuthEnabled(true), true, 'cloud + PG + JWT secret => enabled');
     assert.equal(hostedAuthEnabled(false), false, 'still off locally even with config present');
   } finally {

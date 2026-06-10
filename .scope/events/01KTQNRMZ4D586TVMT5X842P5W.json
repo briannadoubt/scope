@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNRMZ4D586TVMT5X842P5W",
+  "ts": "2026-06-10T02:28:44.132Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "number": 195,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Security audit: harden multi-tenant hosted Scope",
+    "description": "Findings from an adversarial security audit (5 parallel reviewers + manual verification) of the SCP-167/185 hosted multi-tenant auth + collaboration work. Each child is a verified, code-traced issue. Severity in the title; critical/high are exploitable by an authenticated tenant member (or unauthenticated, for some) and break tenant isolation, allow stored XSS, arbitrary file write, account takeover, or DoS.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

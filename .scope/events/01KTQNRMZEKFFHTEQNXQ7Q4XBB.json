@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNRMZEKFFHTEQNXQ7Q4XBB",
+  "ts": "2026-06-10T02:28:44.142Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNRMZDAXZ3HJ5K3VCJQFXT",
+    "number": 203,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[HIGH] Account takeover via unverified-email collision in upsertAccount",
+    "description": "OAuth callback (cloud-auth.js:252) only checks !identity.email; emailVerified (computed in github.js/oidc.js) is never enforced. upsertAccount (membership.js:45) links logins to an existing account by lower(email) when no (provider,provider_sub) match. A login presenting an UNVERIFIED email equal to a victim's account email merges into the victim account (cross-provider too) -> full takeover. GitHub path also falls back to unverified user.email. FIX: require identity.emailVerified===true; do not auto-link distinct provider identities by unverified email; for GitHub use only primary+verified emails.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNRMZCSSJX9V83D5KJ4JZQ",
+  "ts": "2026-06-10T02:28:44.140Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNRMZBW95M62ABM7JS17ZZ",
+    "number": 199,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[HIGH] Cross-account API-key revoke (IDOR)",
+    "description": "DELETE /auth/keys/:id (src/auth_hosted/cloud-auth.js:336) calls revokeApiKey(pool, req.params.id) with no ownership check; revokeApiKey (apikeys.js:115) UPDATEs WHERE id=$1 only. Key ids are the public half of every sk_ key. Any authenticated account revokes any other account's keys -> cross-tenant credential DoS. FIX: scope to WHERE id=$1 AND account_id=$2 (req.principal.accountId); 404 on rowCount 0.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

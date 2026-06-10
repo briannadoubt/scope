@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNRMZBW95M62ABM7JS17ZW",
+  "ts": "2026-06-10T02:28:44.139Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNRMZBW95M62ABM7JS17ZV",
+    "number": 197,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[CRITICAL] Stored XSS in ticket drawer (branch/pr_url/assignee/labels/parent_id)",
+    "description": "renderDrawer (src/web/app.js:2224-2242) interpolates these user fields into value=\"...\" via innerHTML WITHOUT escapeHtml (title/description are escaped; these are the outliers). A member sets branch='\"><img src=x onerror=...>' via UI/CLI/sync; anyone opening that ticket's drawer runs script -> session/token theft across the board. FIX: escapeHtml each interpolation (match renderCard/searchRow which already escape).",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

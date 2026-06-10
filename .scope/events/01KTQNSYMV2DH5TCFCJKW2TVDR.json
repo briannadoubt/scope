@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYMV2DH5TCFCJKW2TVDR",
+  "ts": "2026-06-10T02:29:26.811Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYMV2DH5TCFCJKW2TVDQ",
+    "number": 211,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[MEDIUM] Missing web-hardening headers (CSP, X-Frame-Options, nosniff, HSTS, Referrer-Policy)",
+    "description": "No security headers set anywhere (verified). Authenticated app served same-origin as marketing site; no frame-ancestors/X-Frame-Options => clickjacking; no CSP/nosniff weakens XSS containment. FIX: add helmet-equivalent headers on the cloud path (CSP tuned for the SPA + mermaid).",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

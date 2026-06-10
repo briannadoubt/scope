@@ -17,7 +17,7 @@ import { membersRouter } from '../src/auth_hosted/invites.js';
  */
 process.env.SCOPE_PG_URL =
   process.env.SCOPE_PG_URL || 'postgres://scope:scope@localhost:5433/scope_test';
-process.env.SCOPE_JWT_SECRET = process.env.SCOPE_JWT_SECRET || 'inv-test-jwt-secret-0123456789';
+process.env.SCOPE_JWT_SECRET = process.env.SCOPE_JWT_SECRET || 'scope-test-jwt-secret-9f3a7c1e2b8d4506';
 
 let available = false;
 try {

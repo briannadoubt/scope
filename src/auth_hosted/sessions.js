@@ -33,10 +33,27 @@ function fromB64url(str) {
 
 function jwtSecret() {
   const s = process.env.SCOPE_JWT_SECRET;
-  if (!s || s.length < 16) {
-    throw new Error('SCOPE_JWT_SECRET must be set (>=16 chars) to mint/verify access tokens');
+  if (!isStrongSecret(s)) {
+    throw new Error(
+      'SCOPE_JWT_SECRET must be a high-entropy value (>=32 chars, not a repeated/degenerate string). ' +
+      'Generate one with: openssl rand -base64 48'
+    );
   }
   return s;
+}
+
+/**
+ * A usable HS256 secret: >=32 chars and not a degenerate low-entropy string
+ * (SCP-212). HMAC-SHA256 security rests entirely on the secret being
+ * unguessable; a length-only gate let "aaaa…"/dictionary secrets through, which
+ * are offline-brute-forceable from any captured JWT -> forge arbitrary sessions.
+ * This is a coarse heuristic (true entropy can't be measured from a string),
+ * but it blocks the obvious footguns; real deployments must use a random secret.
+ */
+export function isStrongSecret(s) {
+  if (typeof s !== 'string' || s.length < 32) return false;
+  if (new Set(s).size < 8) return false; // "aaaa…", "ababab…", etc.
+  return true;
 }
 
 function sign(signingInput, secret) {

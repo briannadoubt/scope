@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYMT64P0C8328FG4R9PN",
+  "ts": "2026-06-10T02:29:26.810Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYMT64P0C8328FG4R9PM",
+    "number": 209,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[MEDIUM] Internal/Postgres error messages echoed to clients",
+    "description": "~31 sites do catch(e){res.status(500).json({error:e.message})}; PG errors leak column/constraint/type detail (schema recon for a multi-tenant target). Logger itself is clean. FIX: generic {error:'internal error', reqId} for 500s; log the real error server-side; keep specific 400 validation messages.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

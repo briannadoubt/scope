@@ -27,6 +27,7 @@ import { ensureAuthSchema } from './schema.js';
 import {
   mintAccessToken, verifyAccessToken,
   issueRefreshToken, storeRefreshToken, rotateRefreshToken, revokeRefreshToken,
+  isStrongSecret,
 } from './sessions.js';
 import { authenticateApiKey, createApiKey, listApiKeys, revokeApiKey } from './apikeys.js';
 import { upsertAccount, listMemberships } from './membership.js';
@@ -41,8 +42,7 @@ const STATE_COOKIE = 'scope_oauth_state';
 /* ------------------------------- enable gate ------------------------------ */
 
 function jwtSecretSet() {
-  const s = process.env.SCOPE_JWT_SECRET;
-  return typeof s === 'string' && s.length >= 16;
+  return isStrongSecret(process.env.SCOPE_JWT_SECRET); // >=32 chars, non-degenerate (SCP-212)
 }
 
 /**
@@ -58,6 +58,37 @@ export function hostedAuthEnabled(cloud) {
 /** True when an interactive login provider is configured. */
 export function loginProviderConfigured() {
   return githubConfigured() || oidcConfigured();
+}
+
+/* --------------------------------- CSRF ----------------------------------- */
+
+/**
+ * CSRF guard for cookie-authenticated state changes (SCP-204). The session
+ * lives in a cookie, so a cross-site page could drive POST/PATCH/DELETE with the
+ * victim's ambient cookie. Defenses:
+ *   - safe methods (GET/HEAD/OPTIONS) pass.
+ *   - requests bearing Authorization/X-Api-Key pass — token creds aren't ambient,
+ *     so they're not CSRF-able (the CLI/agent path).
+ *   - otherwise require a same-site signal: Sec-Fetch-Site in {same-origin,
+ *     same-site,none} (none = user-initiated top-level), or an Origin whose host
+ *     matches the request host. Cross-site cookie-driven mutations are 403'd.
+ * Mounted before the login routes so /auth/refresh and /auth/logout are covered.
+ */
+export function csrfGuard() {
+  return (req, res, next) => {
+    const m = req.method;
+    if (m === 'GET' || m === 'HEAD' || m === 'OPTIONS') return next();
+    if (req.headers.authorization || req.headers['x-api-key']) return next();
+    const sfs = req.headers['sec-fetch-site'];
+    if (sfs) {
+      if (sfs === 'same-origin' || sfs === 'same-site' || sfs === 'none') return next();
+      return res.status(403).json({ error: 'cross-site request blocked', code: 'CSRF' });
+    }
+    const origin = req.headers.origin;
+    if (!origin) return next(); // no Origin (e.g. same-origin client that omits it) — allow
+    try { if (new URL(origin).host === req.headers.host) return next(); } catch { /* malformed */ }
+    return res.status(403).json({ error: 'cross-site request blocked', code: 'CSRF' });
+  };
 }
 
 /* ------------------------------ cookie helpers ---------------------------- */
@@ -250,6 +281,13 @@ export function publicAuthRouter({ pool, appPath = '/app' }) {
       }
 
       if (!identity.email) return res.status(400).json({ error: 'provider did not return an email' });
+      // Require a VERIFIED email (SCP-203): upsertAccount links by lower(email)
+      // when there's no (provider,provider_sub) match, so accepting an unverified
+      // email lets an attacker take over a victim's account by presenting their
+      // address. `null`/`false` => unverified.
+      if (identity.emailVerified !== true) {
+        return res.status(403).json({ error: 'your provider email is not verified; verify it and retry' });
+      }
       const accountId = await upsertAccount(pool, identity);
 
       // First login with no project: provision a real, served project BOARD
@@ -334,7 +372,10 @@ export function apiKeyRouter({ pool }) {
   });
 
   r.delete('/auth/keys/:id', async (req, res) => {
-    await revokeApiKey(pool, req.params.id);
+    // Scope to the caller's account so one account can't revoke another's keys
+    // by id (SCP-199). 404 (not 200) when the id isn't the caller's.
+    const ok = await revokeApiKey(pool, req.params.id, { accountId: req.principal.accountId });
+    if (!ok) return res.status(404).json({ error: 'no such key' });
     res.json({ ok: true });
   });
 

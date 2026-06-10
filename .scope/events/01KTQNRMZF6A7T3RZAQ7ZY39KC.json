@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNRMZF6A7T3RZAQ7ZY39KC",
+  "ts": "2026-06-10T02:28:44.143Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNRMZEKFFHTEQNXQ7Q4XBC",
+    "number": 204,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[HIGH] No CSRF protection on cookie-authenticated mutations",
+    "description": "Session is a cookie (scope_session, SameSite=Lax); hostedAuthMiddleware authenticates from it with no CSRF token / Origin / Sec-Fetch-Site check on any state-changing route. /auth/logout and /auth/refresh (mounted before the gate, cookie-only POSTs) are simple-request forgeable from a cross-site auto-submit form (forced logout / refresh-rotation). FIX: require Origin/Sec-Fetch-Site match (or a CSRF token) on cookie-authenticated POST/PATCH/DELETE incl. logout/refresh; consider SameSite=Strict for the session cookie.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

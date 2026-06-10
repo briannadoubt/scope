@@ -17,11 +17,16 @@ import {
   renameSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, basename, resolve, sep } from 'node:path';
 
 import { validateEvent, compareEvents } from './event-schema.js';
 
 export const EVENTS_DIR_NAME = 'events';
+
+/** Reject an event id that can't be safely used as a filename (SCP-196). */
+function fail_path(id) {
+  throw new Error(`unsafe event id ${JSON.stringify(id)} (must be a bare ULID filename)`);
+}
 
 /** Absolute path to the events dir for a given .scope directory. */
 export function eventsDir(scopeDir) {
@@ -47,9 +52,16 @@ export function eventsDirForDb(db) {
  */
 export function appendEvent(dir, event) {
   validateEvent(event);
+  // Defense-in-depth (SCP-196): validateEvent already constrains id to a ULID,
+  // but the id becomes a filename here, so refuse anything that isn't a bare
+  // path segment and assert the resolved path stays inside `dir` — a belt to
+  // the ULID-validation suspenders so a future validator gap can't traverse.
+  if (basename(event.id) !== event.id) fail_path(event.id);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const finalPath = join(dir, `${event.id}.json`);
   const tmpPath = join(dir, `.${event.id}.json.tmp`);
+  const root = resolve(dir) + sep;
+  if (!resolve(finalPath).startsWith(root) || !resolve(tmpPath).startsWith(root)) fail_path(event.id);
   writeFileSync(tmpPath, JSON.stringify(event, null, 2));
   renameSync(tmpPath, finalPath);
   return event;

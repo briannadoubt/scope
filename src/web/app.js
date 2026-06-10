@@ -2101,7 +2101,9 @@ function renderCard(t) {
   if (t.pr_url) {
     const p = document.createElement('a');
     p.className = 'chip pr';
-    p.href = t.pr_url;
+    // Only follow http(s) PR links — a pr_url of javascript:… would execute on
+    // click otherwise (SCP-217). Non-http schemes render inert.
+    p.href = /^https?:\/\//i.test(t.pr_url) ? t.pr_url : '#';
     p.target = '_blank';
     p.rel = 'noreferrer';
     p.textContent = '⇄ PR';
@@ -2221,25 +2223,25 @@ function renderDrawer(t) {
         ? `<div class="row">
             <span class="label">Epic</span>
             <input type="text" data-field="parent_id" placeholder="EPIC-1 (or empty)"
-                   value="${t.parent_id ?? ''}" />
+                   value="${escapeHtml(t.parent_id ?? '')}" />
           </div>`
         : ''
     }
     <div class="row">
       <span class="label">Branch</span>
-      <input type="text" data-field="branch" value="${t.branch ?? ''}" placeholder="feat/foo" />
+      <input type="text" data-field="branch" value="${escapeHtml(t.branch ?? '')}" placeholder="feat/foo" />
     </div>
     <div class="row">
       <span class="label">PR URL</span>
-      <input type="url" data-field="pr_url" value="${t.pr_url ?? ''}" placeholder="https://github.com/..." />
+      <input type="url" data-field="pr_url" value="${escapeHtml(t.pr_url ?? '')}" placeholder="https://github.com/..." />
     </div>
     <div class="row">
       <span class="label">Assignee</span>
-      <input type="text" data-field="assignee" value="${t.assignee ?? ''}" placeholder="handle" />
+      <input type="text" data-field="assignee" value="${escapeHtml(t.assignee ?? '')}" placeholder="handle" />
     </div>
     <div class="row">
       <span class="label">Labels</span>
-      <input type="text" data-field="labels" value="${(t.labels || []).join(', ')}" placeholder="frontend, infra" />
+      <input type="text" data-field="labels" value="${escapeHtml((t.labels || []).join(', '))}" placeholder="frontend, infra" />
     </div>
     ${epicProgress}
 
@@ -2779,7 +2781,7 @@ async function renderOverview() {
   root.style.display = 'block';
   root.innerHTML = `
     <div class="overview">
-      <div><span class="key">${p.key}</span></div>
+      <div><span class="key">${escapeHtml(p.key)}</span></div>
       <h1>${escapeHtml(p.name)}</h1>
       ${p.description ? `<div class="description">${escapeHtml(p.description)}</div>` : ''}
       ${

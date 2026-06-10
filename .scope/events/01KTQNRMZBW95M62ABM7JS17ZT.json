@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNRMZBW95M62ABM7JS17ZT",
+  "ts": "2026-06-10T02:28:44.139Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNRMZ9YWAHZW5A42P57925",
+    "number": 196,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[CRITICAL] Path traversal / arbitrary file write via unvalidated event id",
+    "description": "validateEvent (src/event-schema.js:108) accepts any non-empty string as evt.id; appendEvent (src/event-store.js:51) writes join(dir, `${event.id}.json`) using it raw. A tenant member POSTs /api/sync/push with id='../../../../tmp/pwn' (or '../<other-tenant>/.scope/events/<ulid>'); it passes validation + actor authz, lands in PG, then every replica refresh calls appendEvent on the hub FS -> writes outside the events dir => cross-tenant event injection + arbitrary .json write. Also hits the LAN push path. FIX: validate evt.id as a strict ULID (/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/) in validateEvent; defense-in-depth basename/.. guard + resolve-within-dir assert in appendEvent.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNRMZCSSJX9V83D5KJ4JZS",
+  "ts": "2026-06-10T02:28:44.140Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNRMZCSSJX9V83D5KJ4JZR",
+    "number": 200,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[HIGH] Cross-tenant alias disclosure (role checked on selector, data from param)",
+    "description": "GET /api/projects/:tenantId/aliases (src/server.js:339) gates with requireTenantRole (resolves tenant from X-Scope-Project/?project selector) but reads listAliases(req.params.tenantId). tenant_aliases has no RLS. A viewer on their own board reads any other board's alias->account_id map (membership + internal-id disclosure; feeds the impersonation bug). FIX: authorize on req.params.tenantId (getRole) like the POST/DELETE alias routes do.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -48,7 +48,7 @@ import { WorkspaceManager } from './workspaces.js';
 import { loadOrCreateToken, authMiddleware, lanHosts } from './auth.js';
 import {
   hostedAuthEnabled, hostedAuthMiddleware, publicAuthRouter, apiKeyRouter,
-  ensureHostedAuthReady, loginProviderConfigured,
+  ensureHostedAuthReady, loginProviderConfigured, csrfGuard,
 } from './auth_hosted/cloud-auth.js';
 import { authorizeUploadActors, statusForReject } from './auth_hosted/authz.js';
 import { requireTenantRole } from './auth_hosted/tenancy.js';
@@ -223,6 +223,24 @@ export async function startServer({
   //                       before Postgres/OAuth are provisioned).
   //   cloud + hostedAuth: per-user identity (session JWT or API key).
   if (cloud) {
+    // Web-hardening headers on the cloud path (SCP-211): clickjacking + sniffing
+    // + transport + referrer. CSP allows the SPA's own assets + inline styles
+    // and the mermaid worker; tighten further as the app's inline usage shrinks.
+    app.use((req, res, next) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+      res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; " +
+        "script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      );
+      next();
+    });
+    // CSRF guard for cookie-authenticated mutations (SCP-204) — before the login
+    // routes so /auth/refresh + /auth/logout are covered too.
+    app.use(csrfGuard());
     // Public marketing/docs site (cloud-only). Dynamically imported so the
     // local path never even loads it. Mounted BEFORE the gate so / /features
     // /docs are reachable unauthenticated; it owns no catch-all, so the app
@@ -336,10 +354,14 @@ export async function startServer({
     // Actor aliases (SCP-184): map local event-actor names onto hosted accounts
     // so sync authz accepts a member's own local history. Claim is first-come
     // per project for yourself; the owner can force-reassign or remove any.
-    tApi.get('/api/projects/:tenantId/aliases', requireTenantRole(pool, 'viewer'), async (req, res) => {
-      // Selector comes from the route param here, not the header/claim.
-      try { res.json(await listAliases(pool, req.params.tenantId)); }
-      catch (e) { res.status(500).json({ error: e.message }); }
+    tApi.get('/api/projects/:tenantId/aliases', async (req, res) => {
+      // Authorize on the ROUTE PARAM, not the header/claim selector — otherwise
+      // a viewer on board X could read board Y's alias->account map (SCP-200).
+      try {
+        const role = await getRole(pool, req.params.tenantId, req.principal.accountId);
+        if (!role) return res.status(404).json({ error: 'no such project', code: 'NO_PROJECT' });
+        res.json(await listAliases(pool, req.params.tenantId));
+      } catch (e) { res.status(500).json({ error: e.message }); }
     });
     tApi.post('/api/projects/:tenantId/aliases', async (req, res) => {
       try {
@@ -479,8 +501,11 @@ export async function startServer({
     // into the local change bus, so writes accepted by OTHER nodes reach this
     // node's viewers (SCP-165 / SCP-146).
     app.use('/events', (req, res, next) => requireTenantRole(pool, 'viewer')(req, res, async () => {
+      // acquire() ALWAYS returns an object ({allowed:false,…} on denial) — check
+      // .allowed, not truthiness, or the ceiling is dead code (SCP-202).
       const lease = sseTracker.acquire(req.tenantId);
-      if (!lease) {
+      if (!lease.allowed) {
+        if (lease.retryAfterMs) res.setHeader('Retry-After', Math.ceil(lease.retryAfterMs / 1000));
         return res.status(429).json({ error: 'too many live connections for this project', code: 'QUOTA_CONNECTIONS' });
       }
       let off = null;

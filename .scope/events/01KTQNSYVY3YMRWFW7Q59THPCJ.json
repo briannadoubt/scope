@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYVY3YMRWFW7Q59THPCJ",
+  "ts": "2026-06-10T02:29:27.038Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYVY3YMRWFW7Q59THPCH",
+    "number": 214,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[LOW] Rate-limit tenant key spoofable before tenant resolution",
+    "description": "rateLimitMiddleware (server.js:265) runs before any gate; getTenant uses req.query.project/workspace (unauthenticated selector) since req.tenantId is unset. Attacker sends authed requests with ?project=<victim> to fill the victim tenant's window => cross-tenant throttling. FIX: key the per-tenant limiter only after requireTenantRole sets req.tenantId, else fall back to acct:<id>.",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

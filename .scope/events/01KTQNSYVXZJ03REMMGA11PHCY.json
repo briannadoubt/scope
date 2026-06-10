@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYVXZJ03REMMGA11PHCY",
+  "ts": "2026-06-10T02:29:27.037Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYVXZJ03REMMGA11PHCX",
+    "number": 213,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[LOW] LAN sync push: no actor authz, no workspace-key binding",
+    "description": "Local /api/sync/push (server.js:838) runs authorizeUploadActors only if hostedAuth; LAN path accepts any actor + writes to any workspace id with no key match. Any paired peer / shared-token holder forges attributed history into any board. Partly by design (trusted LAN set, ADR 0003 5) but coarse; widens the path-traversal blast radius. FIX: lightweight actor sanity + workspace-key binding even on LAN.",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

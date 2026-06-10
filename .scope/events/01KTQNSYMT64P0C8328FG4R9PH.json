@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYMT64P0C8328FG4R9PH",
+  "ts": "2026-06-10T02:29:26.810Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYMT64P0C8328FG4R9PG",
+    "number": 207,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[MEDIUM] OIDC id_token decoded but never cryptographically verified",
+    "description": "oidc.js:168 derives identity from decodeIdToken with no JWKS signature check, no iss/aud/exp/nonce. Identity (sub/email) trusted from an unverified token. (GitHub is the configured provider, so reachability is lower today, but the OIDC path is live code.) FIX: verify signature via discovery JWKS + assert iss/aud/exp/nonce.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

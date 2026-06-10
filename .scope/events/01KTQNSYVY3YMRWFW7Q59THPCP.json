@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYVY3YMRWFW7Q59THPCP",
+  "ts": "2026-06-10T02:29:27.038Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYVY3YMRWFW7Q59THPCN",
+    "number": 216,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[LOW] OIDC discovery SSRF if issuer ever becomes non-static",
+    "description": "discover() fetches ${SCOPE_OIDC_ISSUER}/.well-known/... with no host validation; today issuer is operator-env only (not attacker-influenceable) so reachability is low. FIX (defense-in-depth for future per-tenant SSO): allowlist + block link-local/RFC1918/loopback before fetching.",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

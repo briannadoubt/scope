@@ -93,6 +93,12 @@ function fail(msg) {
 
 const isStr = (v) => typeof v === 'string';
 const isNonEmptyStr = (v) => typeof v === 'string' && v.length > 0;
+// A canonical ULID: 26 Crockford-base32 chars (see src/ulid.js CROCKFORD).
+// Enforced on evt.id because the id is used verbatim as an on-disk filename
+// (src/event-store.js appendEvent) — an unvalidated id is a path-traversal /
+// arbitrary-file-write vector once tenant-supplied events reach the hub FS
+// (SCP-196). Keep in sync with the ULID alphabet.
+const isUlid = (v) => typeof v === 'string' && /^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}$/.test(v);
 const isNullableStr = (v) => v === null || typeof v === 'string';
 // Same shape updateWorkspace enforces for a workspace key.
 const isKeyPrefix = (v) => typeof v === 'string' && /^[A-Z][A-Z0-9]{1,9}$/.test(v);
@@ -105,7 +111,7 @@ export function validateEvent(evt) {
   if (!evt || typeof evt !== 'object') fail('not an object');
   if (evt.v !== EVENT_FORMAT_VERSION)
     fail(`unsupported version ${JSON.stringify(evt.v)} (expected ${EVENT_FORMAT_VERSION})`);
-  if (!isNonEmptyStr(evt.id)) fail('missing id');
+  if (!isUlid(evt.id)) fail('id must be a canonical 26-char ULID');
   if (!isNonEmptyStr(evt.ts) || Number.isNaN(Date.parse(evt.ts)))
     fail(`bad ts ${JSON.stringify(evt.ts)}`);
   if (!isNonEmptyStr(evt.actor)) fail('missing actor (every event must record who)');
@@ -127,7 +133,10 @@ function oneOf(label, value, allowed) {
 function validatePayload(kind, p) {
   switch (kind) {
     case 'workspace.init':
-      if (!isNonEmptyStr(p.key)) fail('workspace.init.key required');
+      // key must match the documented 2-10 uppercase-alnum contract (SCP-198):
+      // it's rendered into HTML and used as a display prefix; an unvalidated key
+      // is a stored-XSS vector via the sync-push event path.
+      if (!isKeyPrefix(p.key)) fail('workspace.init.key must be 2-10 uppercase alnum');
       if (!isNonEmptyStr(p.name)) fail('workspace.init.name required');
       break;
 
@@ -136,6 +145,7 @@ function validatePayload(kind, p) {
       const present = keys.filter((k) => k in p);
       if (!present.length) fail('workspace.set needs at least one field');
       for (const k of present) if (!isStr(p[k])) fail(`workspace.set.${k} must be a string`);
+      if ('key' in p && !isKeyPrefix(p.key)) fail('workspace.set.key must be 2-10 uppercase alnum');
       break;
     }
 

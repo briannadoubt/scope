@@ -26,7 +26,7 @@ function run(mw, { headers = {} } = {}) {
 
 test('JWT session: a valid access token sets req.principal', async () => {
   const prev = process.env.SCOPE_JWT_SECRET;
-  process.env.SCOPE_JWT_SECRET = 's'.repeat(32);
+  process.env.SCOPE_JWT_SECRET = 'scope-test-jwt-secret-9f3a7c1e2b8d4506';
   try {
     const jwt = mintAccessToken({ sub: 'acct_1', tenant_id: 'tnt_1', role: 'owner' });
     const out = await run(hostedAuthMiddleware({ pool: null }), {
@@ -50,7 +50,7 @@ test('no credential => 401', async () => {
 
 test('a garbage bearer token => 401', async () => {
   const prev = process.env.SCOPE_JWT_SECRET;
-  process.env.SCOPE_JWT_SECRET = 's'.repeat(32);
+  process.env.SCOPE_JWT_SECRET = 'scope-test-jwt-secret-9f3a7c1e2b8d4506';
   try {
     const out = await run(hostedAuthMiddleware({ pool: null }), {
       headers: { authorization: 'Bearer not.a.jwt' },

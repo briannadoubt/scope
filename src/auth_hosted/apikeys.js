@@ -111,12 +111,20 @@ export async function authenticateApiKey(pool, presented) {
   return { accountId: row.account_id, keyId: row.id, tenantId: row.tenant_id ?? null };
 }
 
-/** Revoke a key by id (idempotent). */
-export async function revokeApiKey(pool, id, { now } = {}) {
-  await pool.query(
-    `UPDATE api_keys SET revoked_at=$2 WHERE id=$1 AND revoked_at IS NULL`,
-    [id, new Date(Number.isFinite(now) ? now : Date.now()).toISOString()]
-  );
+/**
+ * Revoke a key by id (idempotent). When `accountId` is given the revoke is
+ * scoped to that owner — required for the HTTP route so one account can't
+ * revoke another account's keys by id (SCP-199). Returns true iff a row was
+ * revoked (lets the caller 404 on a foreign/unknown id).
+ */
+export async function revokeApiKey(pool, id, { accountId = null, now } = {}) {
+  const ts = new Date(Number.isFinite(now) ? now : Date.now()).toISOString();
+  const sql = accountId
+    ? `UPDATE api_keys SET revoked_at=$2 WHERE id=$1 AND account_id=$3 AND revoked_at IS NULL`
+    : `UPDATE api_keys SET revoked_at=$2 WHERE id=$1 AND revoked_at IS NULL`;
+  const params = accountId ? [id, ts, accountId] : [id, ts];
+  const r = await pool.query(sql, params);
+  return r.rowCount > 0;
 }
 
 /** List an account's keys (never returns hashes). */

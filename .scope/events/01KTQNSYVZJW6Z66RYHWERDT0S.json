@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYVZJW6Z66RYHWERDT0S",
+  "ts": "2026-06-10T02:29:27.039Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYVY3YMRWFW7Q59THPCQ",
+    "number": 217,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[LOW] pr_url javascript: scheme executes on card click",
+    "description": "renderCard sets the PR chip href to t.pr_url with no scheme allowlist; a pr_url of javascript:... runs on click. FIX: allowlist http(s): before assigning href (markdown renderer already does this).",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

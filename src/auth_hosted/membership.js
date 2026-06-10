@@ -112,6 +112,59 @@ export async function removeMembership(pool, { tenantId, accountId } = {}) {
   await pool.query('DELETE FROM memberships WHERE tenant_id=$1 AND account_id=$2', [tenantId, accountId]);
 }
 
+/**
+ * Atomically apply a member mutation that must preserve >=1 owner (SCP-210).
+ * `mutate` is 'remove' or a target role. We lock the tenant's owner rows
+ * FOR UPDATE so two concurrent demotions/removals serialize and can't both pass
+ * a stale "count > 1" check — the prior non-transactional guard could orphan a
+ * board (0 owners). Throws {code:'LAST_OWNER'} / {code:'NO_MEMBER'}.
+ */
+async function withOwnerGuard(pool, tenantId, accountId, fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const owners = (await client.query(
+      `SELECT account_id FROM memberships WHERE tenant_id=$1 AND role='owner' FOR UPDATE`, [tenantId]
+    )).rows.map((r) => r.account_id);
+    const cur = (await client.query(
+      'SELECT role FROM memberships WHERE tenant_id=$1 AND account_id=$2', [tenantId, accountId]
+    )).rows[0];
+    const result = await fn(client, owners, cur);
+    await client.query('COMMIT');
+    return result;
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+function lastOwnerError() { const e = new Error('cannot drop the last owner'); e.code = 'LAST_OWNER'; return e; }
+function noMemberError() { const e = new Error('no such member'); e.code = 'NO_MEMBER'; return e; }
+
+/** Change a member's role, atomically refusing to demote the last owner. */
+export async function changeRoleGuarded(pool, { tenantId, accountId, role, now } = {}) {
+  if (!ROLES.includes(role)) throw new Error(`invalid role ${JSON.stringify(role)}`);
+  return withOwnerGuard(pool, tenantId, accountId, async (client, owners, cur) => {
+    if (!cur) throw noMemberError();
+    if (cur.role === 'owner' && role !== 'owner' && owners.length <= 1) throw lastOwnerError();
+    await client.query(
+      `INSERT INTO memberships (tenant_id, account_id, role, created_at) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (tenant_id, account_id) DO UPDATE SET role=EXCLUDED.role`,
+      [tenantId, accountId, role, nowIso(now)]
+    );
+  });
+}
+
+/** Remove a member, atomically refusing to remove the last owner. Idempotent. */
+export async function removeMemberGuarded(pool, { tenantId, accountId } = {}) {
+  return withOwnerGuard(pool, tenantId, accountId, async (client, owners, cur) => {
+    if (cur && cur.role === 'owner' && owners.length <= 1) throw lastOwnerError();
+    await client.query('DELETE FROM memberships WHERE tenant_id=$1 AND account_id=$2', [tenantId, accountId]);
+  });
+}
+
 /** The account's role on the project, or null if not a member. */
 export async function getRole(pool, tenantId, accountId) {
   const row = (await pool.query(
@@ -140,6 +193,18 @@ export async function hasRole(pool, tenantId, accountId, minRole) {
 export async function claimAlias(pool, { tenantId, alias, accountId, force = false, now } = {}) {
   if (!alias || !String(alias).trim()) throw new Error('alias required');
   const a = String(alias).trim();
+  // Impersonation guard (SCP-201): an account id IS an implicitly-allowed actor
+  // for its owner, so letting someone claim an alias equal to ANOTHER account's
+  // id would let them push events attributed to that account. Refuse it (the
+  // alias namespace is for local human names like "bri", not account ids).
+  if (a !== accountId) {
+    const other = (await pool.query('SELECT 1 FROM accounts WHERE id=$1', [a])).rows[0];
+    if (other) {
+      const err = new Error(`alias "${a}" collides with another account`);
+      err.code = 'ALIAS_TAKEN';
+      throw err;
+    }
+  }
   const existing = (await pool.query(
     'SELECT account_id FROM tenant_aliases WHERE tenant_id=$1 AND alias=$2', [tenantId, a]
   )).rows[0];

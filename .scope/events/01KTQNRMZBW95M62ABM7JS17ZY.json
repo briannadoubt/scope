@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNRMZBW95M62ABM7JS17ZY",
+  "ts": "2026-06-10T02:28:44.139Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNRMZBW95M62ABM7JS17ZX",
+    "number": 198,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[HIGH] Stored XSS via workspace key in overview + key not validated on init/set",
+    "description": "renderOverview (src/web/app.js:2782) renders <span class=\"key\">${p.key}</span> unescaped (every other key sink escapes). workspace.init/set only validate key via isNonEmptyStr/isStr, NOT isKeyPrefix (event-schema.js:130,138), so a member pushes workspace.set key='<img onerror=...>' bypassing the HTTP deriveKey sanitizer. FIX: escapeHtml at the sink + enforce isKeyPrefix in validatePayload for workspace.init/set.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

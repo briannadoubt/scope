@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYVY3YMRWFW7Q59THPCM",
+  "ts": "2026-06-10T02:29:27.038Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYVY3YMRWFW7Q59THPCK",
+    "number": 215,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[LOW] JWT lacks aud/iss and access token is not revocable",
+    "description": "mintAccessToken claims are {sub,tenant_id,role,iat,exp} only; verify enforces none of iss/aud; no jti/denylist so a leaked 15-min access token survives logout. FIX: add+enforce iss/aud; accept the short revocation gap or add a session-version check.",
+    "status": "backlog",
+    "priority": "low",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

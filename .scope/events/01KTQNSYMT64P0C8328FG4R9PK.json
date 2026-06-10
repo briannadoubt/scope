@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNSYMT64P0C8328FG4R9PK",
+  "ts": "2026-06-10T02:29:26.810Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNSYMT64P0C8328FG4R9PJ",
+    "number": 208,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[MEDIUM] OAuth state not browser-bound; no PKCE on the GitHub path",
+    "description": "state is stored in a fixed-name cookie and only compared to itself; not bound to the eventual session, enabling login-CSRF/session-fixation (sign the victim into the attacker's account). GitHub adapter has no PKCE. FIX: bind a per-flow id (HMAC in state), add PKCE to GitHub, verify OIDC nonce.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTQNRMZDAXZ3HJ5K3VCJQFXS",
+  "ts": "2026-06-10T02:28:44.141Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTQNRMZDAXZ3HJ5K3VCJQFXR",
+    "number": 202,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "[HIGH] SSE per-tenant connection ceiling never enforced (truthiness bug)",
+    "description": "server.js:483 does `if (!lease)` but ConnectionTracker.acquire() always returns a truthy object ({allowed:false,...} on denial; connections.js:55,59). The SCP-158 ceiling (20/tenant) is dead code; lease.release() is a no-op. A viewer opens unlimited /events streams (socket+listener+keepalive+PG LISTEN each) -> exhausts Fly's 250-conn/machine cap, DoS for all tenants. FIX: check lease.allowed; return 429 + Retry-After; add a test.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTQNRMYXNGMCRS3SF3X353A6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}
