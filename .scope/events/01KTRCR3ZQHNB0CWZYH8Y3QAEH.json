@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTRCR3ZQHNB0CWZYH8Y3QAEH",
+  "ts": "2026-06-10T09:10:23.991Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTRAYVZSQ9STBCN7AZYRFDNM",
+    "commentId": "01KTRCR3ZQHNB0CWZYH8Y3QAEG",
+    "author": "claude",
+    "body": "DONE. Local 'Add a board' modal offers two paths: attach a local .scope folder, or connect to a hub. Standalone connect entry points kept."
+  }
+}

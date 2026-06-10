@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTRCR3ZRA20Q60SEAFEHBYP4",
+  "ts": "2026-06-10T09:10:23.992Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTRAYVZRSKNF6N939QM8VXXK",
+    "commentId": "01KTRCR3ZRA20Q60SEAFEHBYP3",
+    "author": "claude",
+    "body": "EPIC DONE (committed fe1dc16). Projects are repo-anchored: born only from attaching a local .scope or connecting a local workspace to a hub; hosted UI never creates. Board follows the repo via the committed remote.json pointer + hub even when the event log isn't committed. Verified vs real Postgres (local-client-pg) + web non-PG 348/348. Full-suite x2 with PG is the final gate (in flight)."
+  }
+}

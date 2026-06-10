@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTRCR3ZQHNB0CWZYH8Y3QAEQ",
+  "ts": "2026-06-10T09:10:23.991Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTRAYVZSQ9STBCN7AZYRFDNR",
+    "commentId": "01KTRCR3ZQHNB0CWZYH8Y3QAEP",
+    "author": "claude",
+    "body": "DONE. Connect can CREATE a new remote project from the local workspace (/api/remote/connect {createName} -> hub createProjectBoard -> bind -> sync agent pushes the board up) or JOIN existing. Verified e2e (test/local-client-pg.test.js: born-local ticket reaches the newly-created hub project)."
+  }
+}
