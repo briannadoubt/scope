@@ -32,6 +32,56 @@ export function hashInviteCode(code) {
 }
 
 /**
+ * Read-only invite preview by code (no mutation) — for the public /invite/<code>
+ * landing, which must work for a logged-OUT visitor (SCP-228). Returns the
+ * project name + role when valid, or { valid:false, reason } otherwise.
+ */
+export async function lookupInvite(pool, code) {
+  if (typeof code !== 'string' || !code) return { valid: false, reason: 'INVITE_INVALID' };
+  const invite = (await pool.query(
+    `SELECT i.tenant_id, i.role, i.revoked_at, i.accepted_at, i.expires_at, p.name AS project_name
+       FROM invites i JOIN projects p ON p.tenant_id = i.tenant_id
+      WHERE i.code_hash=$1`, [hashInviteCode(code)]
+  )).rows[0];
+  if (!invite || invite.revoked_at || invite.accepted_at) return { valid: false, reason: 'INVITE_INVALID' };
+  if (invite.expires_at <= nowIso()) return { valid: false, reason: 'INVITE_EXPIRED', projectName: invite.project_name };
+  return { valid: true, tenantId: invite.tenant_id, role: invite.role, projectName: invite.project_name };
+}
+
+/**
+ * Atomically consume an invite for `accountId` and grant membership (single-use
+ * even under a race; never downgrades an existing higher role). Shared by the
+ * POST /api/invites/accept route, the public /invite/<code> route, and the OAuth
+ * callback (SCP-228). Returns { tenantId, role, name, email_mismatch? }; throws
+ * an Error with `.code` ('INVITE_INVALID' | 'INVITE_EXPIRED') on failure.
+ */
+export async function acceptInvite(pool, code, accountId) {
+  if (typeof code !== 'string' || !code) { const e = new Error('code required'); e.code = 'INVITE_INVALID'; throw e; }
+  if (!accountId) { const e = new Error('unauthorized'); e.code = 'UNAUTH'; throw e; }
+  const invite = (await pool.query(
+    `SELECT i.*, p.name AS project_name FROM invites i JOIN projects p ON p.tenant_id = i.tenant_id
+      WHERE i.code_hash=$1`, [hashInviteCode(code)]
+  )).rows[0];
+  if (!invite || invite.revoked_at || invite.accepted_at) { const e = new Error('invite is invalid'); e.code = 'INVITE_INVALID'; throw e; }
+  const now = nowIso();
+  if (invite.expires_at <= now) { const e = new Error('invite has expired'); e.code = 'INVITE_EXPIRED'; throw e; }
+  const consumed = await pool.query(
+    `UPDATE invites SET accepted_at=$2, accepted_by=$3 WHERE id=$1 AND accepted_at IS NULL AND revoked_at IS NULL`,
+    [invite.id, now, accountId]
+  );
+  if (consumed.rowCount === 0) { const e = new Error('invite is invalid'); e.code = 'INVITE_INVALID'; throw e; }
+  const existing = await getRole(pool, invite.tenant_id, accountId);
+  const role = existing && ROLE_RANK[existing] >= ROLE_RANK[invite.role] ? existing : invite.role;
+  await setMembership(pool, { tenantId: invite.tenant_id, accountId, role });
+  const out = { tenantId: invite.tenant_id, role, name: invite.project_name };
+  if (invite.email) {
+    const acct = (await pool.query('SELECT email FROM accounts WHERE id=$1', [accountId])).rows[0];
+    if (!acct || String(acct.email).toLowerCase() !== String(invite.email).toLowerCase()) out.email_mismatch = true;
+  }
+  return out;
+}
+
+/**
  * Param-based tenant role gate. Mirrors tenancy.js requireTenantRole semantics
  * EXACTLY (404 for non-members so board existence isn't disclosed, 403 for an
  * insufficient role, sets req.tenantId/req.tenantRole) — but resolves the
@@ -204,51 +254,12 @@ export function membersRouter({ pool }) {
   // conditional UPDATE so two racing accepts can't both win.
   r.post('/api/invites/accept', async (req, res) => {
     try {
-      const code = req.body && req.body.code;
-      if (typeof code !== 'string' || !code) {
-        return res.status(400).json({ error: 'code required', code: 'INVITE_INVALID' });
-      }
       const accountId = req.principal?.accountId;
       if (!accountId) return res.status(401).json({ error: 'unauthorized' });
-
-      const invite = (await pool.query(
-        `SELECT i.*, p.name AS project_name
-           FROM invites i JOIN projects p ON p.tenant_id = i.tenant_id
-          WHERE i.code_hash=$1`, [hashInviteCode(code)]
-      )).rows[0];
-      if (!invite || invite.revoked_at || invite.accepted_at) {
-        return res.status(400).json({ error: 'invite is invalid', code: 'INVITE_INVALID' });
-      }
-      const now = nowIso();
-      if (invite.expires_at <= now) {
-        return res.status(400).json({ error: 'invite has expired', code: 'INVITE_EXPIRED' });
-      }
-
-      // Consume the invite atomically (single-use even under a race).
-      const consumed = await pool.query(
-        `UPDATE invites SET accepted_at=$2, accepted_by=$3
-          WHERE id=$1 AND accepted_at IS NULL AND revoked_at IS NULL`,
-        [invite.id, now, accountId]
-      );
-      if (consumed.rowCount === 0) {
-        return res.status(400).json({ error: 'invite is invalid', code: 'INVITE_INVALID' });
-      }
-
-      // Grant membership at the invite's role — but NEVER downgrade an existing
-      // higher role (an owner accepting a member invite stays owner).
-      const existing = await getRole(pool, invite.tenant_id, accountId);
-      const role = existing && ROLE_RANK[existing] >= ROLE_RANK[invite.role] ? existing : invite.role;
-      await setMembership(pool, { tenantId: invite.tenant_id, accountId, role });
-
-      const out = { tenantId: invite.tenant_id, role, name: invite.project_name };
-      if (invite.email) {
-        const acct = (await pool.query('SELECT email FROM accounts WHERE id=$1', [accountId])).rows[0];
-        if (!acct || String(acct.email).toLowerCase() !== String(invite.email).toLowerCase()) {
-          out.email_mismatch = true; // advisory only — the code is the credential
-        }
-      }
-      res.json(out);
+      res.json(await acceptInvite(pool, req.body && req.body.code, accountId));
     } catch (e) {
+      if (e.code === 'INVITE_INVALID') return res.status(400).json({ error: e.message, code: 'INVITE_INVALID' });
+      if (e.code === 'INVITE_EXPIRED') return res.status(400).json({ error: e.message, code: 'INVITE_EXPIRED' });
       serverError(res, e);
     }
   });

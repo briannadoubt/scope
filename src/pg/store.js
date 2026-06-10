@@ -27,6 +27,22 @@ import { isTailAppend, canonicalMax } from './incremental.js';
 import { withTenant } from './rls.js';
 
 /**
+ * Of the given event ids, which are already in the tenant's log. Lets the push
+ * path actor-check only GENUINELY-NEW events (SCP-230): re-sending events that
+ * were already accepted (e.g. a teammate's events pulled into your local log)
+ * must not trip actor-authz — they were validated when first uploaded.
+ */
+export async function existingEventIds(pool, tenantId, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return new Set();
+  return withTenant(pool, tenantId, async (client) => {
+    const rows = (await client.query(
+      'SELECT event_id FROM events WHERE tenant_id=$1 AND event_id = ANY($2)', [tenantId, ids]
+    )).rows;
+    return new Set(rows.map((r) => r.event_id));
+  });
+}
+
+/**
  * @param {import('pg').Pool} pool
  * @param {string} tenantId
  * @param {Array<object>} events - event envelopes to union onto the log

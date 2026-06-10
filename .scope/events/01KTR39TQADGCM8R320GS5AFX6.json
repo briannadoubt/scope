@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTR39TQADGCM8R320GS5AFX6",
+  "ts": "2026-06-10T06:25:18.570Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTR39TQADGCM8R320GS5AFX5",
+    "number": 230,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Frictionless local<->hosted bind: auto-claim the local actor alias on sync",
+    "description": "Today a user must manually claim their local event-actor name (e.g. 'bri') as an alias before `scope sync` will accept their existing local history (else ACTOR_MISMATCH). FIX: on sync, if the push is rejected ACTOR_MISMATCH, auto-claim the offending local actor as an alias for the authenticated account (POST /api/projects/:t/aliases) and retry once. Removes the manual alias dance so binding is just `scope remote set` + `scope sync`.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTR39TQ8ZMEJ68YYMSNNR75X",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

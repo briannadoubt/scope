@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTR39TQADGCM8R320GS5AFX8",
+  "ts": "2026-06-10T06:25:18.570Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTR39TQADGCM8R320GS5AFX7",
+    "number": 231,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Never show the marketing landing for local or signed-in users",
+    "description": "Local `scope serve` (non-cloud) already serves the app at / (verify + keep). On the hosted hub, a signed-in visitor to / currently sees the marketing landing — they should go straight to /app. FIX: in cloud mode, if the request to / carries a valid session, redirect to /app; only logged-out visitors see the landing. Confirm the local-parity guard still holds (no landing, no /auth routes, app at /).",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTR39TQ8ZMEJ68YYMSNNR75X",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

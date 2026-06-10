@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQZ5WX083M3MTR9HCQQMSWC",
+  "ts": "2026-06-10T05:13:15.424Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTQW2YYAFTMHYFCGNQAAT8T7",
+    "commentId": "01KTQZ5WX083M3MTR9HCQQMSWB",
+    "author": "claude",
+    "body": "EPIC DONE. Seamless realtime local<->hosted mirror, no manual sync call. 219 incremental replay, 220 RemoteSyncAgent (push on bus.change + pull via hub SSE + interval backstop), 221 CLI SSE client, 222 scope sync --watch + serve auto-start (--no-sync to opt out), 223 resilience (one-round-at-a-time, backoff, offline buffering, feedback-loop-safe), 224 e2e (live two-client convergence, offline/reconnect catch-up, idempotence, incremental==full oracle), 225 presence pill (verified ● 1 live), 226 fixed the multi-writer cursor-skip (server seq). Verified vs real Postgres: full suite 341/341, 0 skipped, x3 consecutive clean runs."
+  }
+}

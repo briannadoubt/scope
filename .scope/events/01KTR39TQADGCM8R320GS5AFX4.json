@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTR39TQADGCM8R320GS5AFX4",
+  "ts": "2026-06-10T06:25:18.570Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTR39TQADGCM8R320GS5AFX3",
+    "number": 229,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Verify the full GitHub OAuth callback round-trip (integration test)",
+    "description": "The live github.com round-trip has never run for real. Close the code-verification gap: an integration test that drives GET /auth/login -> GET /auth/callback against a STUBBED GitHub (token exchange + /user + /user/emails injected), asserting it upserts the account, sets the scope_session cookie, redirects to /app, and that the cookie then authenticates /api/meta. Leaves only the actual github.com network as the (deploy-time) unknown.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTR39TQ8ZMEJ68YYMSNNR75X",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

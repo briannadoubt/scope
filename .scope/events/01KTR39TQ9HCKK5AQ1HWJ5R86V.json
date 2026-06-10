@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTR39TQ9HCKK5AQ1HWJ5R86V",
+  "ts": "2026-06-10T06:25:18.569Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTR39TQ8ZMEJ68YYMSNNR75X",
+    "number": 227,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Hosted UX hardening: invite cold-path, OAuth verify, frictionless bind, no local landing",
+    "description": "Close the UX gaps found while validating the realtime/collab work end-to-end (live demo on the hosted hub). The collaboration ENGINE works (verified: create board, invite, accept, isolation, roles, realtime, presence); these are the rough edges around it.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -39,12 +39,33 @@ export async function syncWithRemote(db, scopeDir, { remote, remoteWorkspace, to
   // PUSH: send the whole local log. Idempotent — the hub returns known ULIDs as
   // duplicates and never double-applies, so re-sync is safe and self-healing.
   const local = readAllEvents(dir);
-  const pushResp = await fetchImpl(url('/api/sync/push'), {
+  const doPush = () => fetchImpl(url('/api/sync/push'), {
     method: 'POST',
     headers: { ...auth, 'Content-Type': 'application/json', 'X-Scope-Workspace': remoteWorkspace },
     body: JSON.stringify({ events: local }),
   });
-  if (!pushResp.ok) throw new Error(`push failed: HTTP ${pushResp.status}`);
+  // Frictionless bind (SCP-230): your local log is stamped with a human actor
+  // name (e.g. "bri"), not your hosted account id. The first push therefore
+  // fails ACTOR_MISMATCH on your own history — so auto-claim that actor name as
+  // an alias for this account on the board and retry, instead of making the user
+  // run `scope alias` by hand. Bounded (distinct names) so it can't loop.
+  let pushResp = await doPush();
+  for (let i = 0; i < 5 && pushResp.status === 403; i++) {
+    const body = await pushResp.clone().json().catch(() => ({}));
+    if (body.code !== 'ACTOR_MISMATCH') break;
+    const actor = /actor "([^"]+)"/.exec(body.error || '')?.[1];
+    if (!actor) break;
+    const claim = await fetchImpl(
+      `${remote.replace(/\/$/, '')}/api/projects/${encodeURIComponent(remoteWorkspace)}/aliases`,
+      { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ alias: actor }) }
+    );
+    if (!claim.ok) break; // 409 (someone else owns it) / 403 — surface the original push error
+    pushResp = await doPush();
+  }
+  if (!pushResp.ok) {
+    const body = await pushResp.json().catch(() => ({}));
+    throw new Error(body.error ? `push failed: ${body.error}` : `push failed: HTTP ${pushResp.status}`);
+  }
   const push = await pushResp.json();
 
   // PULL: everything the remote has after our stored high-water cursor.

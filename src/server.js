@@ -48,7 +48,7 @@ import { WorkspaceManager } from './workspaces.js';
 import { loadOrCreateToken, authMiddleware, lanHosts } from './auth.js';
 import {
   hostedAuthEnabled, hostedAuthMiddleware, publicAuthRouter, apiKeyRouter,
-  ensureHostedAuthReady, loginProviderConfigured, csrfGuard,
+  ensureHostedAuthReady, loginProviderConfigured, csrfGuard, hasValidSession,
 } from './auth_hosted/cloud-auth.js';
 import { authorizeUploadActors, statusForReject, ON_BEHALF_MARKER } from './auth_hosted/authz.js';
 
@@ -63,7 +63,7 @@ import {
   renameProject, archiveProject,
 } from './auth_hosted/tenant-board.js';
 import { ensureReplica, refreshReplica, flushReplica, closeAllReplicas, evictReplica } from './auth_hosted/tenant-replica.js';
-import { uploadEvents, pullEvents } from './pg/store.js';
+import { uploadEvents, pullEvents, existingEventIds } from './pg/store.js';
 import { serverError } from './http-errors.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -247,6 +247,10 @@ export async function startServer({
     // CSRF guard for cookie-authenticated mutations (SCP-204) — before the login
     // routes so /auth/refresh + /auth/logout are covered too.
     app.use(csrfGuard());
+    // Signed-in visitors skip the marketing landing (SCP-231): send them
+    // straight to the app. Logged-out visitors fall through to the public site.
+    // (The local/LAN path never reaches here, so locally / is always the app.)
+    app.get('/', (req, res, next) => (hasValidSession(req) ? res.redirect('/app') : next()));
     // Public marketing/docs site (cloud-only). Dynamically imported so the
     // local path never even loads it. Mounted BEFORE the gate so / /features
     // /docs are reachable unauthenticated; it owns no catch-all, so the app
@@ -427,10 +431,14 @@ export async function startServer({
       if (events.length > SYNC_MAX_BATCH) {
         return res.status(413).json({ error: `too many events in one push (max ${SYNC_MAX_BATCH})`, code: 'BATCH_TOO_LARGE' });
       }
-      // Actor authz (SCP-172) + aliases (SCP-184): every event's actor must be
-      // the authenticated principal or one of its claimed aliases on this board.
+      // Actor authz (SCP-172) + aliases (SCP-184), only on GENUINELY-NEW events
+      // (SCP-230): a client pushes its whole log, which after a pull includes a
+      // teammate's already-accepted events — those must not trip the actor gate
+      // (they were validated when first uploaded). Dedup-then-authz.
+      const existing = await existingEventIds(pool, req.tenantId, events.map((e) => e && e.id));
+      const fresh = events.filter((e) => e && !existing.has(e.id));
       const allowedActors = await allowedActorsFor(pool, req.tenantId, req.principal.accountId);
-      const verdict = authorizeUploadActors(events, req.principal.accountId, { allowedActors });
+      const verdict = authorizeUploadActors(fresh, req.principal.accountId, { allowedActors });
       if (!verdict.ok) return res.status(statusForReject(verdict.code)).json({ error: verdict.message, code: verdict.code });
       try {
         // Daily event quota (SCP-165) — hard stop at the tenant's plan cap.

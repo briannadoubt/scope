@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTR39TQ9HCKK5AQ1HWJ5R86X",
+  "ts": "2026-06-10T06:25:18.569Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTR39TQ9HCKK5AQ1HWJ5R86W",
+    "number": 228,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Invite cold-path: public /invite/<code> landing + carry code through GitHub sign-in + auto-accept",
+    "description": "A logged-OUT person clicking /app?invite=CODE gets a raw 401, and even after signing in the code is dropped across the OAuth redirect (callback always lands on /app). FIX: a PUBLIC GET /invite/:code route (mounted before the auth gate) that — if signed in, accepts immediately and redirects to /app; if not, renders a styled 'You are invited to <project> as <role> — Sign in with GitHub to join' page whose button hits /auth/login?invite=<code>. Stash the invite code in the OAuth state cookie; on /auth/callback, after minting the session, accept the invite (setMembership) before redirecting to /app. Extract lookupInvite()/acceptInvite() from the POST /api/invites/accept handler for reuse. Make invite links use /invite/<code>.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTR39TQ8ZMEJ68YYMSNNR75X",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

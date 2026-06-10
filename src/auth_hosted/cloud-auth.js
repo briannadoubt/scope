@@ -35,10 +35,17 @@ import { upsertAccount, listMemberships } from './membership.js';
 import { createProjectBoard } from './tenant-board.js';
 import { githubConfigured, buildGithubAuthUrl, handleGithubCallback } from './github.js';
 import { oidcConfigured, buildAuthUrl, discover, handleCallback } from './oidc.js';
+import { lookupInvite, acceptInvite } from './invites.js';
 
 const SESSION_COOKIE = 'scope_session';
 const REFRESH_COOKIE = 'scope_refresh';
 const STATE_COOKIE = 'scope_oauth_state';
+const INVITE_COOKIE = 'scope_invite'; // carries an invite code across the OAuth round-trip (SCP-228)
+
+/** A safe invite-code shape (base64url, what randomBytes(16).toString('base64url') emits). */
+function safeInviteCode(v) {
+  return typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : null;
+}
 
 /* ------------------------------- enable gate ------------------------------ */
 
@@ -163,6 +170,18 @@ export function hostedAuthMiddleware({ pool }) {
   };
 }
 
+/** True iff the request carries a valid (unexpired, signed) session cookie.
+ * Used to send already-signed-in visitors straight to the app instead of the
+ * marketing landing (SCP-231). Safe in interim mode (no JWT secret => false). */
+export function hasValidSession(req) {
+  try {
+    const jwt = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+    if (!jwt) return false;
+    verifyAccessToken(jwt);
+    return true;
+  } catch { return false; }
+}
+
 /* ------------------------------ route helpers ----------------------------- */
 
 /** Build the JWT claims for an account from its first membership (if any). */
@@ -224,6 +243,40 @@ function signinUnavailablePage() {
 </div></div></body></html>`;
 }
 
+/** The public invite landing (SCP-228). Project name is escaped (user-controlled). */
+function invitePage({ projectName, role, loginHref, invalid, expired } = {}) {
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const body = invalid
+    ? `<div class="mark">◆</div>
+       <h1>${expired ? 'This invite has expired' : 'This invite link isn’t valid'}</h1>
+       <p>${expired ? 'Ask the project owner to send a fresh invite.' : 'It may have been used already or revoked.'}</p>
+       <a class="btn" href="/">Go to Scope</a>`
+    : `<div class="mark">◆</div>
+       <h1>You’re invited to ${esc(projectName)}</h1>
+       <p>Join as <strong>${esc(role)}</strong>. Sign in with GitHub to accept.</p>
+       <a class="btn" href="${esc(loginHref)}">Sign in with GitHub to join</a>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${invalid ? 'Invite' : 'Join ' + esc(projectName)} — Scope</title>
+<style>
+  :root { --bg:#0d1117; --text:#e6edf3; --muted:#8b949e; --accent:#2f81f7; --border:#30363d; }
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:radial-gradient(900px 420px at 50% -120px,rgba(47,129,247,.18),transparent 70%);}
+  .card{max-width:460px;text-align:center;border:1px solid var(--border);border-radius:12px;
+    background:#161b22;padding:36px 30px;}
+  .mark{color:var(--accent);font-size:26px;}
+  h1{font-size:21px;margin:14px 0 10px;}
+  p{color:var(--muted);margin:0 0 20px;}
+  strong{color:var(--text);}
+  a.btn{display:inline-block;padding:10px 18px;border-radius:8px;background:var(--accent);
+    color:#fff;text-decoration:none;font-weight:600;}
+</style></head>
+<body><div class="wrap"><div class="card">${body}</div></div></body></html>`;
+}
+
 /**
  * The unauthenticated auth routes (login/callback/refresh/logout). Mounted
  * BEFORE the credential gate, in ALL cloud modes — when hosted auth isn't fully
@@ -241,6 +294,10 @@ export function publicAuthRouter({ pool, appPath = '/app' }) {
     if (!pool || !loginProviderConfigured()) {
       return res.status(200).type('html').send(signinUnavailablePage());
     }
+    // Carry an invite code through the OAuth round-trip (SCP-228) so a brand-new
+    // user who clicked an invite link joins the board right after sign-in.
+    const invite = safeInviteCode(req.query.invite);
+    if (invite) appendCookie(res, cookie(INVITE_COOKIE, invite, { maxAge: 600 }));
     try {
       if (githubConfigured()) {
         // SCP-208: stash the PKCE verifier alongside state -> gh:<state>:<verifier>.
@@ -309,11 +366,49 @@ export function publicAuthRouter({ pool, appPath = '/app' }) {
       }
 
       await issueSession(pool, res, accountId);
+
+      // If they arrived via an invite link, redeem it now (SCP-228) so they land
+      // directly on the shared board. Best-effort: a stale/used invite just drops
+      // them on their own board instead of erroring the whole sign-in.
+      const invite = safeInviteCode(cookies[INVITE_COOKIE]);
+      if (invite) {
+        appendCookie(res, cookie(INVITE_COOKIE, '', { clear: true }));
+        try { await acceptInvite(pool, invite, accountId); } catch { /* invalid/expired — ignore */ }
+      }
+
       return res.redirect(appPath);
     } catch (e) {
       const status = e.code === 'OIDC_STATE' ? 400 : 500;
       return res.status(status).json({ error: e.message });
     }
+  });
+
+  // PUBLIC invite landing (SCP-228): the link people actually share. Works for a
+  // logged-OUT visitor (the old /app?invite= 401'd). If already signed in, redeem
+  // immediately and go to the board; otherwise show a "sign in to join" page that
+  // carries the code through GitHub sign-in.
+  r.get('/invite/:code', async (req, res) => {
+    const code = safeInviteCode(req.params.code);
+    if (!pool || !code) return res.status(404).type('html').send(invitePage({ invalid: true }));
+    let info;
+    try { info = await lookupInvite(pool, code); } catch { return serverError(res, undefined); }
+
+    // Already signed in? Redeem now and bounce to the app.
+    const cookies = parseCookies(req.headers.cookie);
+    const jwt = cookies[SESSION_COOKIE];
+    if (jwt) {
+      try {
+        const claims = verifyAccessToken(jwt);
+        await acceptInvite(pool, code, claims.sub);
+        return res.redirect(appPath);
+      } catch { /* bad/expired session or invite — fall through to the page */ }
+    }
+    if (!info.valid) {
+      return res.status(410).type('html').send(invitePage({ invalid: true, expired: info.reason === 'INVITE_EXPIRED', projectName: info.projectName }));
+    }
+    return res.status(200).type('html').send(invitePage({
+      projectName: info.projectName, role: info.role, loginHref: `/auth/login?invite=${encodeURIComponent(code)}`,
+    }));
   });
 
   // Exchange a refresh cookie for a fresh access (+ rotated refresh) cookie.

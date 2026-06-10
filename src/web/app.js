@@ -942,7 +942,7 @@ async function openMembersModal() {
         method: 'POST', body: { role, ...(email ? { email } : {}) },
       });
       // Mirror of the apikey-fresh pattern: the code is shown exactly once.
-      const link = `${location.origin}/app?invite=${encodeURIComponent(inv.code)}`;
+      const link = `${location.origin}/invite/${encodeURIComponent(inv.code)}`;
       inviteFresh.hidden = false;
       inviteFresh.innerHTML = `Share this invite link now — it won’t be shown again:
         <code class="apikey-secret">${escapeHtml(link)}</code>
