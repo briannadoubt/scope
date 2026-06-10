@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQN0HHQKCF006615DE74EEX",
+  "ts": "2026-06-10T02:15:34.199Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q5ZB1E6ENCN07THH1TN",
+    "commentId": "01KTQN0HHQKCF006615DE74EEW",
+    "author": "claude",
+    "body": "EPIC DONE. Scope hosted is now genuinely shareable: a project IS an isolated tenant board (PG event log + replica serving), tenancy from the authenticated subject only, owner/member/viewer roles enforced across REST+sync+SSE, RLS defense-in-depth, hashed single-use invites with a web UI (create/switch/members/invite/rename/archive), actor aliases for local-history sync, CLI project awareness (scope projects / remote.json), and LAN gossip as the no-central-host stretch. Verified: 290/290 tests x3 consecutive runs + live browser walkthrough of the full invite->join->collaborate loop."
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQN0HHP5H04WMWMJCG51QBR",
+  "ts": "2026-06-10T02:15:34.198Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q616J4KQE4GHP28A28H",
+    "commentId": "01KTQN0HHP5H04WMWMJCG51QBQ",
+    "author": "claude",
+    "body": "DONE. Closing condition met: the cross-process flake is fixed (advisory-locked, steady-state-DDL-free ensureSchema/ensureAuthSchema/ensureRls) and the full suite passed 3 CONSECUTIVE clean runs with SCOPE_PG_URL set: 290/290, 0 skipped, each run. Coverage: two-user isolation incl. RLS at the SQL layer, invite grant flow, viewer-cannot-write role gates, tenant+role-scoped sync, actor authz + aliases, gossip convergence."
+  }
+}

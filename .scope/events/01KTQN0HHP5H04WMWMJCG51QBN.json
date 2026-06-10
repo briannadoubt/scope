@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTQN0HHP5H04WMWMJCG51QBN",
+  "ts": "2026-06-10T02:15:34.198Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTNR6Q60XKSN76Q54SJ8MXNN",
+    "commentId": "01KTQN0HHP5H04WMWMJCG51QBM",
+    "author": "claude",
+    "body": "DONE, verified LIVE against the hosted preview (real Postgres): Members & sharing modal shows the member list with role selects + Remove and my-role banner; owner-only invite section creates a single-use link (app?invite=<code>, role + expiry shown, pending list with Revoke); Rename/Archive in the modal footer; New project replaces Attach workspace in the switcher; welcome card on zero-project logins; ?invite= boot hook redeems before the first workspaces fetch and auto-selects the joined board. Proven end-to-end: a second account redeemed a live invite link and landed on the shared board as member (confirmed via /api/workspaces role payload). Local path unchanged (local-parity tests green)."
+  }
+}
