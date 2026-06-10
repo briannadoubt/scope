@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTR4J0NXQ70ZD7H2MJM0TGME",
+  "ts": "2026-06-10T06:47:15.389Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTR4J0NXQ70ZD7H2MJM0TGMD",
+    "number": 235,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Web UI: unlock collab when bound to a remote (not just hosted)",
+    "description": "Gate Members & sharing, the invite flow, the presence pill, and API keys on meta.remote?.connected (OR meta.hosted), operating on the bound project. Show a clear 'Connected to <url>' indicator + the live-sync status. Roles/role-aware chrome driven by meta.remote.role.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTR4J0NWDBVJ1RTE3WPDBP9N",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

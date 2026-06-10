@@ -133,8 +133,58 @@ async function reloadWorkspaces() {
   updateBreadcrumb();
 }
 
+/**
+ * SCP-235/236: re-fetch /api/meta into state.meta after a remote bind/unbind so
+ * meta.remote (connected, role, projectName) — and the chrome that reads it
+ * (overflow menu, presence pill, role gating) — reflect the new state.
+ */
+async function reloadMeta() {
+  try {
+    state.meta = await api('/api/meta');
+  } catch (e) {
+    // Keep the last good meta on a transient failure rather than blanking chrome.
+    return;
+  }
+  applyRoleChrome();
+  refreshPresence();
+  updateRemoteStatus();
+}
+
 function currentWorkspaceObj() {
   return state.workspaces.find((x) => x.id === state.currentWorkspace) || null;
+}
+
+/**
+ * SCP-235: the project (tenant) id that collaboration calls — members, invites,
+ * presence, aliases — must target.
+ *  - Hosted hub: this server IS the hub, so the active board id (currentWorkspace)
+ *    is itself the tenant id (existing behavior).
+ *  - Remote-bound local board: currentWorkspace is the LOCAL workspace id, NOT the
+ *    tenant — the tenant lives in meta.remote.project (the hub proxies the call).
+ * /api/projects (list) and /auth/keys take no project id, so they don't use this.
+ */
+function collabProject() {
+  return state.meta?.hosted ? state.currentWorkspace : state.meta?.remote?.project;
+}
+
+/**
+ * SCP-235: is the per-user collaboration control-plane (members, API keys,
+ * presence, sign-out/disconnect) available right now? True on a hosted hub, and
+ * also when a local board is bound to and connected to a remote project.
+ */
+function collabEnabled() {
+  return !!(state.meta?.hosted || state.meta?.remote?.connected);
+}
+
+/**
+ * SCP-235: the caller's role on the collaborative board. Hosted reads it from the
+ * active workspace entry; remote-bound reads meta.remote.role. null when there's
+ * no collab context (plain local board).
+ */
+function collabRole() {
+  if (state.meta?.hosted) return currentWorkspaceObj()?.role || null;
+  if (state.meta?.remote?.connected) return state.meta.remote.role || null;
+  return null;
 }
 
 function updateBreadcrumb() {
@@ -157,16 +207,19 @@ function updateBreadcrumb() {
   }
   applyRoleChrome();
   updateViewTrigger();
+  updateRemoteStatus(); // SCP-236: keep the remote-link chip in step
 }
 
 /**
- * SCP-191: role-aware chrome. Viewers can't create tickets (the server 403s),
- * so hide the dead controls — body.role-viewer drives display:none rules for
- * the "+ New ticket" button and the per-column "+" buttons. Hosted-only: the
- * local path has no roles, so the class never appears there.
+ * SCP-191/235: role-aware chrome. Viewers can't create tickets (the server
+ * 403s), so hide the dead controls — body.role-viewer drives display:none rules
+ * for the "+ New ticket" button and the per-column "+" buttons. The role comes
+ * from the hosted workspace entry, or from meta.remote.role when this local
+ * board is bound to a remote (SCP-235). A plain local board has no role, so the
+ * class never appears there.
  */
 function applyRoleChrome() {
-  const viewer = !!(state.meta?.hosted && currentWorkspaceObj()?.role === 'viewer');
+  const viewer = collabRole() === 'viewer';
   document.body.classList.toggle('role-viewer', viewer);
 }
 
@@ -395,12 +448,40 @@ function openBreadcrumbPopover() {
   // SCP-191: hosted boards are project boards — the footer creates a new
   // project instead of attaching a local .scope/ dir (meaningless when hosted).
   const hosted = !!state.meta?.hosted;
+  const remote = state.meta?.remote || null;
+  // SCP-236: surface the remote binding right in the switcher — a connected
+  // banner (with Disconnect), or a "Connect to a remote…" CTA on a plain local
+  // board. Hosted hubs manage projects, not bindings, so neither appears there.
+  let remotePane = '';
+  if (!hosted) {
+    if (remote) {
+      // Bound — show the target and a Disconnect. The dot reflects live status:
+      // a binding can exist while the hub is briefly unreachable (offline).
+      remotePane = `
+        <div class="remote-pane${remote.connected ? ' connected' : ''}">
+          <div class="remote-pane-row">
+            <span class="remote-status-dot${remote.connected ? ' connected' : ''}" aria-hidden="true"></span>
+            <span class="remote-pane-text">
+              <span class="remote-pane-name">${escapeHtml(remote.projectName || remote.project)}${remote.connected ? '' : ' · offline'}</span>
+              <span class="remote-pane-url">${escapeHtml(remote.url)}</span>
+            </span>
+          </div>
+          <button type="button" class="pane-foot remote-disconnect" id="bc-disconnect">Disconnect</button>
+        </div>`;
+    } else {
+      remotePane = `
+        <div class="remote-pane">
+          <button type="button" class="pane-foot remote-connect-cta" id="bc-connect">☁ Connect to a remote…</button>
+        </div>`;
+    }
+  }
   pop.innerHTML = `
     <div class="pane pane-workspaces">
       <div class="pane-head">${hosted ? 'Projects' : 'Workspaces'}</div>
       <div class="pane-list" id="bc-ws-list"></div>
       <button type="button" class="pane-foot" id="bc-attach">${hosted ? '＋ New project…' : '＋ Attach workspace…'}</button>
     </div>
+    ${remotePane}
   `;
   const wsList = pop.querySelector('#bc-ws-list');
 
@@ -441,6 +522,16 @@ function openBreadcrumbPopover() {
     closePopover();
     if (hosted) openCreateProjectModal();
     else openAddWorkspaceModal();
+  });
+
+  // SCP-236: remote bind/unbind from the switcher.
+  pop.querySelector('#bc-connect')?.addEventListener('click', () => {
+    closePopover();
+    openConnectRemoteModal();
+  });
+  pop.querySelector('#bc-disconnect')?.addEventListener('click', () => {
+    closePopover();
+    disconnectRemote();
   });
 
   renderWsList();
@@ -504,21 +595,53 @@ function openOverflowMenu() {
   if (popoverEl) return closePopover();
   const pop = openPopover(anchor, {align: 'right', width: 200});
   pop.classList.add('popover-menu');
-  // Hosted-only items (per-user identity): members panel (SCP-191), API keys +
-  // sign out (SCP-174). Shown only when the hub runs hosted auth — never on the
-  // local/LAN path.
-  const hostedItems = state.meta?.hosted ? `
-    <div class="menu-sep"></div>
-    <button type="button" class="menu-item" data-act="members"><span class="mi-icon">👥</span> Members &amp; sharing</button>
-    <button type="button" class="menu-item" data-act="apikeys"><span class="mi-icon">🔑</span> API keys</button>
-    <button type="button" class="menu-item" data-act="signout"><span class="mi-icon">⏏</span> Sign out</button>
-  ` : '';
+  // Collaboration items (per-user identity): members panel (SCP-191), API keys
+  // (SCP-174). Available on a hosted hub AND on a local board bound+connected to
+  // a remote project (SCP-235) — both expose the same proxied endpoints.
+  const remote = state.meta?.remote || null;
+  const collab = collabEnabled();
+  // SCP-236: when bound+connected, head the menu with the remote target and a
+  // Disconnect action (instead of hosted's Sign out). A hosted hub keeps Sign out.
+  let collabItems = '';
+  if (collab) {
+    collabItems += '<div class="menu-sep"></div>';
+    if (remote?.connected) {
+      collabItems += `
+        <div class="menu-head remote-menu-head" title="${escapeHtml(remote.url)}">
+          <span class="remote-status-dot connected" aria-hidden="true"></span>
+          Connected to ${escapeHtml(remote.projectName || remote.project)}
+          <span class="remote-menu-sub">${escapeHtml(remote.url)}</span>
+        </div>`;
+    }
+    collabItems += `
+      <button type="button" class="menu-item" data-act="members"><span class="mi-icon">👥</span> Members &amp; sharing</button>
+      <button type="button" class="menu-item" data-act="apikeys"><span class="mi-icon">🔑</span> API keys</button>`;
+    collabItems += remote?.connected
+      ? '<button type="button" class="menu-item" data-act="disconnect"><span class="mi-icon">⏏</span> Disconnect</button>'
+      : '<button type="button" class="menu-item" data-act="signout"><span class="mi-icon">⏏</span> Sign out</button>';
+  } else if (!state.meta?.hosted && remote) {
+    // SCP-236: bound but the hub is unreachable (offline) — offer Disconnect to
+    // drop the dead binding (collab endpoints would just error against a down hub).
+    collabItems += `
+      <div class="menu-sep"></div>
+      <div class="menu-head remote-menu-head" title="${escapeHtml(remote.url)}">
+        <span class="remote-status-dot" aria-hidden="true"></span>
+        ${escapeHtml(remote.projectName || remote.project)} · offline
+        <span class="remote-menu-sub">${escapeHtml(remote.url)}</span>
+      </div>
+      <button type="button" class="menu-item" data-act="disconnect"><span class="mi-icon">⏏</span> Disconnect</button>`;
+  } else if (!state.meta?.hosted) {
+    // SCP-236: a plain local board (not hosted, not bound) can connect to a hub.
+    collabItems += `
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-item" data-act="connect"><span class="mi-icon">☁</span> Connect to a remote…</button>`;
+  }
   pop.innerHTML = `
     <button type="button" class="menu-item" data-act="refresh"><span class="mi-icon">↻</span> Refresh</button>
     <button type="button" class="menu-item" data-act="graph"><span class="mi-icon">⛓</span> ${state.view === 'graph' ? 'Back to board' : 'Relationship graph'}</button>
     <button type="button" class="menu-item" data-act="overview"><span class="mi-icon">☰</span> ${state.view === 'overview' ? 'Back to board' : 'Workspace overview'}</button>
     <button type="button" class="menu-item" data-act="history"><span class="mi-icon">⏱</span> ${state.view === 'history' ? 'Back to board' : 'History'}</button>
-    ${hostedItems}
+    ${collabItems}
   `;
   pop.querySelectorAll('.menu-item').forEach((b) => {
     b.addEventListener('click', async () => {
@@ -540,6 +663,8 @@ function openOverflowMenu() {
       }
       else if (act === 'members') openMembersModal();
       else if (act === 'apikeys') openApiKeysModal();
+      else if (act === 'connect') openConnectRemoteModal();   // SCP-236
+      else if (act === 'disconnect') disconnectRemote();       // SCP-236
       else if (act === 'signout') {
         try { await api('/auth/logout', { method: 'POST' }); } catch {}
         window.location.href = '/';
@@ -780,19 +905,29 @@ async function leaveProject(tid, members, errEl) {
  * rename/archive (owner). Opened from the overflow menu, hosted only.
  */
 async function openMembersModal() {
-  const w = currentWorkspaceObj();
-  if (!state.meta?.hosted || !w) {
+  // SCP-235: the tenant id is the active board id on a hosted hub, but the bound
+  // remote's project id when this local board is remote-connected.
+  const tid = collabProject();
+  if (!collabEnabled() || !tid) {
     return toast('Select a project first.', { variant: 'info' });
   }
-  const tid = w.id;
+  const w = currentWorkspaceObj();
+  const remote = state.meta?.remote || null;
   const tidPath = encodeURIComponent(tid);
-  const myRole = w.role || 'viewer';
+  // Role + display name come from the remote binding when bound, else the
+  // hosted workspace entry.
+  const myRole = collabRole() || 'viewer';
   const isOwner = myRole === 'owner';
-  const projName = w.name || w.label || 'this project';
+  const projName = remote?.connected
+    ? (remote.projectName || w?.name || w?.label || 'this project')
+    : (w?.name || w?.label || 'this project');
+  // The local key chip only makes sense on a hosted board (the remote's key
+  // isn't surfaced); fall back to nothing when bound.
+  const keyChip = state.meta?.hosted ? (w?.key || '') : '';
 
   const modal = openModal(`
     <div class="modal-head"><h2>Members &amp; sharing</h2></div>
-    <p class="modal-sub">${w.key ? `<span class="pkey">${escapeHtml(w.key)}</span> ` : ''}${escapeHtml(projName)} — your role: <strong>${escapeHtml(myRole)}</strong></p>
+    <p class="modal-sub">${keyChip ? `<span class="pkey">${escapeHtml(keyChip)}</span> ` : ''}${escapeHtml(projName)} — your role: <strong>${escapeHtml(myRole)}</strong></p>
     <div id="member-list" class="member-list">Loading…</div>
     <div id="member-err" class="modal-error" role="alert"></div>
     ${isOwner ? `
@@ -808,7 +943,7 @@ async function openMembersModal() {
       <div id="invite-list" class="apikey-list"></div>
       <div class="member-sec-head">Project</div>
       <form id="proj-rename" class="proj-invite-form">
-        <input id="proj-rename-name" value="${escapeHtml(w.name || '')}" autocomplete="off" />
+        <input id="proj-rename-name" value="${escapeHtml(projName === 'this project' ? '' : projName)}" autocomplete="off" />
         <button type="submit" class="btn">Rename</button>
       </form>
       <div class="modal-actions">
@@ -826,8 +961,23 @@ async function openMembersModal() {
   let members = [];
 
   // After a successful membership mutation our own role (or membership) may
-  // have changed — re-sync the workspace list and rebuild what's stale.
+  // have changed — re-sync and rebuild what's stale. SCP-235: when remote-bound
+  // the role lives in meta.remote (not a local workspace entry), so refresh meta
+  // and compare that instead of the workspace list.
   async function resync() {
+    if (remote?.connected) {
+      await reloadMeta();
+      const newRole = state.meta?.remote?.role || null;
+      if (!state.meta?.remote?.connected) {
+        // Lost the binding (e.g. removed ourselves on the hub) — back to local.
+        closeModal();
+        applyRoleChrome();
+        return;
+      }
+      if (newRole !== myRole) { openMembersModal(); return; }
+      await renderMembers();
+      return;
+    }
     await reloadWorkspaces();
     const nw = state.workspaces.find((x) => x.id === tid);
     if (!nw) {
@@ -942,7 +1092,10 @@ async function openMembersModal() {
         method: 'POST', body: { role, ...(email ? { email } : {}) },
       });
       // Mirror of the apikey-fresh pattern: the code is shown exactly once.
-      const link = `${location.origin}/invite/${encodeURIComponent(inv.code)}`;
+      // SCP-235: the invite is redeemed on the HUB, so a bound board points the
+      // link at the remote origin (not this local server, which can't accept it).
+      const inviteOrigin = remote?.connected ? remote.url.replace(/\/$/, '') : location.origin;
+      const link = `${inviteOrigin}/invite/${encodeURIComponent(inv.code)}`;
       inviteFresh.hidden = false;
       inviteFresh.innerHTML = `Share this invite link now — it won’t be shown again:
         <code class="apikey-secret">${escapeHtml(link)}</code>
@@ -970,7 +1123,10 @@ async function openMembersModal() {
     }
     try {
       await api(`/api/projects/${tidPath}`, { method: 'PATCH', body: { name } });
-      await reloadWorkspaces(); // refreshes the breadcrumb too
+      // SCP-235: the bound project's name lives in meta.remote.projectName (the
+      // chrome reads it from there); hosted boards show it via the workspace list.
+      if (remote?.connected) await reloadMeta();
+      else await reloadWorkspaces(); // refreshes the breadcrumb too
       toast('Project renamed.', { variant: 'info' });
     } catch (e2) {
       errEl.textContent = e2.message;
@@ -996,7 +1152,10 @@ async function openMembersModal() {
       await api(`/api/projects/${tidPath}`, { method: 'DELETE' });
       closeModal();
       toast(`Archived ${projName}.`, { variant: 'info' });
-      await switchToBoard(null);
+      // SCP-235: a bound board's binding is now stale (project gone) — tear it
+      // down; a hosted board moves to the next remaining project.
+      if (remote?.connected) await disconnectRemote({ silent: true });
+      else await switchToBoard(null);
     } catch (e) {
       archiveBtn.disabled = false;
       errEl.textContent = e.message;
@@ -1010,12 +1169,139 @@ async function openMembersModal() {
     if (ok) {
       closeModal();
       toast(`Left ${projName}.`, { variant: 'info' });
-      await switchToBoard(null);
+      // SCP-235: after leaving, the bound credential no longer grants access —
+      // disconnect; hosted boards fall back to the next remaining project.
+      if (remote?.connected) await disconnectRemote({ silent: true });
+      else await switchToBoard(null);
     }
   });
 
   await renderMembers();
   if (isOwner) await renderInvites();
+}
+
+/* ------- local-as-remote-client: connect / disconnect (SCP-236) -------
+ * A plain local board (not a hosted hub) can bind to a hosted project. Bind is
+ * loopback-only and lives behind /api/remote/* on this same server; once bound,
+ * the collaboration UI (members/invites/presence/keys) is proxied to the hub
+ * and unlocked by collabEnabled(). */
+
+/**
+ * Two-step connect modal: (1) enter hub URL + API key → POST /api/remote/projects
+ * lists the projects that key can see; (2) pick one → POST /api/remote/connect
+ * binds it. On success reload meta + workspaces so the collab chrome appears.
+ */
+function openConnectRemoteModal() {
+  const modal = openModal(`
+    <div class="modal-head"><h2>Connect to a remote</h2></div>
+    <p class="modal-sub">Bind this local board to a hosted Scope project. Members,
+      invites and presence then sync with the hub; your tickets stay local and mirror up.</p>
+    <form id="remote-form" class="remote-form">
+      <label>Hub URL
+        <input id="remote-url" type="url" placeholder="https://scope.example.com" autocomplete="off" required />
+      </label>
+      <label>API key
+        <input id="remote-key" type="password" placeholder="scope_…" autocomplete="off" required />
+      </label>
+      <div id="remote-err" class="modal-error" role="alert"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="remote-cancel">Cancel</button>
+        <button type="submit" class="btn primary" id="remote-next">List projects</button>
+      </div>
+    </form>
+    <div id="remote-picker" class="remote-picker" hidden>
+      <div class="member-sec-head">Choose a project</div>
+      <div id="remote-proj-list" class="remote-proj-list"></div>
+    </div>
+  `);
+
+  const form = modal.querySelector('#remote-form');
+  const urlInput = modal.querySelector('#remote-url');
+  const keyInput = modal.querySelector('#remote-key');
+  const errEl = modal.querySelector('#remote-err');
+  const nextBtn = modal.querySelector('#remote-next');
+  const picker = modal.querySelector('#remote-picker');
+  const projList = modal.querySelector('#remote-proj-list');
+  urlInput.focus();
+
+  modal.querySelector('#remote-cancel').addEventListener('click', closeModal);
+
+  // Map the server's machine codes onto inline, human messages (SCP-236).
+  const explain = (e) =>
+    e.code === 'BAD_KEY' ? 'The hub rejected that key.'
+    : e.code === 'REMOTE_DOWN' ? 'The hub is unreachable — check the URL.'
+    : e.message;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errEl.textContent = '';
+    const url = urlInput.value.trim().replace(/\/$/, '');
+    const key = keyInput.value.trim();
+    if (!url || !key) { errEl.textContent = 'Both fields are required.'; return; }
+    nextBtn.disabled = true;
+    let projects;
+    try {
+      projects = await api('/api/remote/projects', { method: 'POST', body: { url, key } });
+    } catch (e2) {
+      nextBtn.disabled = false;
+      errEl.textContent = explain(e2);
+      return;
+    }
+    nextBtn.disabled = false;
+    renderProjects(url, key, Array.isArray(projects) ? projects : []);
+  });
+
+  function renderProjects(url, key, projects) {
+    picker.hidden = false;
+    if (!projects.length) {
+      projList.innerHTML = '<div class="pane-empty">That key can’t see any projects.</div>';
+      return;
+    }
+    projList.innerHTML = projects.map((p, i) => {
+      const pid = p.id || p.tenant_id;
+      return `
+        <button type="button" class="remote-proj-item" data-i="${i}">
+          <span class="remote-proj-name">${escapeHtml(p.name || pid)}</span>
+          <span class="remote-proj-role">${escapeHtml(p.role || '')}</span>
+        </button>`;
+    }).join('');
+    projList.querySelectorAll('.remote-proj-item').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const p = projects[Number(btn.dataset.i)];
+        const project = p.id || p.tenant_id;
+        projList.querySelectorAll('.remote-proj-item').forEach((b) => (b.disabled = true));
+        errEl.textContent = '';
+        try {
+          const res = await api('/api/remote/connect', { method: 'POST', body: { url, project, key } });
+          // Reload meta + workspaces so collabEnabled() flips and the chrome appears.
+          await reloadMeta();
+          await reloadWorkspaces();
+          closeModal();
+          toast(`Connected to ${res.projectName || p.name || project}.`, { variant: 'info' });
+        } catch (e2) {
+          projList.querySelectorAll('.remote-proj-item').forEach((b) => (b.disabled = false));
+          errEl.textContent = explain(e2);
+        }
+      });
+    });
+  }
+}
+
+/**
+ * Tear down the remote binding (SCP-236). POST /api/remote/disconnect, then
+ * reload meta so collabEnabled() flips back off and the chrome reverts to the
+ * plain local board. `silent` suppresses the toast (used by archive/leave, which
+ * emit their own).
+ */
+async function disconnectRemote({ silent = false } = {}) {
+  try {
+    await api('/api/remote/disconnect', { method: 'POST' });
+  } catch (e) {
+    toast(`Couldn’t disconnect: ${e.message}`);
+    return;
+  }
+  await reloadMeta();
+  if (!silent) toast('Disconnected.', { variant: 'info' });
 }
 
 /* ------------- realtime: server-sent events ------------- */
@@ -1053,10 +1339,13 @@ function flashIndicator(klass = 'tick') {
  */
 async function refreshPresence() {
   let pill = document.getElementById('presence-indicator');
-  if (!state.meta?.hosted || !state.currentWorkspace) { if (pill) pill.hidden = true; return; }
+  // SCP-235: presence is available on a hosted hub AND on a remote-bound board.
+  // The tenant id is the active board (hosted) or the bound project (remote).
+  const tid = collabProject();
+  if (!collabEnabled() || !tid) { if (pill) pill.hidden = true; return; }
   let people;
   try {
-    people = await api(`/api/projects/${encodeURIComponent(state.currentWorkspace)}/presence`);
+    people = await api(`/api/projects/${encodeURIComponent(tid)}/presence`);
   } catch { return; }
   if (!pill) {
     pill = document.createElement('span');
@@ -1069,6 +1358,28 @@ async function refreshPresence() {
   pill.hidden = people.length === 0;
   pill.textContent = `● ${people.length}`;
   pill.title = names.length ? `Online: ${names.join(', ')}` : 'No one else online';
+}
+
+/**
+ * SCP-236: small remote-link status chip near the live dot — "● connected" or
+ * "○ offline" — present only when this local board is bound to a remote. Hidden
+ * on a hosted hub and on a plain local board. Refreshed alongside meta.
+ */
+function updateRemoteStatus() {
+  let chip = document.getElementById('remote-status');
+  const remote = state.meta?.remote || null;
+  if (!remote) { if (chip) chip.hidden = true; return; }
+  if (!chip) {
+    chip = document.createElement('span');
+    chip.id = 'remote-status';
+    chip.className = 'remote-status';
+    const dot = document.getElementById('live-indicator');
+    dot?.parentNode?.insertBefore(chip, dot);
+  }
+  chip.hidden = false;
+  chip.classList.toggle('connected', !!remote.connected);
+  chip.textContent = remote.connected ? '● connected' : '○ offline';
+  chip.title = `${remote.url} · ${remote.projectName || remote.project}`;
 }
 
 /**

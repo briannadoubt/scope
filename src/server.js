@@ -65,6 +65,9 @@ import {
 import { ensureReplica, refreshReplica, flushReplica, closeAllReplicas, evictReplica } from './auth_hosted/tenant-replica.js';
 import { uploadEvents, pullEvents, existingEventIds } from './pg/store.js';
 import { serverError } from './http-errors.js';
+import { resolveBinding, probeRemote, collabProxyRouter } from './remote-client.js';
+import { writeRemoteConfig, writeCredential, clearRemoteConfig, clearCredential } from './remote-config.js';
+import { startRemoteSync } from './remote-sync.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
@@ -95,6 +98,7 @@ export async function startServer({
   open: openBrowser,
   quiet = false,
   silent = false,
+  sync = true, // SCP-232: auto-run the RemoteSyncAgent when the board is remote-bound
   discoverable = true,
   /**
    * Hosted/cloud mode (SCP-161). When true: bind 0.0.0.0:$PORT (reachable by
@@ -140,6 +144,29 @@ export async function startServer({
   if (hostedAuth) {
     pool = await ensureHostedAuthReady(); // create auth tables if absent (idempotent)
   }
+
+  // Local-as-remote-client (SCP-232): a LOCAL (non-hosted) board can be bound to
+  // a hosted project. When bound, this server reports the binding in /api/meta,
+  // proxies the collaboration control-plane to the hub, and runs a RemoteSyncAgent
+  // so the local board mirrors the project in realtime. The primary workspace is
+  // whatever scopeDir was passed, else the first one the manager holds (the serve
+  // path attaches via the manager, not the scopeDir param).
+  const primaryWs = scopeDir ? mgr.attach(scopeDir) : [...mgr.workspaces.values()][0] || null;
+  const primaryScopeDir = primaryWs?.scope_dir || null;
+  let binding = (!cloud && primaryScopeDir) ? resolveBinding(primaryScopeDir) : null;
+  let remoteProbe = { connected: false, role: null, projectName: null };
+  let lastProbeAt = 0;
+  let boundAgent = null;
+  const refreshProbe = async () => { remoteProbe = await probeRemote(binding); lastProbeAt = Date.now(); };
+  const startBoundSync = () => {
+    if (boundAgent || cloud || sync === false || !binding || !primaryWs) return;
+    boundAgent = startRemoteSync(primaryWs.db, primaryScopeDir, {
+      remote: binding.url, project: binding.project, token: binding.key,
+      onStatus: (s) => { remoteProbe = { ...remoteProbe, connected: s.connected }; },
+    });
+  };
+  const stopBoundSync = () => { if (boundAgent) { try { boundAgent.stop(); } catch { /* ignore */ } boundAgent = null; } };
+  if (binding) { refreshProbe().catch(() => {}); startBoundSync(); }
 
   // Prime the in-memory CRL from disk and install SIGUSR1 so revokes done by
   // out-of-process CLI calls (`scope devices revoke`) get picked up live.
@@ -596,6 +623,56 @@ export async function startServer({
         ? authMiddleware({ token, allowedHosts: [], trustLoopback: false })
         : authMiddleware({ token, allowedHosts: lanHosts() })
     );
+
+    // Local-as-remote-client (SCP-232/234): forward the collaboration control-
+    // plane to the bound hub with the API key attached server-side, so the web UI
+    // (Members & sharing, invites, presence, keys) works against the remote while
+    // ticket data stays local + synced. Non-collab paths fall through. Read live
+    // (getBinding) so connect/disconnect take effect without a restart.
+    if (!cloud) {
+      app.use(collabProxyRouter({ getBinding: () => binding }));
+
+      // Bind / unbind this board to a hosted project from the UI (SCP-236).
+      // Loopback-only — same-machine control, like /api/pair/begin.
+      const loopbackOnly = (req, res, next) => {
+        const ip = req.socket?.remoteAddress || '';
+        if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') return next();
+        return res.status(403).json({ error: 'loopback only' });
+      };
+      // List the projects a (url, key) can see — lets the connect UI show a
+      // picker after the user enters their hub + key, before binding (SCP-236).
+      app.post('/api/remote/projects', loopbackOnly, async (req, res) => {
+        const { url, key } = req.body || {};
+        if (!url || !key) return res.status(400).json({ error: 'url and key are required' });
+        try {
+          const r = await fetch(`${String(url).replace(/\/$/, '')}/api/projects`, { headers: { Authorization: `Bearer ${key}` } });
+          if (!r.ok) return res.status(r.status === 401 ? 401 : 502).json({ error: r.status === 401 ? 'the hub rejected that key' : 'the hub is unreachable', code: r.status === 401 ? 'BAD_KEY' : 'REMOTE_DOWN' });
+          res.json(await r.json());
+        } catch { res.status(502).json({ error: 'the hub is unreachable', code: 'REMOTE_DOWN' }); }
+      });
+      app.post('/api/remote/connect', loopbackOnly, async (req, res) => {
+        const { url, project, key } = req.body || {};
+        if (!url || !project || !key) return res.status(400).json({ error: 'url, project, and key are required' });
+        if (!primaryScopeDir) return res.status(400).json({ error: 'no local workspace to bind' });
+        try {
+          writeRemoteConfig(primaryScopeDir, { url, project });
+          writeCredential(url, key);
+          binding = resolveBinding(primaryScopeDir);
+          stopBoundSync(); startBoundSync();
+          await refreshProbe();
+          if (!remoteProbe.connected) return res.status(502).json({ error: 'connected the config, but the hub did not accept the key', code: 'REMOTE_DOWN', remote: { url: binding.url, project: binding.project, connected: false } });
+          res.json({ url: binding.url, project: binding.project, connected: true, role: remoteProbe.role, projectName: remoteProbe.projectName });
+        } catch (e) { serverError(res, e); }
+      });
+      app.post('/api/remote/disconnect', loopbackOnly, (req, res) => {
+        stopBoundSync();
+        if (binding) clearCredential(binding.url);
+        if (primaryScopeDir) clearRemoteConfig(primaryScopeDir);
+        binding = null;
+        remoteProbe = { connected: false, role: null, projectName: null };
+        res.json({ ok: true });
+      });
+    }
   }
 
   /* ---------- workspace helpers ---------- */
@@ -629,10 +706,15 @@ export async function startServer({
 
   /* ---------- meta ---------- */
 
-  app.get('/api/meta', (_req, res) => {
+  app.get('/api/meta', async (_req, res) => {
     const security = tlsCtx
       ? { scheme: 'https', auth: ['bearer', 'mtls'], ca_fingerprint: fingerprintHex(tlsCtx.ca.certPem) }
       : { scheme: 'http', auth: ['bearer'] };
+    // SCP-233: the FIRST read of a bound server awaits the probe so connected/role
+    // are accurate immediately; later reads use the cache + a throttled, async
+    // refresh so they never block on the network.
+    if (binding && !lastProbeAt) await refreshProbe().catch(() => {});
+    else if (binding && Date.now() - lastProbeAt > 15000) refreshProbe().catch(() => {});
     res.json({
       version: PKG.version,
       statuses: SCHEMA_STATUSES,
@@ -646,6 +728,12 @@ export async function startServer({
       // True when per-user hosted auth is active — the web UI uses this to show
       // the API-keys panel + sign-out (SCP-174). False on the local/LAN path.
       hosted: hostedAuth,
+      // Remote binding (SCP-232/233): present when this LOCAL board is bound to a
+      // hosted project. The web UI unlocks the collaboration UI on remote.connected
+      // and targets remote.project for members/invites/presence (proxied).
+      remote: binding
+        ? { url: binding.url, project: binding.project, connected: remoteProbe.connected, role: remoteProbe.role, projectName: remoteProbe.projectName }
+        : null,
     });
   });
 
@@ -1177,6 +1265,7 @@ export async function startServer({
     try { advert?.stop?.(); } catch {}
     try { bonjour?.unpublishAll(() => bonjour.destroy()); } catch {}
     try { lanServer?.close(); } catch {}
+    try { stopBoundSync(); } catch {} // SCP-232: stop the remote-mirror agent
     if (hostedAuth) {
       try { closeAllReplicas(); } catch {}
       try { hostedRuntime?.pgBus?.close?.(); } catch {}

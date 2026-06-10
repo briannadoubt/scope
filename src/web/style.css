@@ -303,6 +303,21 @@ button { font-family: inherit; }
 .menu-item:hover { background: var(--bg-elev-2); }
 .menu-item .mi-icon { color: var(--text-muted); width: 18px; font-size: 15px; text-align: center; }
 .menu-sep { height: 1px; background: var(--border-soft); margin: 4px 6px; }
+.menu-head {
+  padding: 6px 10px 8px; font-size: 11px; color: var(--text-muted);
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap; line-height: 1.4;
+}
+/* Remote-link chrome (SCP-236). */
+.remote-menu-head { font-weight: 500; color: var(--text); }
+.remote-menu-sub {
+  flex-basis: 100%; font-size: 10px; color: var(--text-dim);
+  font-family: ui-monospace, monospace; word-break: break-all; font-weight: 400;
+}
+.remote-status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--text-dim);
+}
+.remote-status-dot.connected { background: var(--green, #3fb950); box-shadow: 0 0 6px var(--green, #3fb950); }
 
 /* Narrow widths: tighten labels progressively. Keep interactive widgets
    (switch, live-dot, triggers) from being squished by flex layout. */
@@ -320,6 +335,20 @@ button { font-family: inherit; }
   cursor: default;
   user-select: none;
 }
+/* Remote-link status chip (SCP-236): "● connected" / "○ offline" near the live
+   dot, present only when this local board is bound to a remote. */
+.remote-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+}
+.remote-status.connected { color: var(--green, #3fb950); border-color: var(--green, #3fb950); }
 .switch-field { flex-shrink: 0; }
 .trigger { flex-shrink: 0; }
 .breadcrumb { min-width: 0; }     /* the one trigger that's allowed to ellipsize */
@@ -899,6 +928,36 @@ button { font-family: inherit; }
 .proj-invite-form select { width: auto; flex: 0 0 auto; }
 .proj-invite-form .btn { flex: 0 0 auto; white-space: nowrap; }
 .btn.danger.armed { background: rgba(248,81,73,0.18); border-color: var(--red); }
+
+/* ------- Connect to a remote (SCP-236) ------- */
+.remote-form .modal-error { margin-top: 10px; }
+.remote-picker { margin-top: 16px; border-top: 1px solid var(--border-soft); padding-top: 12px; }
+.remote-proj-list { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+.remote-proj-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; text-align: left;
+  background: var(--bg-elev-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 9px 12px; cursor: pointer;
+  color: var(--text); font-family: inherit; font-size: 13px;
+}
+.remote-proj-item:hover { border-color: var(--accent); }
+.remote-proj-item:disabled { opacity: 0.5; cursor: default; }
+.remote-proj-name { font-weight: 500; }
+.remote-proj-role {
+  font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em;
+}
+
+/* Remote binding banner / CTA inside the workspace switcher (SCP-236). */
+.remote-pane { border-top: 1px solid var(--border-soft); margin-top: 4px; padding-top: 4px; }
+.remote-pane-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px 4px; }
+.remote-pane-text { display: flex; flex-direction: column; min-width: 0; }
+.remote-pane-name { font-size: 12px; font-weight: 500; color: var(--text); }
+.remote-pane-url {
+  font-size: 10px; color: var(--text-dim); font-family: ui-monospace, monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.remote-disconnect { color: var(--red); }
+.remote-connect-cta { color: var(--accent); }
 
 /* Role-aware chrome (SCP-191): viewers can't create tickets — hide the dead
  * controls. body.role-viewer is toggled on workspace switch, hosted only. */

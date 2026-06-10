@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTR4J0NXQ70ZD7H2MJM0TGMC",
+  "ts": "2026-06-10T06:47:15.389Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTR4J0NXQ70ZD7H2MJM0TGMB",
+    "number": 234,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Local server proxies the collaboration endpoints to the bound remote",
+    "description": "When bound, the local server forwards the collab API to the remote hub with the stored API key (Authorization: Bearer), so the existing same-origin web UI just works and the key never reaches the browser. Proxy: GET/POST /api/projects, /api/projects/:id/members(+role/remove), /api/projects/:id/invites(+revoke), /api/invites/accept, /api/projects/:id/presence, /auth/keys(+revoke). Scope strictly to these collab paths (ticket data stays local-then-synced). Handle remote errors/offline gracefully.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTR4J0NWDBVJ1RTE3WPDBP9N",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

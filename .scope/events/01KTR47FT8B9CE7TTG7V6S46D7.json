@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTR47FT8B9CE7TTG7V6S46D7",
+  "ts": "2026-06-10T06:41:30.440Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTR39TQADGCM8R320GS5AFX5",
+    "commentId": "01KTR47FT8B9CE7TTG7V6S46D6",
+    "author": "claude",
+    "body": "DONE. (1) Real fix: push actor-authz now runs only on genuinely-new events (existingEventIds dedup) so a teammate's already-accepted events in your full-log push no longer 403. (2) scope sync auto-claims the local actor name as an alias on ACTOR_MISMATCH and retries — binding is now just `scope remote set` + `scope sync`."
+  }
+}

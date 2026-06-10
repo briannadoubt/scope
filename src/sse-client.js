@@ -128,25 +128,23 @@ export function connectSse(url, opts = {}) {
 
   /** Tear down the active request/response without flipping `closed`. */
   const destroyRequest = () => {
-    if (res) {
+    // After removeAllListeners(), destroy() can still emit a final 'error'
+    // (ECONNRESET / socket hang up) as the socket closes — with our handler
+    // gone that would be an UNHANDLED error and crash the process on teardown
+    // (e.g. stopping a bound `scope serve`). Re-attach a no-op 'error' handler
+    // before destroying so the teardown reset is swallowed.
+    const safeDestroy = (obj) => {
+      if (!obj) return;
       try {
-        res.removeAllListeners();
-        res.destroy();
+        obj.removeAllListeners();
+        obj.on('error', () => {});
+        obj.destroy();
       } catch {
         /* already gone */
       }
-      res = null;
-    }
-    if (req) {
-      try {
-        req.removeAllListeners();
-        // `abort()`/`destroy()` cancel an in-flight request; either works.
-        req.destroy();
-      } catch {
-        /* already gone */
-      }
-      req = null;
-    }
+    };
+    safeDestroy(res); res = null;
+    safeDestroy(req); req = null;
   };
 
   const connect = () => {

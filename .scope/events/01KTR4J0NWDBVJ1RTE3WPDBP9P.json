@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTR4J0NWDBVJ1RTE3WPDBP9P",
+  "ts": "2026-06-10T06:47:15.388Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTR4J0NWDBVJ1RTE3WPDBP9N",
+    "number": 232,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Local UI as a full client of its bound remote (collab unlocks on connect)",
+    "description": "Today invites/members/presence/keys are gated on meta.hosted (true only when the server IS the hosted hub), so a local `scope serve` bound to a remote syncs data but shows no collaboration UI — you must context-switch to the hosted web UI to invite people. Make the LOCAL UI a full client of its bound remote: when connected (remote.json + an API key), the local server PROXIES the collaboration endpoints to the remote (key stays server-side) and the web UI lights up Members & sharing, invites, and presence for the bound project. Connecting becomes a button in the app, so binding needs no CLI. Builds on SCP-185 (collab API), SCP-218 (sync), SCP-227 (invite UX).",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

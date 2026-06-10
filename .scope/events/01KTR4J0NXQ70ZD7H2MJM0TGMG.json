@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTR4J0NXQ70ZD7H2MJM0TGMG",
+  "ts": "2026-06-10T06:47:15.389Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTR4J0NXQ70ZD7H2MJM0TGMF",
+    "number": 236,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "“Connect to a remote” flow in the local app (no CLI)",
+    "description": "A button in the local app to bind this board: enter hub URL + API key, pick or create a project, → write .scope/remote.json (non-secret) + store the key in a machine-local credentials file (NOT .scope, which is committed) + start the RemoteSyncAgent. Plus a Disconnect action. Mirrors `scope remote set` + key, but in the UI.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KTR4J0NWDBVJ1RTE3WPDBP9N",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

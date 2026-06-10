@@ -1844,7 +1844,6 @@ export function buildProgram() {
     .option('--gossip-cert <pem>', 'client cert for peer mTLS ($SCOPE_GOSSIP_CERT)')
     .option('--gossip-key <pem>', 'client key for peer mTLS ($SCOPE_GOSSIP_KEY)')
     .option('--gossip-ca <pem>', "peer hub's CA cert ($SCOPE_GOSSIP_CA)")
-    .option('--no-sync', 'do not auto-start the realtime remote mirror even if .scope/remote.json is configured (SCP-222)')
     .action(async (opts) => {
       const { db, scopeDir } = openOrDie();
       const preferredPort = Number.parseInt(opts.port, 10);
@@ -1890,25 +1889,10 @@ export function buildProgram() {
         process.on('SIGINT', stopGossip);
         process.on('SIGTERM', stopGossip);
       }
-      // Realtime remote mirror (SCP-222): if this repo is bound to a hosted
-      // project (.scope/remote.json) and a credential is available, keep the
-      // local board continuously converged with the hub — no manual `scope sync`.
-      // Opt out with --no-sync. Failures here never block the local hub.
-      if (opts.sync !== false) {
-        try {
-          const target = resolveRemote(scopeDir);
-          const token = process.env.SCOPE_API_KEY || process.env.SCOPE_TOKEN || '';
-          if (target.url && target.project && token) {
-            const agent = startRemoteSync(db, scopeDir, { remote: target.url, project: target.project, token });
-            process.stdout.write(chalk.green('✓') + ` live-sync on — mirroring ${target.url} (project ${target.project})\n`);
-            const stopSync = () => { try { agent.stop(); } catch {} };
-            process.on('SIGINT', stopSync);
-            process.on('SIGTERM', stopSync);
-          } else if (target.url && target.project && !token) {
-            process.stderr.write(chalk.gray('  (remote configured but no $SCOPE_API_KEY — run `scope sync --watch` or set a key to mirror live)\n'));
-          }
-        } catch { /* no remote configured — local-only, fine */ }
-      }
+      // The realtime remote mirror (SCP-222/232) is now owned by the hub process
+      // itself (startServer auto-starts the RemoteSyncAgent when the board is
+      // remote-bound), so it runs once on whichever process is the hub — not in
+      // every attached client. Nothing to do here.
 
       startHubWatchdog(res, ensureOpts, {
         onEvent: (e) => {

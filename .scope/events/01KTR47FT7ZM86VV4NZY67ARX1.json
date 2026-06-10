@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KTR47FT7ZM86VV4NZY67ARX1",
+  "ts": "2026-06-10T06:41:30.439Z",
+  "actor": "claude",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KTR39TQ9HCKK5AQ1HWJ5R86W",
+    "commentId": "01KTR47FT7ZM86VV4NZY67ARX0",
+    "author": "claude",
+    "body": "DONE + verified live. Public /invite/<code> (before the gate): logged-out -> styled join page; signed-in -> redeem + 302 /app. Code carried through OAuth via scope_invite cookie, auto-accepted in callback. lookupInvite/acceptInvite extracted; web shares /invite/<code>."
+  }
+}

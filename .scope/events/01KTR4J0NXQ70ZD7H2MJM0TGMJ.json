@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KTR4J0NXQ70ZD7H2MJM0TGMJ",
+  "ts": "2026-06-10T06:47:15.389Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KTR4J0NXQ70ZD7H2MJM0TGMH",
+    "number": 237,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "E2E: bound local instance manages collab + mirrors peers in realtime",
+    "description": "A local instance bound to a hosted hub can, through its OWN UI/proxy: list members, create an invite, have a peer accept, see presence — all proxied with the key server-side — and a peer's ticket move shows on the local board in realtime via the sync agent.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KTR4J0NWDBVJ1RTE3WPDBP9N",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

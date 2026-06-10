@@ -8,10 +8,53 @@
  * --token / $SCOPE_API_KEY / $SCOPE_TOKEN at invocation time, and
  * writeRemoteConfig enforces the rule by persisting only `url` and `project`.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 
 export const REMOTE_CONFIG_FILE = 'remote.json';
+
+// Credentials live OUTSIDE the repo (machine-local, per-user), keyed by hub URL —
+// NEVER in .scope/remote.json, which is committed (SCP-232/236). Same dir the
+// shared-token config uses (auth.js).
+const CRED_DIR = join(homedir(), '.scope-hub');
+const CRED_FILE = join(CRED_DIR, 'credentials.json');
+
+function readCreds() {
+  if (!existsSync(CRED_FILE)) return {};
+  try { return JSON.parse(readFileSync(CRED_FILE, 'utf8')); } catch { return {}; }
+}
+
+/** The stored API key for a hub URL, falling back to $SCOPE_API_KEY/$SCOPE_TOKEN. */
+export function readCredential(url) {
+  const stored = url ? readCreds()[url.replace(/\/$/, '')]?.key : null;
+  return stored || process.env.SCOPE_API_KEY || process.env.SCOPE_TOKEN || null;
+}
+
+/** Persist an API key for a hub URL (machine-local, 0600). */
+export function writeCredential(url, key) {
+  if (!url || !key) return;
+  if (!existsSync(CRED_DIR)) mkdirSync(CRED_DIR, { recursive: true });
+  const creds = readCreds();
+  creds[url.replace(/\/$/, '')] = { key };
+  writeFileSync(CRED_FILE, JSON.stringify(creds, null, 2) + '\n');
+  try { chmodSync(CRED_FILE, 0o600); } catch { /* best effort */ }
+}
+
+/** Forget a hub URL's stored key. */
+export function clearCredential(url) {
+  if (!url) return;
+  const creds = readCreds();
+  delete creds[url.replace(/\/$/, '')];
+  if (existsSync(CRED_DIR)) writeFileSync(CRED_FILE, JSON.stringify(creds, null, 2) + '\n');
+}
+
+/** Remove .scope/remote.json (disconnect). Idempotent. */
+export function clearRemoteConfig(scopeDir) {
+  if (!scopeDir) return;
+  const path = remoteConfigPath(scopeDir);
+  if (existsSync(path)) rmSync(path);
+}
 
 /** Absolute path of the config file inside a .scope dir. */
 export function remoteConfigPath(scopeDir) {
