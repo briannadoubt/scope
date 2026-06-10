@@ -28,6 +28,20 @@ const skip = available ? false : 'no Postgres reachable (run: docker compose up 
 const uniq = (p) => `${p}_${Math.floor(performance.now() * 1000)}`;
 const until = async (fn, ms = 4000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await fn()) return true; await new Promise((r) => setTimeout(r, 100)); } return false; };
 
+// The PG pool is a module-level singleton shared across this file. Close it ONCE
+// after all tests (like auth-hosted-pg/invites-pg) — NOT in each test's finally,
+// which would end the shared pool under a concurrently-running test ("Cannot use
+// a pool after calling end") and orphan an in-flight connection (hangs exit).
+test.after(async () => {
+  if (!available) return;
+  // Each test stops its bound sync agent (server close) in its finally, but the
+  // LAST in-flight round can still be resolving a hub-side pool query. Let it
+  // settle against the live pool before we end the shared singleton — otherwise
+  // it rejects with "Cannot use a pool after calling end" as async-after-test.
+  await new Promise((r) => setTimeout(r, 500));
+  await closePool();
+});
+
 async function hostedHub() {
   const scope = createTempScope();
   const mgr = new WorkspaceManager();
@@ -94,7 +108,6 @@ test('SCP-237: local board bound to a hub — meta.remote, proxied collab, realt
   } finally {
     if (local) await local.close();
     await hub.close();
-    await closePool();
   }
 });
 
@@ -133,6 +146,5 @@ test('SCP-241/242: connect CREATES a project from the local workspace + gitignor
   } finally {
     if (close) await close();
     await hub.close();
-    await closePool();
   }
 });

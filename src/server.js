@@ -1133,6 +1133,10 @@ export async function startServer({
     };
     bus.on('change', send);
     const keepalive = setInterval(() => res.write(': keepalive\n\n'), 20000);
+    // A keepalive must never keep the process alive on its own — otherwise an
+    // SSE stream that's force-dropped (server.closeAllConnections on shutdown)
+    // can leak this interval and hang process exit (SCP-232).
+    keepalive.unref?.();
 
     req.on('close', () => {
       bus.off('change', send);
@@ -1292,11 +1296,16 @@ export async function startServer({
     try { advert?.stop?.(); } catch {}
     try { bonjour?.unpublishAll(() => bonjour.destroy()); } catch {}
     try { lanServer?.close(); } catch {}
+    try { lanServer?.closeAllConnections?.(); } catch {}
     try { stopBoundSync(); } catch {} // SCP-232: stop the remote-mirror agent
     if (hostedAuth) {
       try { closeAllReplicas(); } catch {}
       try { hostedRuntime?.pgBus?.close?.(); } catch {}
     }
+    // Force-drop long-lived SSE/keepalive sockets so close() actually completes —
+    // otherwise an open /events stream (e.g. a bound peer's sync agent) keeps the
+    // server from finishing close and hangs shutdown (SCP-232). Clients reconnect.
+    try { server.closeAllConnections?.(); } catch {}
     return origClose(cb);
   };
   return server;
