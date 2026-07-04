@@ -279,6 +279,7 @@ struct SettingsView: View {
                     LabeledContent("URL", value: url.absoluteString)
                 }
                 LabeledContent("Status", value: store.client?.isConnected == true ? "Connected" : "Disconnected")
+                LabeledContent("Remote Task Sync", value: remoteTaskSyncValue)
             }
 
             Section("Workspace") {
@@ -296,6 +297,7 @@ struct SettingsView: View {
             Section {
                 Button("Disconnect", role: .destructive) {
                     store.client = nil
+                    store.hubMeta = nil
                     store.workspaces = []
                     store.selectedWorkspace = nil
                     store.tickets = []
@@ -303,6 +305,13 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+    }
+
+    private var remoteTaskSyncValue: String {
+        if let meta = store.hubMeta {
+            return meta.remoteSyncDescription
+        }
+        return store.client == nil ? "Disconnected" : "Checking..."
     }
 }
 

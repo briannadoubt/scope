@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWP404C3WT0D7MQ9971F7RGD",
+  "ts": "2026-07-04T08:30:24.131Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWP404C3WT0D7MQ9971F7RGC",
+    "number": 268,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Local task events are not bound to a hosted remote",
+    "description": "",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KWP34JC2292AHZQY188J7N5B",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

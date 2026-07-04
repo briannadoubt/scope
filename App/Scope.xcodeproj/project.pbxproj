@@ -29,6 +29,7 @@
 		9B6EFBB720C9964041DE57E1 /* HistoryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99EB82EA0FC83656FCEC82D5 /* HistoryEntry.swift */; };
 		9C44045273952A6A1031E0EE /* SyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4D3B8D4E8639EB8939C83D /* SyncStore.swift */; };
 		9C91EC6BDCF339773BB4EBA7 /* PairingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53DBBED92209D089DFD2B325 /* PairingManager.swift */; };
+		0A4F7BD01D2E3F4051627384 /* HubMeta.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A4F7BD11D2E3F4051627384 /* HubMeta.swift */; };
 		A1FE49F1A6F04F7B7DA55311 /* TicketDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F891BDC308203A67B7BBC5DA /* TicketDetailView.swift */; };
 		AD07E6A746BDC1453EBC4DDC /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B66544310C5C1E1E1912FEC /* JSONValue.swift */; };
 		BC28C1C08065EA58C038E4C2 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDC27C6E046CAE58090530A /* SyncEngine.swift */; };
@@ -58,6 +59,7 @@
 		02AC61CBB90D96A4965C239A /* HubClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubClient.swift; sourceTree = "<group>"; };
 		0A4F7BC11D2E3F4051627384 /* ScopeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ScopeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A4F7BC21D2E3F4051627384 /* EventStreamTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStreamTests.swift; sourceTree = "<group>"; };
+		0A4F7BD11D2E3F4051627384 /* HubMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubMeta.swift; sourceTree = "<group>"; };
 		151432F79B0C1E2337425760 /* CardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardView.swift; sourceTree = "<group>"; };
 		1B7E10A471A8B56FE4335B38 /* Ticket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ticket.swift; sourceTree = "<group>"; };
 		1EDC27C6E046CAE58090530A /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
@@ -188,6 +190,7 @@
 			isa = PBXGroup;
 			children = (
 				99EB82EA0FC83656FCEC82D5 /* HistoryEntry.swift */,
+				0A4F7BD11D2E3F4051627384 /* HubMeta.swift */,
 				1B7E10A471A8B56FE4335B38 /* Ticket.swift */,
 				71F7B0603315017D3577B142 /* Workspace.swift */,
 			);
@@ -386,6 +389,7 @@
 				9B6EFBB720C9964041DE57E1 /* HistoryEntry.swift in Sources */,
 				303892B0CAFC5E56B617A610 /* HubClient.swift in Sources */,
 				1509544C7CE4B73EBB204E21 /* HubDiscovery.swift in Sources */,
+				0A4F7BD01D2E3F4051627384 /* HubMeta.swift in Sources */,
 				651C9EA582A5F3D65D8E5336 /* HubRowView.swift in Sources */,
 				F20C6A7AE4A6C71D32EEF831 /* HubSyncTransport.swift in Sources */,
 				36546A171A0F3B00C14AD608 /* ISODates.swift in Sources */,

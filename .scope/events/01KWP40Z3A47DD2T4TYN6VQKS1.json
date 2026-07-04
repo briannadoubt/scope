@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KWP40Z3A47DD2T4TYN6VQKS1",
+  "ts": "2026-07-04T08:30:51.498Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KWP404C3WT0D7MQ9971F7RGC",
+    "commentId": "01KWP40Z31BKZMFFC4V9CE2XTN",
+    "author": "codex",
+    "body": "Repro evidence: scope --json remote show => url:null/project:null; scope sync => remote hub URL is required; http://localhost:4321/api/meta => remote:null and remoteLink:null for /Users/bri/dev/Scope. With no .scope/remote.json or env remote/key, scope serve does not start startRemoteSync for this workspace, so task event logs remain local/git-only."
+  }
+}

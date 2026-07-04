@@ -2,6 +2,42 @@ import XCTest
 @testable import Scope
 
 final class EventStreamTests: XCTestCase {
+    @MainActor
+    func testHubMetaRemoteTaskSyncStatusDecodesUnconfiguredAndConnectedStates() throws {
+        let localOnly = try HubClient.decoder.decode(HubMeta.self, from: Data("""
+        {
+          "version": "0.8.2",
+          "hosted": false,
+          "remote": null,
+          "remoteLink": null
+        }
+        """.utf8))
+
+        XCTAssertEqual(localOnly.remoteSyncStatus, .notConfigured)
+        XCTAssertEqual(localOnly.remoteSyncDescription, "Not configured")
+
+        let bound = try HubClient.decoder.decode(HubMeta.self, from: Data("""
+        {
+          "version": "0.8.2",
+          "hosted": false,
+          "remote": {
+            "url": "https://scope.example.test",
+            "project": "tenant_123",
+            "connected": true,
+            "role": "owner",
+            "projectName": "Scope"
+          },
+          "remoteLink": {
+            "url": "https://scope.example.test",
+            "project": "tenant_123",
+            "path": ".scope/remote.json"
+          }
+        }
+        """.utf8))
+
+        XCTAssertEqual(bound.remoteSyncStatus, .syncing)
+        XCTAssertEqual(bound.remoteSyncDescription, "Syncing to Scope")
+    }
 
     func testRemoteSyncAppliedFrameRequestsTicketRefresh() {
         let frame = """

@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class AppStore {
     var client: HubClient?
+    var hubMeta: HubMeta?
     var workspaces: [Workspace] = []
 
     private var _selectedWorkspace: Workspace? = nil
@@ -55,10 +56,24 @@ final class AppStore {
         // outage don't sit stale on screen until the next manual refresh.
         netMonitor.onTransition = { [weak self] online in
             guard let self, online else { return }
-            Task { await self.loadTickets() }
+            Task {
+                await self.loadHubMeta()
+                await self.loadTickets()
+            }
         }
         netMonitor.start()
+        await loadHubMeta()
         await loadWorkspaces()
+    }
+
+    func loadHubMeta() async {
+        guard let client else { return }
+        do {
+            hubMeta = try await client.get("/api/meta")
+        } catch {
+            hubMeta = nil
+            self.error = error.localizedDescription
+        }
     }
 
     // MARK: - Workspaces

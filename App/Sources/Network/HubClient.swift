@@ -263,7 +263,7 @@ final class HubClient {
     /// Fires a lightweight GET /api/meta to verify the connection.
     func checkConnectivity() async {
         do {
-            let _: [String: String] = try await get("/api/meta")
+            let _: HubMeta = try await get("/api/meta")
             isConnected = true
         } catch {
             isConnected = false

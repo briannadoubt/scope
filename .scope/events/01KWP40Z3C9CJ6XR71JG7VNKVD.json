@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "id": "01KWP40Z3C9CJ6XR71JG7VNKVD",
+  "ts": "2026-07-04T08:30:51.500Z",
+  "actor": "codex",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01KWP404C3WT0D7MQ9971F7RGC",
+    "field": "description",
+    "value": "Local ticket events are not syncing to a hosted remote because this checkout has no effective remote target: scope remote show reports url/project null, no .scope/remote.json exists, SCOPE_REMOTE/SCOPE_PROJECT/SCOPE_API_KEY/SCOPE_TOKEN are unset, scope sync exits with remote hub URL required, and local /api/meta reports remote:null and remoteLink:null. Expected: remote-bound workspaces clearly run push/pull so local ticket events reach the hosted project and then the mobile app."
+  }
+}

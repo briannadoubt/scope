@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KWP4B2J8MSA33XVSV9WFVFT5",
+  "ts": "2026-07-04T08:36:22.728Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KWP404C3WT0D7MQ9971F7RGC",
+    "commentId": "01KWP4B2J8MSA33XVSV9WFVFT4",
+    "author": "codex",
+    "body": "Added mobile visibility for the task-sync state: iOS now decodes /api/meta into HubMeta, fetches it on connect/network return, fixes HubClient.checkConnectivity to decode the real meta shape, and shows Settings > Hub > Remote Task Sync as Not configured / Linked / offline / Syncing. This makes the current failure visible in-app. Remaining operational step: bind this workspace to the real hosted hub with URL + project + API key so startRemoteSync can actually push local task events."
+  }
+}
