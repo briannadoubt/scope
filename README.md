@@ -248,6 +248,7 @@ for the format and conflict semantics.
 | `scope board [--epic <id>]` | Terminal kanban view. |
 | `scope serve [-p <port>]` | Run the hub (auto-attaches to a running hub if one exists). |
 | `scope preview --port <N>` | Run a per-pane proxy to the hub. For Claude Code's `.claude/launch.json` — each pane uses a unique port so `preview_start` doesn't make panes stop each other. |
+| `scope auth login --remote <url>` | Browser-approved hosted login for this machine. Stores the key outside the repo so future syncs just work. |
 | `scope ca fingerprint / trust / untrust / path` | Manage the local certificate authority. |
 | `scope pair` | Pair a new native client (prints a one-time 6-digit code). |
 | `scope devices list / rename` | Inspect or rename paired native clients. |

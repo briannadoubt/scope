@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KWP7B4KZHN55B12X2P5JFD6W",
+  "ts": "2026-07-04T09:28:50.559Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KWP6EXY7AF9YB1FYDYPGKMYX",
+    "commentId": "01KWP7B4KY1EVE3N209YQ79P50",
+    "author": "codex",
+    "body": "Implemented browser-approved hosted device auth: server grants, CLI auth login/begin/poll/status/logout with local credential storage, MCP auth tools that keep secrets out of model-visible output, docs, and tests. Verification: npm test passes."
+  }
+}

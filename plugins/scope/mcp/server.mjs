@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -6,9 +7,14 @@ import { fileURLToPath } from 'node:url';
 
 const widgetHtml = readFileSync(new URL('./scope-widget.html', import.meta.url), 'utf8');
 const widgetUri = 'ui://scope/board.html';
+const authFlows = new Map();
 const workspacePathProperty = {
   type: 'string',
   description: 'Optional repository path containing .scope/. Defaults to the current Codex workspace when available.'
+};
+const remoteProperty = {
+  type: 'string',
+  description: 'Hosted Scope hub base URL. Falls back to the workspace remote config when omitted for status/logout.'
 };
 
 const tools = [
@@ -109,6 +115,61 @@ const tools = [
       'openai/toolInvocation/invoking': 'Opening Scope sidebar',
       'openai/toolInvocation/invoked': 'Scope sidebar ready'
     }
+  },
+  {
+    name: 'scope_auth_status',
+    description: 'Use this to check whether Scope has a stored hosted-hub credential for this workspace or remote.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        remote: remoteProperty,
+        workspacePath: workspacePathProperty
+      },
+      additionalProperties: false
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true }
+  },
+  {
+    name: 'scope_auth_begin',
+    description: 'Use this to start browser-approved hosted Scope authentication without exposing the resulting secret to the model.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        remote: { ...remoteProperty, description: 'Hosted Scope hub base URL.' },
+        name: { type: 'string', description: 'Client name shown on the approval page.' },
+        workspacePath: workspacePathProperty
+      },
+      required: ['remote'],
+      additionalProperties: false
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true }
+  },
+  {
+    name: 'scope_auth_poll',
+    description: 'Use this after scope_auth_begin to complete approval and store the hosted credential locally. Does not return the credential.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        flowId: { type: 'string', description: 'Flow id returned by scope_auth_begin.' },
+        workspacePath: workspacePathProperty
+      },
+      required: ['flowId'],
+      additionalProperties: false
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true }
+  },
+  {
+    name: 'scope_auth_logout',
+    description: 'Use this to forget the stored hosted Scope credential for this workspace or remote.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        remote: remoteProperty,
+        workspacePath: workspacePathProperty
+      },
+      additionalProperties: false
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true }
   }
 ];
 
@@ -166,6 +227,19 @@ function boardPayload(mode = 'inline', workspacePath) {
   };
 }
 
+function compactAuthBegin(grant, flowId) {
+  return {
+    flowId,
+    remote: grant.remote,
+    user_code: grant.user_code,
+    verification_uri: grant.verification_uri,
+    verification_uri_complete: grant.verification_uri_complete,
+    expires_in: grant.expires_in,
+    expires_at: grant.expires_at,
+    interval: grant.interval
+  };
+}
+
 function compactTicket(ticket) {
   return {
     id: ticket.id,
@@ -213,6 +287,39 @@ async function callTool(name, args = {}) {
   if (name === 'scope_render_sidebar') {
     const data = boardPayload('sidebar', args.workspacePath);
     return toolResult(data, `Opened Scope sidebar: ${data.summary}.`, { 'ui.resourceUri': widgetUri });
+  }
+  if (name === 'scope_auth_status') {
+    const cli = ['auth', 'status'];
+    if (args.remote) cli.push('--remote', args.remote);
+    const data = runScopeJson(cli, args.workspacePath);
+    return toolResult(data, data.authenticated ? `Scope is authenticated with ${data.remote}.` : `Scope is not authenticated with ${data.remote}.`);
+  }
+  if (name === 'scope_auth_begin') {
+    const cli = ['auth', 'begin', '--remote', args.remote];
+    if (args.name) cli.push('--name', args.name);
+    const grant = runScopeJson(cli, args.workspacePath);
+    const flowId = randomUUID();
+    authFlows.set(flowId, {
+      remote: grant.remote,
+      deviceCode: grant.device_code,
+      expiresAt: grant.expires_at,
+      workspacePath: args.workspacePath
+    });
+    const data = compactAuthBegin(grant, flowId);
+    return toolResult(data, `Open ${data.verification_uri_complete} and approve code ${data.user_code}.`);
+  }
+  if (name === 'scope_auth_poll') {
+    const flow = authFlows.get(args.flowId);
+    if (!flow) throw new Error('Unknown or expired auth flow. Run scope_auth_begin again.');
+    const data = runScopeJson(['auth', 'poll', '--remote', flow.remote, '--device-code', flow.deviceCode], args.workspacePath || flow.workspacePath);
+    if (data.authenticated) authFlows.delete(args.flowId);
+    return toolResult(data, data.authenticated ? `Scope is authenticated with ${data.remote}.` : 'Still waiting for approval.');
+  }
+  if (name === 'scope_auth_logout') {
+    const cli = ['auth', 'logout'];
+    if (args.remote) cli.push('--remote', args.remote);
+    const data = runScopeJson(cli, args.workspacePath);
+    return toolResult(data, `Forgot the stored credential for ${data.remote}.`);
   }
   throw new Error(`Unknown tool: ${name}`);
 }

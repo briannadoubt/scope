@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWP6EXY8Y79ERAKPYAZFKQD9",
+  "ts": "2026-07-04T09:13:26.216Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWP6EXY7AF9YB1FYDYPGKMYX",
+    "number": 270,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Agent-safe hosted auth login flow",
+    "description": "",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KWP34JC2292AHZQY188J7N5B",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

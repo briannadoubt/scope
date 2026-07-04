@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { homedir } from 'node:os';
+import { homedir, hostname } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { tmpdir } from 'node:os';
@@ -26,7 +26,15 @@ import { ensureEventLog } from './backfill.js';
 import { syncFromLog } from './replay.js';
 import { syncWithRemote } from './sync-client.js';
 import { startRemoteSync } from './remote-sync.js';
-import { readRemoteConfig, writeRemoteConfig, resolveRemote, remoteConfigPath } from './remote-config.js';
+import {
+  readRemoteConfig,
+  writeRemoteConfig,
+  resolveRemote,
+  remoteConfigPath,
+  readCredential,
+  writeCredential,
+  clearCredential,
+} from './remote-config.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -102,6 +110,67 @@ function out(cmd, data, formatter) {
 function fail(msg) {
   console.error(chalk.red(msg));
   process.exit(1);
+}
+
+function remoteBase(url) {
+  return String(url || '').replace(/\/+$/, '');
+}
+
+function authCred(opts = {}, remoteUrl) {
+  return opts.token || readCredential(remoteUrl) || '';
+}
+
+function authHeaders(cred) {
+  return {
+    'Content-Type': 'application/json',
+    ...(cred ? { Authorization: `Bearer ${cred}` } : {}),
+  };
+}
+
+async function readJsonResponse(res) {
+  const text = await res.text().catch(() => '');
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: text };
+  }
+}
+
+async function beginDeviceAuth(remote, { name } = {}) {
+  const base = remoteBase(remote);
+  const res = await fetch(`${base}/auth/device/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name || `Scope CLI (${hostname()})` }),
+  });
+  const body = await readJsonResponse(res);
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return { ...body, remote: base };
+}
+
+async function pollDeviceAuth(remote, deviceCode) {
+  const base = remoteBase(remote);
+  const res = await fetch(`${base}/auth/device/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_code: deviceCode }),
+  });
+  const body = await readJsonResponse(res);
+  if (res.status === 428 || body.status === 'pending') {
+    return { authenticated: false, status: 'pending', interval: body.interval, remote: base };
+  }
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  if (body.status !== 'approved' || !body.key) {
+    throw new Error(body.error || `unexpected auth response: ${body.status || 'missing status'}`);
+  }
+  writeCredential(base, body.key);
+  return {
+    authenticated: true,
+    remote: base,
+    account_id: body.account_id,
+    key_id: body.key_id,
+  };
 }
 
 /**
@@ -930,7 +999,7 @@ export function buildProgram() {
     .option('--remote <url>', 'remote hub base URL, e.g. https://hub.scope.dev (falls back to $SCOPE_REMOTE, then .scope/remote.json)')
     .option('--remote-workspace <id>', 'the remote workspace id to sync with (wins over --project)')
     .option('--project <tenantId>', 'the remote project (tenant) to sync with (falls back to $SCOPE_PROJECT, then .scope/remote.json)')
-    .option('--token <token>', 'credential for the remote hub: a per-user API key (sk_…) or shared token. Falls back to $SCOPE_API_KEY then $SCOPE_TOKEN.')
+    .option('--token <token>', 'credential for the remote hub: a per-user API key (sk_…) or shared token. Falls back to `scope auth login`, then env.')
     .option('--model <name>', 'acting model for attribution (X-Scope-Model). Falls back to $SCOPE_MODEL.')
     .option('--watch', 'stay running and continuously mirror the remote in realtime (SCP-222) instead of a one-shot sync')
     .action(async (opts, cmd) => {
@@ -951,7 +1020,7 @@ export function buildProgram() {
       if (!target.project) {
         fail('remote workspace id is required (--remote-workspace). Configure one with `scope remote set --project <tenantId>`.');
       }
-      const token = opts.token || process.env.SCOPE_API_KEY || process.env.SCOPE_TOKEN || '';
+      const token = opts.token || readCredential(target.url) || '';
       const model = opts.model || process.env.SCOPE_MODEL || '';
 
       // --watch (SCP-222): a continuous, bidirectional live mirror — push on
@@ -1001,24 +1070,18 @@ export function buildProgram() {
     .description('Create, list, and revoke per-user API keys on a remote hosted hub.');
 
   // Resolve the credential used to call the hub's /auth/keys endpoints: an
-  // existing API key or session token. The very first key is minted in the web
-  // UI after GitHub sign-in; thereafter a key can mint more.
-  const authCred = (opts) => opts.token || process.env.SCOPE_API_KEY || process.env.SCOPE_TOKEN || '';
+  // existing API key/session token, or the machine-local key from `scope auth login`.
   const keysUrl = (remote, path = '') => `${remote.replace(/\/$/, '')}/auth/keys${path}`;
-  const authHeaders = (cred) => ({
-    'Content-Type': 'application/json',
-    ...(cred ? { Authorization: `Bearer ${cred}` } : {}),
-  });
 
   key
     .command('create <name>')
     .description('Mint a named API key on the remote hub. The secret is shown ONCE.')
     .requiredOption('--remote <url>', 'remote hub base URL, e.g. https://scope-hub.fly.dev')
-    .option('--token <token>', 'existing API key / session to authenticate this call ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .option('--token <token>', 'existing API key / session to authenticate this call (or use `scope auth login`)')
     .action(async (name, opts, cmd) => {
       try {
         const res = await fetch(keysUrl(opts.remote), {
-          method: 'POST', headers: authHeaders(authCred(opts)), body: JSON.stringify({ name }),
+          method: 'POST', headers: authHeaders(authCred(opts, opts.remote)), body: JSON.stringify({ name }),
         });
         if (!res.ok) fail(`create failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
         const body = await res.json();
@@ -1032,10 +1095,10 @@ export function buildProgram() {
     .command('list')
     .description('List your API keys on the remote hub (never shows secrets).')
     .requiredOption('--remote <url>', 'remote hub base URL')
-    .option('--token <token>', 'existing API key / session ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .option('--token <token>', 'existing API key / session (or use `scope auth login`)')
     .action(async (opts, cmd) => {
       try {
-        const res = await fetch(keysUrl(opts.remote), { headers: authHeaders(authCred(opts)) });
+        const res = await fetch(keysUrl(opts.remote), { headers: authHeaders(authCred(opts, opts.remote)) });
         if (!res.ok) fail(`list failed: HTTP ${res.status}`);
         const rows = await res.json();
         out(cmd, rows, (rs) => rs.length
@@ -1048,11 +1111,11 @@ export function buildProgram() {
     .command('revoke <id>')
     .description('Revoke an API key by id on the remote hub.')
     .requiredOption('--remote <url>', 'remote hub base URL')
-    .option('--token <token>', 'existing API key / session ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .option('--token <token>', 'existing API key / session (or use `scope auth login`)')
     .action(async (id, opts, cmd) => {
       try {
         const res = await fetch(keysUrl(opts.remote, `/${encodeURIComponent(id)}`), {
-          method: 'DELETE', headers: authHeaders(authCred(opts)),
+          method: 'DELETE', headers: authHeaders(authCred(opts, opts.remote)),
         });
         if (!res.ok) fail(`revoke failed: HTTP ${res.status}`);
         out(cmd, { ok: true, id }, () => chalk.green('✓') + ` revoked ${id}`);
@@ -1085,7 +1148,7 @@ export function buildProgram() {
           chalk.green('✓') + ` Remote configured — ${c.path}\n` +
           chalk.gray(`  url:      ${c.url || '(none)'}\n`) +
           chalk.gray(`  project:  ${c.project || '(none)'}\n`) +
-          chalk.gray('  Tokens never live here — pass --token or set $SCOPE_API_KEY.')
+          chalk.gray('  Tokens never live here — use `scope auth login`, pass --token, or set $SCOPE_API_KEY.')
         );
       } catch (e) { fail(e.message); }
     });
@@ -1129,12 +1192,12 @@ export function buildProgram() {
     .command('list')
     .description('List the projects (boards) you belong to on the remote hub, with your role on each.')
     .option('--remote <url>', 'remote hub base URL (falls back to $SCOPE_REMOTE, then .scope/remote.json)')
-    .option('--token <token>', 'API key / session to authenticate ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .option('--token <token>', 'API key / session to authenticate (or use `scope auth login`)')
     .action(async (opts, cmd) => {
       const r = resolveHubOrDie(opts);
       try {
-        const res = await fetch(projectsUrl(r.url), { headers: authHeaders(authCred(opts)) });
-        if (res.status === 401) fail('list failed: HTTP 401 — pass --token or set $SCOPE_API_KEY.');
+        const res = await fetch(projectsUrl(r.url), { headers: authHeaders(authCred(opts, r.url)) });
+        if (res.status === 401) fail('list failed: HTTP 401 — run `scope auth login --remote <url>` or pass --token.');
         if (!res.ok) fail(`list failed: HTTP ${res.status}`);
         const rows = await res.json();
         out(cmd, rows, (rs) => rs.length
@@ -1147,14 +1210,14 @@ export function buildProgram() {
     .command('create <name>')
     .description('Create a project (board) on the remote hub — you become its owner.')
     .option('--remote <url>', 'remote hub base URL (falls back to $SCOPE_REMOTE, then .scope/remote.json)')
-    .option('--token <token>', 'API key / session to authenticate ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .option('--token <token>', 'API key / session to authenticate (or use `scope auth login`)')
     .action(async (name, opts, cmd) => {
       const r = resolveHubOrDie(opts);
       try {
         const res = await fetch(projectsUrl(r.url), {
-          method: 'POST', headers: authHeaders(authCred(opts)), body: JSON.stringify({ name }),
+          method: 'POST', headers: authHeaders(authCred(opts, r.url)), body: JSON.stringify({ name }),
         });
-        if (res.status === 401) fail('create failed: HTTP 401 — pass --token or set $SCOPE_API_KEY.');
+        if (res.status === 401) fail('create failed: HTTP 401 — run `scope auth login --remote <url>` or pass --token.');
         if (!res.ok) fail(`create failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
         const body = await res.json();
         // SCP-193: non-interactive by convention — when the committed config
@@ -1190,13 +1253,13 @@ export function buildProgram() {
     .description('Claim an actor name as yours on the project (first-come; owners can --force a reassignment).')
     .option('--remote <url>', 'remote hub base URL ($SCOPE_REMOTE, .scope/remote.json)')
     .option('--project <tenantId>', 'target project ($SCOPE_PROJECT, .scope/remote.json)')
-    .option('--token <token>', 'API key / session ($SCOPE_API_KEY / $SCOPE_TOKEN)')
+    .option('--token <token>', 'API key / session (or use `scope auth login`)')
     .option('--force', 'owner only: reassign the alias even if someone else holds it', false)
     .action(async (name, opts, cmd) => {
       const { url, project } = resolveProjectOrDie(opts);
       try {
         const res = await fetch(aliasesUrl(url, project), {
-          method: 'POST', headers: authHeaders(authCred(opts)),
+          method: 'POST', headers: authHeaders(authCred(opts, url)),
           body: JSON.stringify({ alias: name, force: opts.force || undefined }),
         });
         if (res.status === 409) fail(`"${name}" is already claimed on this project (an owner can reassign with --force).`);
@@ -1211,11 +1274,11 @@ export function buildProgram() {
     .description('Show the actor-name → account map on the project.')
     .option('--remote <url>', 'remote hub base URL')
     .option('--project <tenantId>', 'target project')
-    .option('--token <token>', 'API key / session')
+    .option('--token <token>', 'API key / session (or use `scope auth login`)')
     .action(async (opts, cmd) => {
       const { url, project } = resolveProjectOrDie(opts);
       try {
-        const res = await fetch(aliasesUrl(url, project), { headers: authHeaders(authCred(opts)) });
+        const res = await fetch(aliasesUrl(url, project), { headers: authHeaders(authCred(opts, url)) });
         if (!res.ok) fail(`list failed: HTTP ${res.status}`);
         const rows = await res.json();
         out(cmd, rows, (rs) => rs.length
@@ -1229,12 +1292,12 @@ export function buildProgram() {
     .description('Remove an alias mapping (yours, or any as owner).')
     .option('--remote <url>', 'remote hub base URL')
     .option('--project <tenantId>', 'target project')
-    .option('--token <token>', 'API key / session')
+    .option('--token <token>', 'API key / session (or use `scope auth login`)')
     .action(async (name, opts, cmd) => {
       const { url, project } = resolveProjectOrDie(opts);
       try {
         const res = await fetch(aliasesUrl(url, project, name), {
-          method: 'DELETE', headers: authHeaders(authCred(opts)),
+          method: 'DELETE', headers: authHeaders(authCred(opts, url)),
         });
         if (!res.ok) fail(`remove failed: HTTP ${res.status}`);
         out(cmd, { ok: true, alias: name }, () => chalk.green('✓') + ` removed "${name}"`);
@@ -1641,14 +1704,127 @@ export function buildProgram() {
       out(cmd, { ca_dir: CA_DIR, ca_cert: CA_CERT_PATH, ca_key: CA_KEY_PATH }, (d) => d.ca_dir);
     });
 
-  /* ---------- auth token ---------- */
+  /* ---------- auth ---------- */
 
-  program
+  const auth = program
     .command('auth')
-    .description('Show the bearer token used to authenticate API requests.')
+    .description('Authenticate this machine with a hosted Scope hub, or print the local LAN bearer token.')
     .action(() => {
       const tok = loadOrCreateToken();
       process.stdout.write(tok + '\n');
+    });
+
+  const resolveAuthRemoteOrDie = (opts) => {
+    let r;
+    try {
+      r = resolveRemote(findScopeDir(), { remote: opts.remote });
+    } catch (e) {
+      fail(e.message);
+    }
+    if (!r.url) fail('No remote configured. Pass --remote <url> or run `scope remote set --url <url>`.');
+    return remoteBase(r.url);
+  };
+
+  auth
+    .command('begin')
+    .description('Start a browser-approved login against a hosted Scope hub.')
+    .requiredOption('--remote <url>', 'remote hub base URL')
+    .option('--name <name>', 'client name shown to the approving human', `Scope CLI (${hostname()})`)
+    .action(async (opts, cmd) => {
+      try {
+        const grant = await beginDeviceAuth(opts.remote, { name: opts.name });
+        out(cmd, grant, (g) =>
+          chalk.green('✓') + ' Login request created\n' +
+          `  code: ${chalk.bold(g.user_code)}\n` +
+          `  open: ${chalk.bold(g.verification_uri_complete)}`
+        );
+      } catch (e) { fail(`auth begin failed: ${e.message}`); }
+    });
+
+  auth
+    .command('poll')
+    .description('Poll a hosted login request and store the approved credential locally.')
+    .requiredOption('--remote <url>', 'remote hub base URL')
+    .requiredOption('--device-code <code>', 'device code returned by `scope auth begin`')
+    .action(async (opts, cmd) => {
+      try {
+        const result = await pollDeviceAuth(opts.remote, opts.deviceCode);
+        out(cmd, result, (r) =>
+          r.authenticated
+            ? chalk.green('✓') + ` Authenticated with ${chalk.bold(r.remote)}`
+            : chalk.yellow('…') + ` Still waiting for approval (${Math.ceil((r.interval || 2000) / 1000)}s)`
+        );
+      } catch (e) { fail(`auth poll failed: ${e.message}`); }
+    });
+
+  auth
+    .command('login')
+    .description('Open the browser, wait for approval, and save a hosted Scope credential locally.')
+    .requiredOption('--remote <url>', 'remote hub base URL')
+    .option('--name <name>', 'client name shown to the approving human', `Scope CLI (${hostname()})`)
+    .option('--timeout <seconds>', 'how long to wait for approval', '600')
+    .option('--no-open', 'print the approval URL without opening a browser')
+    .action(async (opts, cmd) => {
+      const timeoutMs = Math.max(1, Number.parseInt(opts.timeout, 10) || 600) * 1000;
+      try {
+        const grant = await beginDeviceAuth(opts.remote, { name: opts.name });
+        if (!cmd.optsWithGlobals().json) {
+          process.stdout.write(
+            chalk.green('✓') + ' Open this page and approve the login:\n' +
+            `  ${chalk.bold(grant.verification_uri_complete)}\n` +
+            `  code: ${chalk.bold(grant.user_code)}\n`
+          );
+        }
+        if (opts.open !== false) {
+          try {
+            const { default: open } = await import('open');
+            await open(grant.verification_uri_complete, { wait: false });
+          } catch {
+            if (process.platform === 'darwin') {
+              spawnSync('open', [grant.verification_uri_complete], { stdio: 'ignore' });
+            }
+          }
+        }
+
+        const started = Date.now();
+        let interval = grant.interval || 2000;
+        while (Date.now() - started < timeoutMs) {
+          await new Promise((resolve) => setTimeout(resolve, interval));
+          const result = await pollDeviceAuth(grant.remote, grant.device_code);
+          if (result.authenticated) {
+            out(cmd, result, (r) =>
+              chalk.green('✓') + ` Authenticated with ${chalk.bold(r.remote)}; future syncs will use the stored credential.`
+            );
+            return;
+          }
+          interval = result.interval || interval;
+        }
+        fail('auth login timed out waiting for approval.');
+      } catch (e) { fail(`auth login failed: ${e.message}`); }
+    });
+
+  auth
+    .command('status')
+    .description('Show whether this machine has a credential for a hosted Scope hub.')
+    .option('--remote <url>', 'remote hub base URL (falls back to $SCOPE_REMOTE, then .scope/remote.json)')
+    .action((opts, cmd) => {
+      const remote = resolveAuthRemoteOrDie(opts);
+      const credential = readCredential(remote);
+      out(cmd, { remote, authenticated: Boolean(credential) }, (s) =>
+        `${s.remote}: ${s.authenticated ? chalk.green('authenticated') : chalk.gray('not authenticated')}`
+      );
+    });
+
+  auth
+    .command('logout')
+    .description('Forget the stored credential for a hosted Scope hub.')
+    .option('--remote <url>', 'remote hub base URL (falls back to $SCOPE_REMOTE, then .scope/remote.json)')
+    .action((opts, cmd) => {
+      const remote = resolveAuthRemoteOrDie(opts);
+      clearCredential(remote);
+      out(cmd, { remote, authenticated: false }, () =>
+        chalk.green('✓') + ` Forgot the stored credential for ${chalk.bold(remote)}`
+      );
     });
 
   /* ---------- pair / devices ---------- */

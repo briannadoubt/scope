@@ -31,6 +31,12 @@ import {
   isStrongSecret,
 } from './sessions.js';
 import { authenticateApiKey, createApiKey, listApiKeys, revokeApiKey } from './apikeys.js';
+import {
+  approveDeviceGrant,
+  issueDeviceGrant,
+  normalizeUserCode,
+  pollDeviceGrant,
+} from './device-auth.js';
 import { upsertAccount, listMemberships } from './membership.js';
 import { createProjectBoard } from './tenant-board.js';
 import { githubConfigured, buildGithubAuthUrl, handleGithubCallback } from './github.js';
@@ -41,10 +47,60 @@ const SESSION_COOKIE = 'scope_session';
 const REFRESH_COOKIE = 'scope_refresh';
 const STATE_COOKIE = 'scope_oauth_state';
 const INVITE_COOKIE = 'scope_invite'; // carries an invite code across the OAuth round-trip (SCP-228)
+const DEVICE_COOKIE = 'scope_device'; // carries a CLI auth code across sign-in (SCP-270)
 
 /** A safe invite-code shape (base64url, what randomBytes(16).toString('base64url') emits). */
 function safeInviteCode(v) {
   return typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : null;
+}
+
+function publicOrigin(req) {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  return `${proto}://${req.headers.host}`;
+}
+
+function devicePage({ code = '', signedIn = false, invalid = false, loginHref = '/auth/login' } = {}) {
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const normalized = normalizeUserCode(code);
+  const content = invalid
+    ? `<h1>That code does not look right</h1>
+       <p>Check the code shown by <code>scope auth login</code> and try again.</p>`
+    : signedIn && normalized
+      ? `<h1>Approve Scope CLI login?</h1>
+         <p>Only approve this if the code below matches your terminal.</p>
+         <div class="code">${esc(normalized)}</div>
+         <form method="post" action="/auth/device/approve">
+           <input type="hidden" name="user_code" value="${esc(normalized)}">
+           <button class="btn" type="submit">Approve CLI access</button>
+         </form>`
+      : normalized
+        ? `<h1>Sign in to approve CLI access</h1>
+           <p>After sign-in, you can approve this code for your local Scope CLI.</p>
+           <div class="code">${esc(normalized)}</div>
+           <a class="btn" href="${esc(loginHref)}">Sign in</a>`
+        : `<h1>Enter your CLI code</h1>
+           <form method="get" action="/auth/device">
+             <input name="code" placeholder="ABCD-EFGH" autocomplete="one-time-code" autofocus>
+             <button class="btn" type="submit">Continue</button>
+           </form>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approve CLI login — Scope</title>
+<style>
+  :root { --bg:#0d1117; --text:#e6edf3; --muted:#8b949e; --accent:#2f81f7; --border:#30363d; }
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .card{max-width:460px;text-align:center;border:1px solid var(--border);border-radius:8px;
+    background:#161b22;padding:36px 30px;}
+  h1{font-size:21px;margin:0 0 10px;} p{color:var(--muted);margin:0 0 20px;}
+  .code{font-size:28px;letter-spacing:2px;font-weight:700;margin:18px 0 24px;}
+  input{box-sizing:border-box;width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);
+    background:#0d1117;color:var(--text);font:inherit;text-align:center;text-transform:uppercase;margin-bottom:14px;}
+  .btn{display:inline-block;border:0;padding:10px 18px;border-radius:8px;background:var(--accent);
+    color:#fff;text-decoration:none;font-weight:600;font:inherit;cursor:pointer;}
+</style></head><body><div class="wrap"><div class="card">${content}</div></div></body></html>`;
 }
 
 /* ------------------------------- enable gate ------------------------------ */
@@ -285,6 +341,7 @@ function invitePage({ projectName, role, loginHref, invalid, expired } = {}) {
  */
 export function publicAuthRouter({ pool, appPath = '/app' }) {
   const r = express.Router();
+  r.use(express.urlencoded({ extended: false }));
 
   // Kick off interactive login. GitHub first (it's the configured default);
   // generic OIDC as a fallback for Google/Apple etc. If the hub can't actually
@@ -298,6 +355,8 @@ export function publicAuthRouter({ pool, appPath = '/app' }) {
     // user who clicked an invite link joins the board right after sign-in.
     const invite = safeInviteCode(req.query.invite);
     if (invite) appendCookie(res, cookie(INVITE_COOKIE, invite, { maxAge: 600 }));
+    const device = normalizeUserCode(req.query.device);
+    if (device) appendCookie(res, cookie(DEVICE_COOKIE, device, { maxAge: 600 }));
     try {
       if (githubConfigured()) {
         // SCP-208: stash the PKCE verifier alongside state -> gh:<state>:<verifier>.
@@ -376,11 +435,92 @@ export function publicAuthRouter({ pool, appPath = '/app' }) {
         try { await acceptInvite(pool, invite, accountId); } catch { /* invalid/expired — ignore */ }
       }
 
+      const device = normalizeUserCode(cookies[DEVICE_COOKIE]);
+      if (device) {
+        return res.redirect(`/auth/device?code=${encodeURIComponent(device)}`);
+      }
+
       return res.redirect(appPath);
     } catch (e) {
       const status = e.code === 'OIDC_STATE' ? 400 : 500;
       return res.status(status).json({ error: e.message });
     }
+  });
+
+  // Device authorization for CLI/agent login (SCP-270). The CLI receives a
+  // high-entropy device code and polls /auth/device/token; the human approves a
+  // short user code in the browser under their existing session.
+  r.post('/auth/device/start', async (req, res) => {
+    if (!pool) return res.status(501).json({ error: 'hosted auth is not enabled', code: 'AUTH_NOT_ENABLED' });
+    try {
+      const grant = await issueDeviceGrant(pool, {
+        clientName: req.body?.name || 'Scope CLI',
+      });
+      const verificationUri = `${publicOrigin(req)}/auth/device`;
+      res.status(201).json({
+        device_code: grant.deviceCode,
+        user_code: grant.userCode,
+        verification_uri: verificationUri,
+        verification_uri_complete: `${verificationUri}?code=${encodeURIComponent(grant.userCode)}`,
+        expires_in: grant.expiresIn,
+        interval: Math.ceil(grant.intervalMs / 1000),
+        expires_at: grant.expiresAt,
+      });
+    } catch (e) { serverError(res, e); }
+  });
+
+  r.get('/auth/device', (req, res) => {
+    const code = normalizeUserCode(req.query.code || req.query.user_code);
+    const signedIn = hasValidSession(req);
+    const loginHref = code ? `/auth/login?device=${encodeURIComponent(code)}` : '/auth/login';
+    res.status(200).type('html').send(devicePage({
+      code: code || req.query.code || '',
+      signedIn,
+      invalid: !!req.query.code && !code,
+      loginHref,
+    }));
+  });
+
+  r.post('/auth/device/approve', async (req, res) => {
+    if (!pool) return res.status(501).json({ error: 'hosted auth is not enabled', code: 'AUTH_NOT_ENABLED' });
+    const cookies = parseCookies(req.headers.cookie);
+    let claims;
+    try {
+      claims = verifyAccessToken(cookies[SESSION_COOKIE]);
+    } catch {
+      return res.status(401).json({ error: 'sign in required', code: 'UNAUTHORIZED' });
+    }
+    try {
+      const out = await approveDeviceGrant(pool, {
+        userCode: req.body?.user_code || req.body?.code,
+        accountId: claims.sub,
+      });
+      if (out.status === 'invalid') return res.status(404).json({ error: 'invalid device code', code: 'DEVICE_CODE_INVALID' });
+      if (out.status === 'expired') return res.status(410).json({ error: 'device code expired', code: 'DEVICE_CODE_EXPIRED' });
+      if (out.status === 'consumed') return res.status(409).json({ error: 'device code already consumed', code: 'DEVICE_CODE_CONSUMED' });
+      appendCookie(res, cookie(DEVICE_COOKIE, '', { clear: true }));
+      return res.json({ status: 'approved', account_id: out.accountId, key_id: out.keyId });
+    } catch (e) { serverError(res, e); }
+  });
+
+  r.post('/auth/device/token', async (req, res) => {
+    if (!pool) return res.status(501).json({ error: 'hosted auth is not enabled', code: 'AUTH_NOT_ENABLED' });
+    try {
+      const out = await pollDeviceGrant(pool, { deviceCode: req.body?.device_code || req.body?.deviceCode });
+      if (out.status === 'pending') {
+        return res.status(428).json({ status: 'pending', interval: Math.ceil(out.intervalMs / 1000) });
+      }
+      if (out.status === 'approved') {
+        return res.json({
+          status: 'approved',
+          key: out.key,
+          key_id: out.keyId,
+          account_id: out.accountId,
+        });
+      }
+      const status = out.status === 'expired' ? 410 : 400;
+      return res.status(status).json({ status: out.status, error: `device grant ${out.status}` });
+    } catch (e) { serverError(res, e); }
   });
 
   // PUBLIC invite landing (SCP-228): the link people actually share. Works for a

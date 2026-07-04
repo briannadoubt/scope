@@ -224,11 +224,16 @@ Until all three are set, the hub keeps using `SCOPE_TOKEN`, so **deploying this
 code never breaks a not-yet-provisioned hub**. The local/LAN `scope serve` path
 is unaffected in every case (ADR 0003 §5).
 
-**Minting API keys for the CLI/agents:** after signing in via the web UI, a user
-mints keys with `scope apikey create <name> --remote https://<app>.fly.dev`
-(authenticated with an existing session/key), then uses them headlessly:
+**CLI/agent login:** after the hosted hub has a login provider, a user can
+authorize the local machine from the browser. The CLI stores the resulting key in
+`~/.scope-hub/credentials.json` (never in `.scope/remote.json`), and future
+remote operations pick it up automatically:
 
 ```bash
-export SCOPE_API_KEY=sk_…           # the CLI picks this up automatically
+scope auth login --remote https://<app>.fly.dev
 scope sync --remote https://<app>.fly.dev --remote-workspace <id> --model "Opus 4.8"
 ```
+
+`scope apikey create/list/revoke` still exists for explicit key management, and
+agents can use the MCP auth tools to start and poll the same browser-approved
+flow without receiving the stored secret.

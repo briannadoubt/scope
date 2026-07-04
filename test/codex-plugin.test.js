@@ -31,6 +31,11 @@ test('Codex plugin ships a comprehensive manifest and app surfaces', () => {
   const mcpConfig = readJson(join(pluginDir, '.mcp.json'));
   assert.deepEqual(mcpConfig.mcpServers.scope.args, ['./mcp/server.mjs', '--stdio']);
   assert.equal(mcpConfig.mcpServers.scope.tool_timeout_sec, 120);
+
+  const mcpServer = readFileSync(join(pluginDir, 'mcp/server.mjs'), 'utf8');
+  for (const tool of ['scope_auth_status', 'scope_auth_begin', 'scope_auth_poll']) {
+    assert.match(mcpServer, new RegExp(`name: '${tool}'`));
+  }
 });
 
 test('Codex plugin includes workflow skills and references', () => {

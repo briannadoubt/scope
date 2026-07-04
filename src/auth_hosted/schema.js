@@ -19,6 +19,8 @@
  *  - refresh_tokens— long-lived rotating refresh tokens (SCP-129). Only a hash
  *                    is stored; rotation marks the old row used and chains a new
  *                    one so token theft is detectable (reuse of a rotated token).
+ *  - device_auth_grants — short-lived browser-approved CLI login grants. The
+ *                    resulting API-key plaintext is held only until first poll.
  *
  * `ensureAuthSchema` is idempotent (CREATE ... IF NOT EXISTS), safe on boot.
  */
@@ -88,6 +90,22 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_refresh_account ON refresh_tokens (account_id);
 
+-- browser-approved CLI / agent login grants --------------------------------
+CREATE TABLE IF NOT EXISTS device_auth_grants (
+  id                 text PRIMARY KEY,
+  device_code_hash   text NOT NULL UNIQUE, -- hash of the high-entropy polling code
+  user_code_hash     text NOT NULL UNIQUE, -- hash of the short browser code
+  client_name        text NOT NULL,
+  account_id         text REFERENCES accounts(id) ON DELETE CASCADE,
+  api_key_id         text REFERENCES api_keys(id) ON DELETE SET NULL,
+  api_key_plaintext  text,                 -- temporary; cleared on first successful poll
+  created_at         text NOT NULL,
+  expires_at         text NOT NULL,
+  approved_at        text,
+  consumed_at        text
+);
+CREATE INDEX IF NOT EXISTS idx_device_auth_expires ON device_auth_grants (expires_at);
+
 -- single-use project invites (SCP-190) ---------------------------------------
 -- An owner mints a code; anyone presenting the code joins at the invite's role.
 -- Like api_keys, only sha-256(code) is stored — the plaintext is shown ONCE.
@@ -135,14 +153,17 @@ CREATE INDEX IF NOT EXISTS idx_tenant_aliases_account ON tenant_aliases (tenant_
 export async function ensureAuthSchema(clientOrPool) {
   const isPool = typeof clientOrPool.connect === 'function';
 
-  // Zero-DDL fast path (SCP-194): the two NEWEST objects in this schema are
-  // tenant_aliases (SCP-184) and projects.archived_at (SCP-192) — when both
+  // Zero-DDL fast path (SCP-194): the newest objects in this schema are
+  // tenant_aliases (SCP-184), projects.archived_at (SCP-192), and
+  // device_auth_grants (SCP-270) — when all
   // exist, every older CREATE has already run and we can skip the DDL batch
   // (even IF NOT EXISTS DDL takes catalog locks that churn under concurrent
   // boots). NOTE: when adding DDL here, point this probe at the newest object.
   try {
     const probe = (await clientOrPool.query(`
-      SELECT (to_regclass('public.tenant_aliases') IS NOT NULL) AND EXISTS (
+      SELECT (to_regclass('public.tenant_aliases') IS NOT NULL)
+        AND (to_regclass('public.device_auth_grants') IS NOT NULL)
+        AND EXISTS (
         SELECT 1 FROM information_schema.columns
          WHERE table_name='projects' AND column_name='archived_at'
       ) AS ok`)).rows[0].ok;
@@ -179,6 +200,6 @@ export async function ensureAuthSchema(clientOrPool) {
 /** Drop every hosted-auth table (tests only). */
 export async function dropAuthSchema(clientOrPool) {
   await clientOrPool.query(`
-    DROP TABLE IF EXISTS tenant_aliases, invites, refresh_tokens, api_keys, memberships, projects, accounts CASCADE;
+    DROP TABLE IF EXISTS tenant_aliases, invites, device_auth_grants, refresh_tokens, api_keys, memberships, projects, accounts CASCADE;
   `);
 }
