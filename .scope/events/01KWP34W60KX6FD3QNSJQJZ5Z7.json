@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWP34W60KX6FD3QNSJQJZ5Z7",
+  "ts": "2026-07-04T08:15:31.008Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWP34W60KX6FD3QNSJQJZ5Z6",
+    "number": 265,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "iOS refreshes when remote sync events arrive",
+    "description": "Native app streams currently ignore server envelopes such as sync.applied, remote.pulled, and gossip.pulled, so events can reach the remote without the app refreshing its rendered tickets. Reproduce, cover with tests, and refresh the local app snapshot on these coarse change signals.",
+    "status": "in_progress",
+    "priority": "urgent",
+    "parentId": "01KWP34JC2292AHZQY188J7N5B",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

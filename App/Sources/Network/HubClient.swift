@@ -254,6 +254,10 @@ final class HubClient {
         _ = try await execute(req)
     }
 
+    func makeEventStream() -> EventStream {
+        EventStream(baseURL: baseURL, token: token, session: session)
+    }
+
     // MARK: - Connectivity check
 
     /// Fires a lightweight GET /api/meta to verify the connection.

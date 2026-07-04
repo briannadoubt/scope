@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWP34W6SZ1XGWCPKEZ0QKF35",
+  "ts": "2026-07-04T08:15:31.033Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWP34W6RV0W5N2HNBB61H2ET",
+    "number": 266,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "iOS event stream uses authenticated hub transport",
+    "description": "Board and graph construct EventStream from baseURL only, dropping HubClient token/session details that REST calls use. Reuse the HubClient stream transport so hosted auth and local pairing/TLS trust behave consistently.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KWP34JC2292AHZQY188J7N5B",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

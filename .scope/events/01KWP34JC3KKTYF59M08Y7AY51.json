@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWP34JC3KKTYF59M08Y7AY51",
+  "ts": "2026-07-04T08:15:20.963Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWP34JC2292AHZQY188J7N5B",
+    "number": 264,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Mobile app sync reliability",
+    "description": "Make the native app reliably reflect workspace events that sync from a local workspace to the hosted remote and then down into the app. Focus first on the remote-to-app path: authenticated live change stream, coarse sync-event handling, clear refresh behavior, and mobile verification.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWP34W7GPA2RE0MQNTDRG9D8",
+  "ts": "2026-07-04T08:15:31.056Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWP34W7FRQ7MC3P0GSSB2BP8",
+    "number": 267,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Clarify native event-log sync engine wiring",
+    "description": "The app contains SyncEngine/SyncStore code for /api/sync/pull and /api/sync/push, but AppStore currently renders from REST snapshots. Decide whether to wire mobile as a true local event-log replica or explicitly treat it as a snapshot client with visible sync status.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KWP34JC2292AHZQY188J7N5B",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -332,28 +332,19 @@ struct FlowGraphView: View {
         guard let client = store.client else { return }
         eventStream?.disconnect()
 
-        let stream = EventStream(baseURL: client.baseURL)
+        let stream = client.makeEventStream()
         let storeRef = store
         stream.onEvent = { event in
             switch event {
-            case .ticketCreated(let ticket):
-                if !storeRef.tickets.contains(where: { $0.id == ticket.id }) {
-                    storeRef.tickets.append(ticket)
-                }
-            case .ticketUpdated(let ticket):
-                if let idx = storeRef.tickets.firstIndex(where: { $0.id == ticket.id }) {
-                    storeRef.tickets[idx] = ticket
-                } else {
-                    storeRef.tickets.append(ticket)
-                }
-            case .ticketDeleted(let ticketId):
-                storeRef.tickets.removeAll { $0.id == ticketId }
+            case .connected, .ticketsChanged:
+                storeRef.relationsVersion &+= 1
+                Task { await storeRef.loadTickets() }
             case .relationsChanged:
                 storeRef.relationsVersion &+= 1
             }
         }
         eventStream = stream
-        stream.connect(workspaceId: store.selectedWorkspace?.id)
+        stream.connect(workspaceId: client.workspaceId)
     }
 }
 

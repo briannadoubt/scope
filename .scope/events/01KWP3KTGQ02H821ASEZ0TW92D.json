@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KWP3KTGQ02H821ASEZ0TW92D",
+  "ts": "2026-07-04T08:23:40.823Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KWP34JC2292AHZQY188J7N5B",
+    "commentId": "01KWP3KTGQ02H821ASEZ0TW92C",
+    "author": "codex",
+    "body": "Fixed the immediate remote-to-iOS visibility gap. Root cause was app-side: Board/Graph were constructing EventStream from baseURL only, dropping HubClient bearer/session behavior, and EventStream expected embedded Ticket payloads while the server emits coarse change envelopes such as sync.applied and remote.pulled. iOS now parses those envelopes and refreshes the canonical /api/tickets snapshot; graph relation refreshes are also nudged on coarse change events. Added ScopeTests EventStream coverage and a shared Xcode scheme."
+  }
+}
