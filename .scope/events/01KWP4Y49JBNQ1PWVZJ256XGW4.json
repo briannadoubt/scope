@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWP4Y49JBNQ1PWVZJ256XGW4",
+  "ts": "2026-07-04T08:46:47.090Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWP4Y49JBNQ1PWVZJ256XGW3",
+    "number": 269,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "iOS remembers and auto-connects to hosted remote",
+    "description": "",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KWP34JC2292AHZQY188J7N5B",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

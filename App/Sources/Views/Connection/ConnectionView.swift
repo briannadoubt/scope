@@ -3,8 +3,8 @@ import SwiftUI
 /// Full-screen onboarding shown when no hub is connected.
 ///
 /// Automatically starts Bonjour scanning on appear and stops it on disappear.
-/// Users can tap any discovered hub to connect, or open a manual-entry sheet
-/// to type in a custom IP:port + bearer token.
+/// Users can connect to a hosted Scope remote with an API key, or tap a
+/// discovered LAN hub when they are on the same network as their desktop.
 struct ConnectionView: View {
 
     @Environment(AppStore.self) private var store
@@ -35,7 +35,7 @@ struct ConnectionView: View {
                 })
                 .sheet(isPresented: $showManualEntry) {
                     ManualEntrySheet { url, token in
-                        await connect(to: url, token: token)
+                        await connect(to: url, token: token, remember: true)
                     }
                 }
                 .sheet(item: $pendingHub) { hub in
@@ -72,15 +72,22 @@ struct ConnectionView: View {
             }
 
             VStack(spacing: 8) {
-                Text("Looking for Hubs")
+                Text("Connect to Scope")
                     .font(.title3.weight(.semibold))
 
-                Text("Scanning for Scope hubs on your network…")
+                Text("Use your hosted remote to see agent updates from anywhere.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
+
+            Button {
+                showManualEntry = true
+            } label: {
+                Label("Connect to remote", systemImage: "cloud")
+            }
+            .buttonStyle(.borderedProminent)
 
             ProgressView()
                 .padding(.top, 4)
@@ -122,7 +129,7 @@ struct ConnectionView: View {
             Button {
                 showManualEntry = true
             } label: {
-                Label("Enter manually", systemImage: "keyboard")
+                Label("Remote", systemImage: "cloud")
             }
         }
     }
@@ -151,8 +158,13 @@ struct ConnectionView: View {
     }
 
     @MainActor
-    private func connect(to url: URL, token: String?, caFingerprint: String? = nil) async {
-        guard !isConnecting else { return }
+    private func connect(
+        to url: URL,
+        token: String?,
+        caFingerprint: String? = nil,
+        remember: Bool = false
+    ) async -> Bool {
+        guard !isConnecting else { return false }
         isConnecting = true
         connectError = nil
         pendingHub = nil
@@ -160,7 +172,8 @@ struct ConnectionView: View {
         await store.connect(
             to: url,
             token: token.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 },
-            caFingerprint: caFingerprint
+            caFingerprint: caFingerprint,
+            remember: remember
         )
 
         if let storeError = store.error {
@@ -168,16 +181,16 @@ struct ConnectionView: View {
         }
 
         isConnecting = false
+        return connectError == nil
     }
 }
 
 // MARK: - ManualEntrySheet
 
-/// A sheet that lets the user type a raw `host:port` (or full URL) and an optional
-/// bearer token, then connect.
+/// A sheet that lets the user connect to the hosted remote with its URL and API key.
 private struct ManualEntrySheet: View {
 
-    let onConnect: (URL, String?) async -> Void
+    let onConnect: (URL, String?) async -> Bool
 
     @Environment(\.dismiss) private var dismiss
 
@@ -190,29 +203,29 @@ private struct ManualEntrySheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("192.168.1.x:4321 or scope.local:4321", text: $addressText)
+                    TextField("https://scope-hub.example.com", text: $addressText)
                         .keyboardType(.URL)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .submitLabel(.next)
                 } header: {
-                    Text("Hub Address")
+                    Text("Remote URL")
                 } footer: {
                     if let err = validationError {
                         Text(err).foregroundStyle(.red)
                     } else {
-                        Text("Tip: use \(Image(systemName: "network")) scope.local:4321 when on the same Wi-Fi as your hub.")
+                        Text("Use the hosted Scope hub that your desktop workspace syncs to.")
                     }
                 }
 
                 Section {
-                    SecureField("Bearer token (from scope auth show)", text: $tokenText)
+                    SecureField("sk_…", text: $tokenText)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                 } header: {
-                    Text("Token")
+                    Text("API Key")
                 } footer: {
-                    Text("Run \(Text("`scope auth show`").font(.system(.footnote, design: .monospaced))) on your Mac to get this.")
+                    Text("The app saves this in Keychain and uses it for tickets and live updates.")
                 }
 
                 Section {
@@ -222,14 +235,18 @@ private struct ManualEntrySheet: View {
                             if isConnecting {
                                 ProgressView().controlSize(.small).padding(.trailing, 6)
                             }
-                            Text(isConnecting ? "Connecting…" : "Connect").bold()
+                            Text(isConnecting ? "Connecting…" : "Connect to remote").bold()
                             Spacer()
                         }
                     }
-                    .disabled(addressText.trimmingCharacters(in: .whitespaces).isEmpty || isConnecting)
+                    .disabled(
+                        addressText.trimmingCharacters(in: .whitespaces).isEmpty ||
+                        tokenText.trimmingCharacters(in: .whitespaces).isEmpty ||
+                        isConnecting
+                    )
                 }
             }
-            .navigationTitle("Manual Entry")
+            .navigationTitle("Remote")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -243,21 +260,26 @@ private struct ManualEntrySheet: View {
         let raw = addressText.trimmingCharacters(in: .whitespaces)
         guard !raw.isEmpty else { return }
         guard let url = normalizeURL(raw) else {
-            validationError = "Please enter a valid address, e.g. 192.168.1.5:4321"
+            validationError = "Enter a valid remote URL."
+            return
+        }
+        let tok = tokenText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tok.isEmpty else {
+            validationError = "Enter an API key for the remote."
             return
         }
         validationError = nil
         isConnecting = true
-        let tok = tokenText.trimmingCharacters(in: .whitespaces)
         Task {
-            await onConnect(url, tok.isEmpty ? nil : tok)
+            let connected = await onConnect(url, tok)
             isConnecting = false
-            dismiss()
+            if connected {
+                dismiss()
+            }
         }
     }
 
-    /// Turns bare `host:port` into a full URL.
-    /// The Scope hub always serves HTTPS, so all bare addresses get `https://`.
+    /// Turns a bare host into a full HTTPS URL.
     private func normalizeURL(_ raw: String) -> URL? {
         if raw.contains("://") { return URL(string: raw) }
         let candidate = "https://\(raw)"

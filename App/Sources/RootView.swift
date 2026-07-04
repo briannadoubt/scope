@@ -131,7 +131,7 @@ struct WorkspaceOverviewView: View {
                             metadataRow(label: "Key", value: key)
                         }
                         metadataRow(label: "Name", value: ws.displayName)
-                        metadataRow(label: "Scope Dir", value: ws.scopeDir)
+                        metadataRow(label: "Scope Dir", value: ws.scopeDir ?? "Hosted remote")
                     }
 
                     if let desc = ws.description, !desc.isEmpty {
@@ -296,11 +296,7 @@ struct SettingsView: View {
 
             Section {
                 Button("Disconnect", role: .destructive) {
-                    store.client = nil
-                    store.hubMeta = nil
-                    store.workspaces = []
-                    store.selectedWorkspace = nil
-                    store.tickets = []
+                    store.disconnect()
                 }
             }
         }

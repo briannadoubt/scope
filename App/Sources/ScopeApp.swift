@@ -8,7 +8,11 @@ struct ScopeApp: App {
         WindowGroup {
             RootView()
                 .environment(store)
-                .task { await applyUITestEnvironmentIfNeeded() }
+                .task {
+                    if await applyUITestEnvironmentIfNeeded() == false {
+                        await store.restoreSavedConnection()
+                    }
+                }
         }
     }
 
@@ -17,16 +21,20 @@ struct ScopeApp: App {
     /// pairing / manual-entry taps that computer-use would otherwise perform.
     /// Activated only when `UITEST_HUB_URL` is present in the environment, e.g.:
     ///   env = { UITEST_HUB_URL, UITEST_HUB_TOKEN, UITEST_WORKSPACE, UITEST_VIEW }
-    private func applyUITestEnvironmentIfNeeded() async {
+    @discardableResult
+    private func applyUITestEnvironmentIfNeeded() async -> Bool {
         #if DEBUG
         let env = ProcessInfo.processInfo.environment
         guard let urlString = env["UITEST_HUB_URL"],
-              let url = URL(string: urlString) else { return }
+              let url = URL(string: urlString) else { return false }
         await store.connect(to: url, token: env["UITEST_HUB_TOKEN"])
         if let wsId = env["UITEST_WORKSPACE"],
            let ws = store.workspaces.first(where: { $0.id == wsId }) {
             store.selectedWorkspace = ws
         }
+        return true
+        #else
+        return false
         #endif
     }
 }

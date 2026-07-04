@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KWP5Z6G4T9ECCFM8THNQXF95",
+  "ts": "2026-07-04T09:04:50.692Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KWP4Y49JBNQ1PWVZJ256XGW3",
+    "commentId": "01KWP5Z6G4T9ECCFM8THNQXF94",
+    "author": "codex",
+    "body": "iOS now treats the hosted remote as the primary path: manual remote connection requires a URL/API key, stores the key in Keychain, remembers the selected workspace, restores it on launch, and binds the workspace only after /api/workspaces discovery so hosted scope_dir:null projects decode. Verified with xcodebuild iOS tests and npm test."
+  }
+}

@@ -3,6 +3,8 @@ import Foundation
 @Observable
 @MainActor
 final class AppStore {
+    @ObservationIgnored private let connectionStore: RemoteConnectionProfileStoring
+
     var client: HubClient?
     var hubMeta: HubMeta?
     var workspaces: [Workspace] = []
@@ -14,6 +16,7 @@ final class AppStore {
             guard newValue?.id != _selectedWorkspace?.id else { return }
             _selectedWorkspace = newValue
             client?.workspaceId = newValue?.id
+            rememberSelectedWorkspace(newValue?.id)
             Task { await loadTickets() }
         }
     }
@@ -41,15 +44,51 @@ final class AppStore {
 
     // MARK: - Connection
 
-    func connect(to url: URL, token: String? = nil, caFingerprint: String? = nil, session: URLSession? = nil) async {
+    init(connectionStore: RemoteConnectionProfileStoring = RemoteConnectionProfileStore()) {
+        self.connectionStore = connectionStore
+    }
+
+    func restoreSavedConnection(session: URLSession? = nil, startNetworkMonitor: Bool = true) async {
+        do {
+            guard let saved = try connectionStore.load() else { return }
+            await connect(
+                to: saved.baseURL,
+                token: saved.token,
+                session: session,
+                remember: false,
+                preferredWorkspaceId: saved.workspaceId,
+                startNetworkMonitor: startNetworkMonitor
+            )
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func connect(
+        to url: URL,
+        token: String? = nil,
+        caFingerprint: String? = nil,
+        session: URLSession? = nil,
+        remember: Bool = false,
+        preferredWorkspaceId: String? = nil,
+        startNetworkMonitor: Bool = true
+    ) async {
+        error = nil
+        let cleanToken = token.flatMap { value in
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
         let hub = HubClient(
             baseURL: url,
-            workspaceId: selectedWorkspace?.id,
-            token: token,
+            workspaceId: nil,
+            token: cleanToken,
             caFingerprint: caFingerprint,
             session: session
         )
         client = hub
+        workspaces = []
+        _selectedWorkspace = nil
+        tickets = []
         // Start watching the network path now that we actually have a hub
         // to talk to. The transition handler refreshes state when we come
         // back online so any writes that happened on the hub during the
@@ -61,9 +100,38 @@ final class AppStore {
                 await self.loadTickets()
             }
         }
-        netMonitor.start()
+        if startNetworkMonitor {
+            netMonitor.start()
+        }
         await loadHubMeta()
-        await loadWorkspaces()
+        await loadWorkspaces(preferredWorkspaceId: preferredWorkspaceId)
+
+        if remember, error == nil {
+            do {
+                try connectionStore.save(SavedHubConnection(
+                    baseURL: url,
+                    token: cleanToken,
+                    workspaceId: selectedWorkspace?.id
+                ))
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func disconnect(clearSavedConnection: Bool = true) {
+        client = nil
+        hubMeta = nil
+        workspaces = []
+        _selectedWorkspace = nil
+        tickets = []
+        if clearSavedConnection {
+            do {
+                try connectionStore.clear()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
     }
 
     func loadHubMeta() async {
@@ -78,19 +146,30 @@ final class AppStore {
 
     // MARK: - Workspaces
 
-    func loadWorkspaces() async {
+    func loadWorkspaces(preferredWorkspaceId: String? = nil) async {
         guard let client else { return }
         isLoading = true
         defer { isLoading = false }
         do {
             let list: [Workspace] = try await client.get("/api/workspaces")
             workspaces = list
-            if let current = selectedWorkspace,
+            if let preferredWorkspaceId,
+               let preferred = list.first(where: { $0.id == preferredWorkspaceId }) {
+                selectedWorkspace = preferred
+            } else if let current = selectedWorkspace,
                let refreshed = list.first(where: { $0.id == current.id }) {
                 _selectedWorkspace = refreshed
             } else if selectedWorkspace == nil, let first = list.first {
                 selectedWorkspace = first
             }
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func rememberSelectedWorkspace(_ workspaceId: String?) {
+        do {
+            try connectionStore.updateWorkspaceId(workspaceId)
         } catch {
             self.error = error.localizedDescription
         }

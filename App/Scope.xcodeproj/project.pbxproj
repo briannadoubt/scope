@@ -30,6 +30,7 @@
 		9C44045273952A6A1031E0EE /* SyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4D3B8D4E8639EB8939C83D /* SyncStore.swift */; };
 		9C91EC6BDCF339773BB4EBA7 /* PairingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53DBBED92209D089DFD2B325 /* PairingManager.swift */; };
 		0A4F7BD01D2E3F4051627384 /* HubMeta.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A4F7BD11D2E3F4051627384 /* HubMeta.swift */; };
+		0A4F7BE01D2E3F4051627384 /* RemoteConnectionProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A4F7BE11D2E3F4051627384 /* RemoteConnectionProfileStore.swift */; };
 		A1FE49F1A6F04F7B7DA55311 /* TicketDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F891BDC308203A67B7BBC5DA /* TicketDetailView.swift */; };
 		AD07E6A746BDC1453EBC4DDC /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B66544310C5C1E1E1912FEC /* JSONValue.swift */; };
 		BC28C1C08065EA58C038E4C2 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDC27C6E046CAE58090530A /* SyncEngine.swift */; };
@@ -60,6 +61,7 @@
 		0A4F7BC11D2E3F4051627384 /* ScopeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ScopeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A4F7BC21D2E3F4051627384 /* EventStreamTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStreamTests.swift; sourceTree = "<group>"; };
 		0A4F7BD11D2E3F4051627384 /* HubMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubMeta.swift; sourceTree = "<group>"; };
+		0A4F7BE11D2E3F4051627384 /* RemoteConnectionProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConnectionProfileStore.swift; sourceTree = "<group>"; };
 		151432F79B0C1E2337425760 /* CardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardView.swift; sourceTree = "<group>"; };
 		1B7E10A471A8B56FE4335B38 /* Ticket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ticket.swift; sourceTree = "<group>"; };
 		1EDC27C6E046CAE58090530A /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
@@ -182,6 +184,7 @@
 				39A28FF80944B72144EA7E75 /* KeychainStore.swift */,
 				8CF372EC40975FF65E9AE6C7 /* NetworkPathMonitor.swift */,
 				53DBBED92209D089DFD2B325 /* PairingManager.swift */,
+				0A4F7BE11D2E3F4051627384 /* RemoteConnectionProfileStore.swift */,
 			);
 			path = Network;
 			sourceTree = "<group>";
@@ -402,6 +405,7 @@
 				219D6D0D408DD127BAE08929 /* OfflineBanner.swift in Sources */,
 				9C91EC6BDCF339773BB4EBA7 /* PairingManager.swift in Sources */,
 				729DB21549CD118FF6EE7ADD /* PairingView.swift in Sources */,
+				0A4F7BE01D2E3F4051627384 /* RemoteConnectionProfileStore.swift in Sources */,
 				76FA8D42961C5566747A406D /* RootView.swift in Sources */,
 				7D97E5C2E97509D5F0950FDB /* ScopeApp.swift in Sources */,
 				4D60D45DB0792633954A7347 /* SwipeCardContainer.swift in Sources */,

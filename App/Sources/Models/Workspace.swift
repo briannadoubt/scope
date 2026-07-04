@@ -3,7 +3,7 @@ import Foundation
 struct Workspace: Identifiable, Codable, Hashable {
     let id: String
     let label: String
-    let scopeDir: String
+    let scopeDir: String?
     /// Ticket key prefix, e.g. "SCP". Optional — some workspace DBs may be
     /// malformed or not yet migrated.
     var key: String?
