@@ -15,6 +15,7 @@ import { upsertAccount, createProject } from '../src/auth_hosted/membership.js';
 import { createProjectBoard } from '../src/auth_hosted/tenant-board.js';
 import { mintAccessToken } from '../src/auth_hosted/sessions.js';
 import { startRemoteSync } from '../src/remote-sync.js';
+import { bus } from '../src/events.js';
 
 /**
  * SCP-224 — END-TO-END realtime-sync tests for the RemoteSyncAgent
@@ -320,6 +321,46 @@ test('SCP-224: stop() tears down cleanly — no leaked handles (a hang IS the fa
   } finally {
     // If anything above leaked a timer/socket, the process won't exit and the
     // test runner hangs — that hang is the failure signal for teardown (SCP-224).
+    agentA?.stop();
+    agentB?.stop();
+    A.cleanup();
+    B.cleanup();
+    await hub.close();
+  }
+});
+
+test('a remote-origin pull fires a local change so connected browsers refresh', { skip }, async () => {
+  // Regression: the agent folds pulled deltas straight into the local DB, but
+  // the local /events SSE only forwards bus 'change' notifications. Without an
+  // explicit emit on pull, a browser pointed at this replica stays stale until a
+  // LOCAL mutation or a manual refresh — the "SSE feels flaky" symptom. Assert a
+  // remote-origin write surfaces a 'remote.pulled' change on B's side.
+  const hub = await startHostedHub();
+  const A = makeReplica();
+  const B = makeReplica();
+  let agentA, agentB;
+  const pulled = [];
+  const onChange = (d) => { if (d?.type === 'remote.pulled') pulled.push(d); };
+  bus.on('change', onChange);
+  try {
+    const common = { remote: hub.base, project: hub.tenantId, token: hub.token, ...AGENT_OPTS };
+    agentA = startRemoteSync(A.db, A.scopeDir, common);
+    agentB = startRemoteSync(B.db, B.scopeDir, common);
+    await until(() => agentA.status().rounds > 0 && agentB.status().rounds > 0, 3000);
+
+    pulled.length = 0; // ignore any churn from the initial reconcile
+    // Write on A only. B never makes a local write — the ONLY way B learns of it
+    // is the PULL path, which must now announce itself with a 'remote.pulled'.
+    createTicket(A.db, { type: 'story', title: 'pull-announced', actor: hub.accountId });
+    await until(() => titles(B.db).includes('pull-announced'), 3000);
+
+    const fired = await until(
+      () => pulled.some((d) => d.source === 'remote-sync' && d.workspace === hub.tenantId && d.pulled > 0),
+      3000,
+    );
+    assert.ok(fired, 'folding a remote-origin delta emitted a local change for the SSE layer to forward');
+  } finally {
+    bus.off('change', onChange);
     agentA?.stop();
     agentB?.stop();
     A.cleanup();

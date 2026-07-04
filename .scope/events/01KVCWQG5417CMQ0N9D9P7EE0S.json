@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG5417CMQ0N9D9P7EE0S",
+  "ts": "2026-06-18T08:14:29.540Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG5417CMQ0N9D9P7EE0R",
+    "number": 245,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Event/field plumbing for rank",
+    "description": "Add 'rank' to TICKET_FIELDS (src/enums.js). Validate as a finite number in validateFieldValue (src/event-schema.js). Add column<->field mapping if needed (src/enums.js COLUMN_TO_FIELD) and ensure replay/set_field applies it (src/repo.js updateTicket allowed list, src/replay.js, src/pg/replay.js). No new event kind — reuse ticket.set_field.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG53X5VM1EP5FES75XZF",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

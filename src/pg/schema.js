@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   pr_url      text,
   assignee    text,
   labels      jsonb NOT NULL DEFAULT '[]'::jsonb,
+  rank        double precision,         -- user-defined ordering within a column (SCP-243)
   created_at  text NOT NULL,
   updated_at  text NOT NULL,
   PRIMARY KEY (tenant_id, id)
@@ -72,6 +73,8 @@ CREATE TABLE IF NOT EXISTS tickets (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_uid    ON tickets (tenant_id, uid);
 CREATE INDEX        IF NOT EXISTS idx_tickets_status ON tickets (tenant_id, status);
 CREATE INDEX        IF NOT EXISTS idx_tickets_parent ON tickets (tenant_id, parent_id);
+-- SCP-243: rank for existing tenant tables created before the column landed.
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS rank double precision;
 
 -- replayed cache: relations (both directions materialized, as in SQLite) ---
 CREATE TABLE IF NOT EXISTS ticket_relations (
@@ -118,7 +121,9 @@ CREATE INDEX IF NOT EXISTS idx_history_ticket ON ticket_history (tenant_id, tick
  * on a dedicated client so BEGIN/lock/DDL/COMMIT share one connection.
  */
 export async function ensureSchema(clientOrPool) {
-  const isPool = typeof clientOrPool.connect === 'function'; // a Pool
+  const isPool =
+    typeof clientOrPool.connect === 'function' &&
+    typeof clientOrPool.totalCount === 'number'; // a Pool, not a pooled Client
 
   // Zero-DDL fast path (SCP-194): all six tables + the last-declared index
   // present means the whole batch already ran — skip it. Concurrent boots
@@ -133,7 +138,14 @@ export async function ensureSchema(clientOrPool) {
          AND to_regclass('public.ticket_comments')  IS NOT NULL
          AND to_regclass('public.ticket_history')   IS NOT NULL
          AND to_regclass('public.idx_history_ticket') IS NOT NULL
-         AND to_regclass('public.idx_events_seq')   IS NOT NULL AS ok`)).rows[0].ok;
+         AND to_regclass('public.idx_events_seq')   IS NOT NULL
+         AND EXISTS (
+           SELECT 1
+           FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND table_name = 'tickets'
+             AND column_name = 'rank'
+         ) AS ok`)).rows[0].ok;
     if (probe === true) return;
   } catch { /* fall through to the full DDL path */ }
 

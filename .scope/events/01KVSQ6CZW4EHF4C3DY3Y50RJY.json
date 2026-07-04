@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVSQ6CZW4EHF4C3DY3Y50RJY",
+  "ts": "2026-06-23T07:47:53.980Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVSQ6CZVZZZ1B2VBG9J8CJZ2",
+    "number": 258,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Comprehensive Codex plugin for Scope",
+    "description": "Shape the Scope Codex plugin like Codex Security: richer workflow skills, manifest metadata, MCP-backed inline UI capability, app/sidebar integration metadata, assets, references, and validation packaging.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

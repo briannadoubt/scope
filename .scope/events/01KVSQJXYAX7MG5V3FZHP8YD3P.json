@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KVSQJXYAX7MG5V3FZHP8YD3P",
+  "ts": "2026-06-23T07:54:44.554Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KVSQ6CZVZZZ1B2VBG9J8CJZ2",
+    "commentId": "01KVSQJXYAX7MG5V3FZHP8YD3N",
+    "author": "codex",
+    "body": "Implemented repo-local Codex plugin bundle at plugins/scope with manifest, app binding, MCP stdio server, inline/sidebar widget resource, workflow skills, references, logo asset, and package inclusion. Focused plugin tests, MCP smoke, JSON checks, and plugin validator pass. Full suite still has pre-existing Postgres rank failures in the dirty tree."
+  }
+}

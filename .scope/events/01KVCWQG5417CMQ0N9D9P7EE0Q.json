@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG5417CMQ0N9D9P7EE0Q",
+  "ts": "2026-06-18T08:14:29.540Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG5417CMQ0N9D9P7EE0P",
+    "number": 244,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "DB migration: add rank column (SQLite v5 + Postgres)",
+    "description": "SQLite: bump CURRENT_SCHEMA_VERSION 4->5 (src/db.js), ALTER TABLE tickets ADD COLUMN rank REAL, backfill rank=number for existing rows. Postgres: add rank column to tickets via idempotent ADD COLUMN IF NOT EXISTS (src/pg/schema.js). Both cache tables are rebuildable from the event log, so the backfill is derived, not a source-of-truth change.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG53X5VM1EP5FES75XZF",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

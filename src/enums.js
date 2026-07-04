@@ -44,6 +44,7 @@ export const TICKET_FIELDS = Object.freeze([
   'prUrl',
   'assignee',
   'labels',
+  'rank',
 ]);
 
 /** DB column name -> event field name (for translating updateTicket writes). */
@@ -57,4 +58,5 @@ export const COLUMN_TO_FIELD = Object.freeze({
   pr_url: 'prUrl',
   assignee: 'assignee',
   labels: 'labels',
+  rank: 'rank',
 });

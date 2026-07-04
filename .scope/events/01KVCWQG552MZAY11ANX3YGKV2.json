@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG552MZAY11ANX3YGKV2",
+  "ts": "2026-06-18T08:14:29.541Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG552MZAY11ANX3YGKV1",
+    "number": 255,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Serve column config + render from it (web)",
+    "description": "Add column config to /api/meta (src/server.js ~743). Remove hardcoded BOARD_COLUMNS, OPEN_STATUSES, STATUS_LABELS from src/web/app.js and render columns/labels/dot-colors from the config (per-column color stored in config, applied inline instead of CSS .dot.<status> classes). Drawer status select reads from config too.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG552MZAY11ANX3YGKTS",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

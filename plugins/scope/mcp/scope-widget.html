@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scope Board</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f8faf8;
+      --ink: #152426;
+      --muted: #607073;
+      --line: #d8e2df;
+      --panel: #ffffff;
+      --accent: #2f6f73;
+      --done: #3e8f65;
+      --warn: #b26a2a;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101617;
+        --ink: #edf7f5;
+        --muted: #9fb1ad;
+        --line: #293638;
+        --panel: #172022;
+        --accent: #7fd1c5;
+      }
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .wrap { padding: 14px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    h1 { font-size: 16px; margin: 0; letter-spacing: 0; }
+    .sub { color: var(--muted); font-size: 12px; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .stat, .col, .ticket { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+    .stat { padding: 8px; min-width: 0; }
+    .stat b { display: block; font-size: 18px; color: var(--accent); }
+    .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .col { min-height: 92px; overflow: hidden; }
+    .col h2 { font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 0; padding: 8px; border-bottom: 1px solid var(--line); letter-spacing: 0; }
+    .tickets { display: grid; gap: 8px; padding: 8px; }
+    .ticket { padding: 8px; }
+    .ticket strong { display: block; overflow-wrap: anywhere; }
+    .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .empty { color: var(--muted); padding: 8px; }
+    .sidebar .board { display: block; }
+    .sidebar .col { margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <main class="wrap" id="app"></main>
+  <script>
+    const labels = {
+      backlog: 'Backlog',
+      todo: 'Todo',
+      in_progress: 'In Progress',
+      in_review: 'In Review',
+      done: 'Done',
+      cancelled: 'Cancelled'
+    };
+
+    function getPayload(eventPayload) {
+      return eventPayload || window.openai?.toolOutput || {};
+    }
+
+    function ticketCard(ticket) {
+      return `<article class="ticket">
+        <strong>${escapeHtml(ticket.id)} ${escapeHtml(ticket.title || '')}</strong>
+        <div class="meta">${escapeHtml(ticket.type || 'ticket')} · ${escapeHtml(ticket.priority || 'medium')}</div>
+      </article>`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[ch]));
+    }
+
+    function render(payload) {
+      const app = document.getElementById('app');
+      const mode = payload.mode || 'inline';
+      const columns = payload.columns || [];
+      const counts = payload.counts || {};
+      app.className = `wrap ${mode}`;
+      app.innerHTML = `
+        <header>
+          <div>
+            <h1>${escapeHtml(payload.workspace?.name || 'Scope')}</h1>
+            <div class="sub">${escapeHtml(payload.workspace?.key || '')} ${escapeHtml(payload.summary || '')}</div>
+          </div>
+        </header>
+        <section class="stats" aria-label="Board totals">
+          <div class="stat"><b>${counts.open ?? 0}</b><span>Open</span></div>
+          <div class="stat"><b>${counts.inProgress ?? 0}</b><span>Active</span></div>
+          <div class="stat"><b>${counts.review ?? 0}</b><span>Review</span></div>
+          <div class="stat"><b>${counts.done ?? 0}</b><span>Done</span></div>
+        </section>
+        <section class="board">
+          ${columns.map((col) => `<section class="col">
+            <h2>${escapeHtml(labels[col.status] || col.status)} · ${col.tickets.length}</h2>
+            <div class="tickets">${col.tickets.length ? col.tickets.map(ticketCard).join('') : '<div class="empty">No tickets</div>'}</div>
+          </section>`).join('')}
+        </section>`;
+      window.openai?.notifyIntrinsicHeight?.();
+    }
+
+    window.addEventListener('message', (event) => {
+      const msg = event.data;
+      if (msg?.method === 'ui/notifications/tool-result') {
+        render(getPayload(msg.params?.structuredContent));
+      }
+    });
+
+    render(getPayload());
+  </script>
+</body>
+</html>

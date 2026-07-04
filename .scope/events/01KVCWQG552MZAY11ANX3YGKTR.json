@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG552MZAY11ANX3YGKTR",
+  "ts": "2026-06-18T08:14:29.541Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG552MZAY11ANX3YGKTQ",
+    "number": 250,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "iOS: honor rank ordering",
+    "description": "The native iOS board should render tickets in rank order from the board API (read path first). Drag-to-reorder on iOS is a follow-up; initial scope is just respecting the server-provided order so web and iOS agree.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG53X5VM1EP5FES75XZF",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

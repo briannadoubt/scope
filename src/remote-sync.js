@@ -26,7 +26,7 @@
  * if every push signal is dropped. Fully offline → rounds fail quietly and the
  * local writes keep flowing; on reconnect the SSE onOpen fires a catch-up round.
  */
-import { bus } from './events.js';
+import { bus, emitChange } from './events.js';
 import { connectSse } from './sse-client.js';
 import { syncWithRemote } from './sync-client.js';
 
@@ -87,6 +87,15 @@ export function startRemoteSync(db, scopeDir, {
       state.rounds += 1;
       state.lastSyncAt = Date.now();
       state.lastError = null;
+      // Announce remote-origin deltas locally (mirrors gossip.js). Our local
+      // /events SSE only forwards bus 'change' notifications, so without this a
+      // pull folds straight into the DB and connected browsers never hear about
+      // it — they'd stay stale until a local mutation or manual refresh. Gate on
+      // `applied` (genuinely-new events) so echoes of our own pushes don't loop:
+      // a re-emit would re-trigger our own bus 'change' → scheduleRound forever.
+      if ((r.applied || 0) > 0) {
+        emitChange({ type: 'remote.pulled', workspace: project, pulled: r.applied, source: 'remote-sync' });
+      }
     } catch (e) {
       // Transient (offline, 5xx, race) — never kill the loop; the interval tick
       // and the next change/SSE signal will retry. Local writes keep flowing.

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVSQ6CZXY7Q4QY85GD886DHF",
+  "ts": "2026-06-23T07:47:53.981Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVSQ6CZW4EHF4C3DY3Y50RK1",
+    "number": 260,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Comprehensive Codex workflow skills",
+    "description": "Expand from one generic Scope skill into workflow-oriented skills and shared references for planning, ticket operations, board context, git/PR attachment, and multi-agent coordination.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KVSQ6CZVZZZ1B2VBG9J8CJZ2",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

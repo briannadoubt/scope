@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVSQ6CZW4EHF4C3DY3Y50RK0",
+  "ts": "2026-06-23T07:47:53.980Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVSQ6CZW4EHF4C3DY3Y50RJZ",
+    "number": 259,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Plugin manifest and assets",
+    "description": "Add a first-class Codex plugin package with .codex-plugin/plugin.json, interface metadata, app/MCP declarations, and branded assets.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KVSQ6CZVZZZ1B2VBG9J8CJZ2",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

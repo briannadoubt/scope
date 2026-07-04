@@ -343,17 +343,22 @@ function applyEvent(db, e, human, assignments) {
         e.ts,
         id
       );
-      db.prepare(
-        `INSERT INTO ticket_history (ticket_id, field, old_value, new_value, changed_by, changed_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(
-        id,
-        column,
-        oldValue == null ? null : String(oldValue),
-        value == null ? null : String(value),
-        formatActor(e.actor, e.model),
-        e.ts
-      );
+      // SCP-243: `rank` is cosmetic ordering — apply it to the cache but keep it
+      // out of the audit history (matching updateTicket, so live and replayed
+      // state agree and reorders never bloat the history view).
+      if (p.field !== 'rank') {
+        db.prepare(
+          `INSERT INTO ticket_history (ticket_id, field, old_value, new_value, changed_by, changed_at)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        ).run(
+          id,
+          column,
+          oldValue == null ? null : String(oldValue),
+          value == null ? null : String(value),
+          formatActor(e.actor, e.model),
+          e.ts
+        );
+      }
       return 1;
     }
 

@@ -23,7 +23,7 @@ import { getMeta, setMeta } from './db.js';
  * @param {string} [opts.model] - acting model for attribution (X-Scope-Model,
  *   SCP-128); the principal stays the credential's human account.
  * @param {Function} [opts.fetchImpl] - injectable fetch (defaults to global)
- * @returns {Promise<{pushed:number,duplicates:number,pulled:number,renumbered:Array,cursor:string}>}
+ * @returns {Promise<{pushed:number,duplicates:number,pulled:number,applied:number,renumbered:Array,cursor:string}>}
  */
 export async function syncWithRemote(db, scopeDir, { remote, remoteWorkspace, token = '', model = '', fetchImpl = fetch } = {}) {
   if (!remote) throw new Error('remote hub URL is required (--remote)');
@@ -97,6 +97,10 @@ export async function syncWithRemote(db, scopeDir, { remote, remoteWorkspace, to
     pushed: (push.accepted || []).length,
     duplicates: (push.duplicates || []).length,
     pulled: events.length,
+    // Genuinely-new events folded onto the cache this round (excludes echoes of
+    // our own pushes and redeliveries). Callers use this to decide whether a
+    // remote-origin change actually landed and needs to be announced locally.
+    applied: fresh.length,
     renumbered: push.renumbered || [],
     cursor: pull.cursor || since,
   };

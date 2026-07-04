@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG53X5VM1EP5FES75XZG",
+  "ts": "2026-06-18T08:14:29.539Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG53X5VM1EP5FES75XZF",
+    "number": 243,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Persistent ticket ordering",
+    "description": "User-defined ordering of tickets within board columns, persisted to the DB and synced across clients. Drag a card up/down within a column and the position sticks — in the flat list, epic swimlanes, and priority swimlanes alike.\n\nDesign (decided):\n- ONE rank per ticket (global). Every view sorts by it; reordering in any view updates that single value. Order stays consistent everywhere.\n- rank is a REAL/float. Insert between neighbors via fractional midpoint (between 1.0 and 2.0 -> 1.5), so one drag = ONE ticket.set_field event on ONE ticket. No column-wide renumber, clean under field-level last-writer-wins.\n- Sort rank ASC, number ASC. Backfill rank=number so default order matches today exactly.\n- Rides the existing PATCH -> ticket.set_field -> gossip/SSE sync path. No new event kind.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

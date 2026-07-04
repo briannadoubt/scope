@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG552MZAY11ANX3YGKV0",
+  "ts": "2026-06-18T08:14:29.541Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG552MZAY11ANX3YGKTZ",
+    "number": 254,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Derive done/terminal semantics from column kind",
+    "description": "Replace literal === 'done' / OPEN_STATUSES logic with column-kind lookups: epic progress counts (src/repo.js ~794), confetti on drop-to-done, 'epic still has open work' detection, and the drive-by 'done = closed' rule (src/web/app.js ~2446/2482). A column's kind (done/cancelled = terminal) drives all of it.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG552MZAY11ANX3YGKTS",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

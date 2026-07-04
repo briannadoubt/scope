@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVSQ6CZXY7Q4QY85GD886DHK",
+  "ts": "2026-06-23T07:47:53.981Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVSQ6CZXY7Q4QY85GD886DHJ",
+    "number": 262,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Plugin validation and packaging",
+    "description": "Validate plugin JSON and ensure package distribution includes the plugin directory without disturbing unrelated in-flight source changes.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVSQ6CZVZZZ1B2VBG9J8CJZ2",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG552MZAY11ANX3YGKTP",
+  "ts": "2026-06-18T08:14:29.541Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG5417CMQ0N9D9P7EE10",
+    "number": 249,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Initial rank on create + rebalance",
+    "description": "New tickets get an initial rank (append to top or bottom of their target column — pick one and be consistent). Add an occasional rebalance pass when fractional gaps collapse toward float precision (rare); renormalize a column's ranks to integers via a batch of set_field events.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG53X5VM1EP5FES75XZF",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -41,6 +41,27 @@ test('ensureSchema creates the canonical log + cache tables (idempotent)', { ski
     assert.ok(names.includes(t), `table ${t} exists`);
 });
 
+test('ensureSchema migrates existing ticket tables that predate rank', { skip }, async () => {
+  const pool = getPool();
+  await ensureSchema(pool);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('ALTER TABLE tickets DROP COLUMN IF EXISTS rank');
+
+    await ensureSchema(client);
+
+    const { rows } = await client.query(
+      `SELECT 1 FROM information_schema.columns
+       WHERE table_schema='public' AND table_name='tickets' AND column_name='rank'`
+    );
+    assert.equal(rows.length, 1, 'rank column is restored on existing tables');
+  } finally {
+    await client.query('ROLLBACK');
+    client.release();
+  }
+});
+
 test('events: full envelope round-trips; upload is idempotent (ON CONFLICT DO NOTHING)', { skip }, async () => {
   const pool = getPool();
   await ensureSchema(pool);

@@ -102,13 +102,27 @@ struct BoardView: View {
 
     // MARK: - Board content
 
+    /// Tickets in a column, in the user-defined order. Sorts by fractional rank
+    /// (falling back to display number), matching the hub's board ordering
+    /// `COALESCE(rank, number)` so web and iOS agree (SCP-243). Extracted from
+    /// `body` to keep the SwiftUI view expression cheap to type-check.
+    private func tickets(in status: TicketStatus) -> [Ticket] {
+        store.tickets
+            .filter { $0.status == status }
+            .sorted {
+                $0.sortKey != $1.sortKey
+                    ? $0.sortKey < $1.sortKey
+                    : ($0.number ?? 0) < ($1.number ?? 0)
+            }
+    }
+
     private var boardContent: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(alignment: .top, spacing: 16) {
                 ForEach(TicketStatus.allCases) { status in
                     ColumnView(
                         status: status,
-                        tickets: store.tickets.filter { $0.status == status }
+                        tickets: tickets(in: status)
                     ) { ticket in
                         selectedTicket = ticket
                     }

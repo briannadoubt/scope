@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVSQ6CZXY7Q4QY85GD886DHH",
+  "ts": "2026-06-23T07:47:53.981Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVSQ6CZXY7Q4QY85GD886DHG",
+    "number": 261,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Inline UI and sidebar MCP surface",
+    "description": "Add plugin MCP/app metadata and a server wrapper that exposes Scope workspace/board/ticket tools plus inline UI/sidebar resources for Codex.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KVSQ6CZVZZZ1B2VBG9J8CJZ2",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -216,6 +216,11 @@ function validateFieldValue(field, value) {
     case 'description':
       if (!isStr(value)) fail('description value must be a string');
       break;
+    // rank is a finite number (fractional, for ordering) or null to clear it.
+    case 'rank':
+      if (value !== null && !(typeof value === 'number' && Number.isFinite(value)))
+        fail('rank value must be a finite number or null');
+      break;
     // parentId, branch, prUrl, assignee are all nullable strings
     case 'parentId':
     case 'branch':

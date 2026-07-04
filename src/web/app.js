@@ -35,6 +35,10 @@ const STATUS_LABELS = {
 
 const BOARD_COLUMNS = ['backlog', 'todo', 'in_progress', 'in_review', 'done'];
 
+// The non-terminal board columns — work that still counts as "open". An epic
+// with anything here in its subtree isn't actually complete.
+const OPEN_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review'];
+
 /* ------------- API ------------- */
 
 /**
@@ -255,9 +259,11 @@ async function refresh() {
   const oldPositions = captureCardPositions();
   const oldBoard = state.board;
   await loadBoard();
+  const moved = findMovedTicketIds(oldBoard, state.board);
+  markLastMoved(moved); // set before renderBoard so renderCard applies .last-moved
   renderBoard();
   animateCardMoves(oldPositions);
-  if (state.autoScroll) scrollToMovedCards(findMovedTicketIds(oldBoard, state.board), 380);
+  if (state.autoScroll) scrollToMovedCards(moved, 380);
 }
 
 async function loadEpicsForFilter() {
@@ -1725,11 +1731,12 @@ function scheduleRefresh(_detail) {
         const oldBoard = state.board;
         lastBoardHash = hash;
         state.board = board;
+        const moved = findMovedTicketIds(oldBoard, state.board);
+        markLastMoved(moved); // set before renderBoard so renderCard applies .last-moved
         renderBoard();
         flashIndicator('tick');
         animateCardMoves(oldPositions);
         burstConfettiForNewDone(oldBoard, state.board);
-        const moved = findMovedTicketIds(oldBoard, state.board);
         if (state.autoScroll) scrollToMovedCards(moved, 380);
         highlightMovedCards(moved);
       }
@@ -1803,6 +1810,15 @@ function findMovedTicketIds(oldBoard, newBoard) {
 // module scope so subsequent re-renders (triggered by unrelated SSE updates
 // like comment timestamps) re-apply the class instead of dropping it.
 const recentlyMovedIds = new Set();
+// The single most-recently-moved ticket. Unlike `just-moved` (which fades),
+// this card keeps a persistent selection border so you can glance back and
+// spot the last thing that moved. Replaced each time a new move lands.
+let lastMovedId = null;
+function markLastMoved(ids) {
+  if (!ids.length) return;
+  // scrollToMovedCards focuses ids[0]; keep the persistent border on the same one.
+  lastMovedId = ids[0];
+}
 function highlightMovedCards(ids) {
   if (!ids.length) return;
   for (const id of ids) {
@@ -2373,6 +2389,22 @@ function buildLanes(board, groupBy) {
     for (const e of wanted) if (!epicById[e.id]) epicById[e.id] = e;
   }
 
+  // Epics (and all their ancestors) with at least one ticket still in an open
+  // column. Built in one pass by walking up from each open ticket, so the
+  // hide-done filter and the "not complete" lane badge can share it without
+  // re-walking each epic's subtree.
+  const epicsWithOpenWork = new Set();
+  for (const t of allTickets) {
+    if (t.type === 'epic' || !OPEN_STATUSES.includes(t.status)) continue;
+    let cur = t.parent_id ? epicById[t.parent_id] : null;
+    const seen = new Set();
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      epicsWithOpenWork.add(cur.id);
+      cur = cur.parent_id ? epicById[cur.parent_id] : null;
+    }
+  }
+
   // Honor the "Show done" toggle: when grouped by epic and toggle is off,
   // hide lanes whose epic is done (their children get hidden too — usually
   // they're done as well, and "Show done" lets you see them when you want).
@@ -2383,8 +2415,11 @@ function buildLanes(board, groupBy) {
   const filteredToOne = groupBy === 'epic' && !!state.epicFilter;
   const hideDone = groupBy === 'epic' && !state.showDoneEpics && !filteredToOne;
   const hideCancelled = groupBy === 'epic' && !filteredToOne;
+  // A done epic that still has open work underneath stays visible even with
+  // "Show done" off — it isn't really finished, so hiding it would bury the
+  // unresolved tickets. Genuinely-done epics still hide as before.
   const isHiddenEpic = (e) =>
-    (hideDone && e?.status === 'done') ||
+    (hideDone && e?.status === 'done' && !epicsWithOpenWork.has(e.id)) ||
     (hideCancelled && e?.status === 'cancelled');
   const isHiddenEpicId = (id) => isHiddenEpic(epicById[id]);
 
@@ -2440,6 +2475,13 @@ function buildLanes(board, groupBy) {
     for (const lane of lanes) {
       if (lane.kind !== 'epic') continue;
       lane.progress = epicProgressFromTickets(lane.epicId, allTickets, epicById);
+      // A "done" epic is only truly complete when nothing beneath it is still
+      // open. If any ticket in its subtree sits in backlog/todo/in_progress/
+      // in_review, surface the lane as "not complete" instead of a green Done
+      // badge — otherwise the lane misleadingly reads as finished work.
+      if (lane.status === 'done' && epicsWithOpenWork.has(lane.epicId)) {
+        lane.status = 'not_complete';
+      }
       lane.depth = epicDepth(lane.epicId, epicById);
       lane.sortPath = epicSortPath(lane.epicId, epicById);
     }
@@ -2575,7 +2617,13 @@ function renderCard(t) {
   const node = tpl.content.cloneNode(true);
   const card = node.querySelector('.card');
   card.dataset.id = t.id;
+  // SCP-243: carry the ordering key so drag-to-reorder can compute a fractional
+  // rank from a card's neighbours. `rank` may be empty (un-ranked); the board
+  // sorts by `rank ?? number`, so `number` is the fallback sort key.
+  card.dataset.rank = t.rank == null ? '' : String(t.rank);
+  card.dataset.number = t.number == null ? '' : String(t.number);
   if (recentlyMovedIds.has(t.id)) card.classList.add('just-moved');
+  if (t.id === lastMovedId) card.classList.add('last-moved');
   card.querySelector('.badge').classList.add(t.type);
   card.querySelector('.badge').textContent = t.type;
   card.querySelector('.card-id').textContent = t.id;
@@ -2634,7 +2682,15 @@ function renderCard(t) {
 let dragState = null;
 function bindCardDnD(card) {
   card.addEventListener('dragstart', (e) => {
-    dragState = { id: card.dataset.id, from: card.parentElement };
+    const body = card.parentElement;
+    dragState = {
+      id: card.dataset.id,
+      from: body,
+      // SCP-243: where the card started, so a drop that lands in the same
+      // column and the same slot can be treated as a no-op (no PATCH/refresh).
+      fromStatus: body?.parentElement?.dataset?.status ?? null,
+      fromIndex: body ? [...body.children].indexOf(card) : -1,
+    };
     card.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', card.dataset.id);
@@ -2644,11 +2700,66 @@ function bindCardDnD(card) {
     dragState = null;
   });
 }
+
+// The card's effective sort key: its fractional rank, or its number when it has
+// never been reordered (mirrors the server's `COALESCE(rank, number)`).
+function cardRank(card) {
+  const r = card.dataset.rank;
+  return r !== '' && r != null ? Number(r) : Number(card.dataset.number);
+}
+
+// Which card (if any) the pointer sits above, so the dragged card can be live
+// inserted before it — classic vertical sortable hit-testing.
+function dragAfterCard(body, y) {
+  const cards = [...body.querySelectorAll('.card:not(.dragging)')];
+  let closest = { offset: -Infinity, el: null };
+  for (const el of cards) {
+    const box = el.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) closest = { offset, el };
+  }
+  return closest.el;
+}
+
+// Fractional midpoint between two neighbouring cards (either may be absent at a
+// column edge). Returns null when the gap has collapsed below float precision —
+// the caller then renormalizes the whole column to clean integer ranks.
+function rankBetween(prev, next) {
+  if (!prev && !next) return 1;
+  if (!prev) return cardRank(next) - 1;
+  if (!next) return cardRank(prev) + 1;
+  const a = cardRank(prev);
+  const b = cardRank(next);
+  const mid = (a + b) / 2;
+  if (!(mid > a && mid < b)) return null; // precision collapse → renormalize
+  return mid;
+}
+
+// Rare path: assign clean 1..N integer ranks in current DOM order. Keeps the
+// fractional scheme from degenerating after many inserts into the same gap.
+async function renormalizeColumn(body) {
+  const cards = [...body.querySelectorAll('.card')];
+  for (let i = 0; i < cards.length; i++) {
+    await api(`/api/tickets/${encodeURIComponent(cards[i].dataset.id)}`, {
+      method: 'PATCH',
+      body: { rank: i + 1, __by: 'ui' },
+    });
+  }
+}
+
 function bindColumnDnD(col) {
+  const body = col.querySelector('.column-body');
   col.addEventListener('dragover', (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     col.classList.add('drop-target');
+    // Live-reorder: move the dragged card to where it would land so the user
+    // sees the result before releasing (works across columns too).
+    const dragging = document.querySelector('.card.dragging');
+    if (!dragging || !body) return;
+    const after = dragAfterCard(body, e.clientY);
+    if (after == null) body.appendChild(dragging);
+    else body.insertBefore(dragging, after);
   });
   col.addEventListener('dragleave', () => col.classList.remove('drop-target'));
   col.addEventListener('drop', async (e) => {
@@ -2656,14 +2767,37 @@ function bindColumnDnD(col) {
     col.classList.remove('drop-target');
     const id = e.dataTransfer.getData('text/plain');
     const status = col.dataset.status;
-    if (!id || !status) return;
+    if (!id || !status || !body) return;
+
+    const dragging = body.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+    const sameColumn = status === dragState?.fromStatus;
+    const newIndex = dragging ? [...body.children].indexOf(dragging) : -1;
+    // No-op: dropped back into the same column and the same slot.
+    if (sameColumn && newIndex === dragState?.fromIndex) return;
+
     try {
-      const fromStatus = dragState?.from?.parentElement?.dataset?.status;
-      await api(`/api/tickets/${encodeURIComponent(id)}`, {
-        method: 'PATCH',
-        body: { status, __by: 'ui' },
-      });
-      if (status === 'done' && fromStatus !== 'done') burstConfetti();
+      const newRank = dragging
+        ? rankBetween(dragging.previousElementSibling, dragging.nextElementSibling)
+        : null;
+      if (newRank == null) {
+        // Either no neighbour info or a collapsed gap: move status first (so the
+        // card lives in the right column), then renormalize the column cleanly.
+        if (!sameColumn) {
+          await api(`/api/tickets/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            body: { status, __by: 'ui' },
+          });
+        }
+        await renormalizeColumn(body);
+      } else {
+        const patch = { rank: newRank, __by: 'ui' };
+        if (!sameColumn) patch.status = status;
+        await api(`/api/tickets/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          body: patch,
+        });
+      }
+      if (!sameColumn && status === 'done') burstConfetti();
       await refresh();
     } catch (err) {
       toast(err.message);
@@ -4010,6 +4144,9 @@ function pushLiveFeed(detail) {
   // classify (data_version moved but no new history/comment row). Don't toast
   // — we'd be guessing at what happened.
   if (detail.type === 'external') return;
+  // SCP-243: reorders are cosmetic — they refresh the board but never post a
+  // toast (the change is tagged field:'rank' purely to drive that refresh).
+  if (detail.type === 'ticket.updated' && detail.field === 'rank') return;
   // Track historyId/commentId so we can de-dupe rich events that arrive both
   // via direct in-process emit and (rarely) via the fs-watch replay path.
   if (typeof detail.historyId === 'number') {

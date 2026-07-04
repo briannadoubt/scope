@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG552MZAY11ANX3YGKV4",
+  "ts": "2026-06-18T08:14:29.541Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG552MZAY11ANX3YGKV3",
+    "number": 256,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Column management UI: reorder, add, edit, delete",
+    "description": "Drag column headers to reorder (persist column order). Add/rename/recolor/set-kind for columns. Delete-column flow must handle tickets still in it — reassign them to a chosen column (or block delete while non-empty). This is the original 'reorderable columns' ask, now on top of the data model.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG552MZAY11ANX3YGKTS",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

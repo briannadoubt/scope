@@ -61,15 +61,25 @@ struct Ticket: Identifiable, Codable, Hashable {
     var parentId: String?
     var assignee: String?
     var labels: [String]
+    /// Display number (the N in `SCP-N`). The fallback sort key when `rank` is
+    /// absent — mirrors the hub's `COALESCE(rank, number)` ordering (SCP-243).
+    var number: Int?
+    /// User-defined order within a status column. Fractional, so a single drag
+    /// reorders one ticket without renumbering the rest. nil until first moved.
+    var rank: Double?
     let createdAt: Date
     var updatedAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case id, title, type, status, priority, description, assignee, labels
+        case id, title, type, status, priority, description, assignee, labels, number, rank
         case parentId   = "parent_id"
         case createdAt  = "created_at"
         case updatedAt  = "updated_at"
     }
+
+    /// The effective ordering key within a column: the fractional rank, or the
+    /// display number when never reordered (matches the hub's board order).
+    var sortKey: Double { rank ?? Double(number ?? 0) }
 }
 
 // MARK: - Relations

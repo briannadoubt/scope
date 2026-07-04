@@ -1,0 +1,8 @@
+{
+  "apps": {
+    "scope": {
+      "id": "local.scope.kanban",
+      "category": "Developer tools"
+    }
+  }
+}

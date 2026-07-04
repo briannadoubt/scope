@@ -111,6 +111,11 @@ export function backfillEvents(db, scopeDir, { actor = 'migration' } = {}) {
     // Walk the recorded history, tracking where each column lands.
     const walked = {};
     for (const col of HISTORY_COLUMNS) walked[col] = initial(col);
+    // SCP-243: `rank` is deliberately absent from ticket.create and never
+    // recorded in ticket_history (reorders are cosmetic). Replay therefore
+    // starts it at null, so seed the baseline as null — the reconcile pass
+    // below then emits a single set_field carrying the ticket's live rank.
+    walked.rank = null;
     for (const h of history) {
       if (!HISTORY_COLUMNS.includes(h.field)) continue;
       walked[h.field] = h.new_value;

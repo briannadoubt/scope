@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG552MZAY11ANX3YGKTY",
+  "ts": "2026-06-18T08:14:29.541Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG552MZAY11ANX3YGKTX",
+    "number": 253,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Dynamic status validation against column set",
+    "description": "Replace the static enum checks (src/event-schema.js ticket.create + set_field, src/repo.js updateTicket) with validation against the workspace's configured columns. Define a fallback for a status whose column was deleted or not-yet-synced (e.g. keep the value, render under an 'Unknown' column) so out-of-order/cross-client events never get rejected.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG552MZAY11ANX3YGKTS",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -148,6 +148,7 @@ const CREATE_TICKETS = `
     pr_url TEXT,
     assignee TEXT,
     labels TEXT DEFAULT '[]',
+    rank REAL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     UNIQUE(number)
@@ -324,7 +325,7 @@ export function ensureSearchIndex(db) {
   }
 }
 
-const CURRENT_SCHEMA_VERSION = '4';
+const CURRENT_SCHEMA_VERSION = '5';
 
 function tableExists(db, name) {
   const row = db
@@ -422,6 +423,25 @@ function ensureUidColumn(db) {
     for (const r of rows) upd.run(ulid(), r.id);
   }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_uid ON tickets(uid)');
+}
+
+/**
+ * v4 → v5: give every ticket a numeric `rank` for user-defined ordering within
+ * a board column (SCP-243). Idempotent — a no-op once the column exists.
+ * Existing rows are backfilled with `rank = number` so the default order is
+ * identical to the legacy `ORDER BY number`; thereafter reorders write a
+ * fractional rank via `ticket.set_field`. The board sorts on
+ * `COALESCE(rank, number)`, so un-ranked rows (e.g. fresh replays that never
+ * carried a rank event) still fall back to number order.
+ *
+ * MUST be called with foreign_keys = OFF (it runs during migrate()).
+ */
+function ensureRankColumn(db) {
+  const cols = db.prepare('PRAGMA table_info(tickets)').all();
+  if (!cols.some((c) => c.name === 'rank')) {
+    db.exec('ALTER TABLE tickets ADD COLUMN rank REAL');
+    db.exec('UPDATE tickets SET rank = number WHERE rank IS NULL');
+  }
 }
 
 /**
@@ -584,6 +604,8 @@ function migrate(db, scopeDir) {
 
       // v4: stable ULID identity for every ticket.
       ensureUidColumn(db);
+      // v5: numeric rank for user-defined column ordering (SCP-243).
+      ensureRankColumn(db);
 
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
@@ -613,6 +635,7 @@ function migrate(db, scopeDir) {
     const tx = db.transaction(() => {
       if (v < 3) rebuildAuxTables(db);
       ensureUidColumn(db);
+      ensureRankColumn(db);
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
@@ -635,6 +658,7 @@ function migrate(db, scopeDir) {
   db.exec(CREATE_TICKETS);
   db.exec(CREATE_AUX_TABLES);
   ensureUidColumn(db);
+  ensureRankColumn(db);
   const existing = db.prepare('SELECT id FROM workspace WHERE id = 1').get();
   if (!existing) {
     const now = nowIso();

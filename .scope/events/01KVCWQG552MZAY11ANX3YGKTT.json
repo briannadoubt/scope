@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG552MZAY11ANX3YGKTT",
+  "ts": "2026-06-18T08:14:29.541Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG552MZAY11ANX3YGKTS",
+    "number": 251,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Custom, reorderable board columns",
+    "description": "Turn board columns from a hardcoded global status enum into per-workspace, user-defined, reorderable columns: add/rename/recolor/reorder/delete columns. Reorderable columns is the easy 20% of this; the bulk is converting the enum into synced workspace data without regressing the semantics currently wired to the literal status 'done'.\n\nKey design points:\n- Each column carries a semantic KIND (open | done | cancelled) so epic progress, confetti, open-work detection, and OPEN_STATUSES keep working off the flag, not the string 'done'.\n- Status validation becomes DYNAMIC against the workspace's column set (today it's a frozen enum validated in 3 places) — must tolerate events arriving from other clients referencing a column this replica hasn't seen yet.\n- Column config (id, label, color, kind, order) is persisted on the workspace via a new event kind and synced like everything else; existing boards seed from today's six statuses.\n- Phased AFTER persistent ticket ordering.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

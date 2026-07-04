@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG552MZAY11ANX3YGKV6",
+  "ts": "2026-06-18T08:14:29.541Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG552MZAY11ANX3YGKV5",
+    "number": 257,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "iOS: render columns from config",
+    "description": "The native iOS board reads the column config (labels, colors, order, kinds) from the API instead of a hardcoded status list, so custom columns show up consistently across clients.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG552MZAY11ANX3YGKTS",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

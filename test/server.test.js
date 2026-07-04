@@ -82,6 +82,51 @@ test('workspace + ticket happy path round-trips through HTTP', async () => {
   }
 });
 
+test('SCP-243: PATCH rank reorders a column over HTTP and the board reflects it', async () => {
+  const t = await startTestServer();
+  try {
+    // Three stories land in backlog in creation order (rank defaults to number).
+    const ids = [];
+    for (const title of ['First', 'Second', 'Third']) {
+      const r = await apiFetch(t.baseUrl, '/api/tickets', {
+        method: 'POST',
+        body: { type: 'story', title },
+      });
+      assert.equal(r.status, 201);
+      ids.push(r.data.id);
+    }
+    const [a, b, c] = ids;
+
+    const order = async () => {
+      const { data } = await apiFetch(t.baseUrl, '/api/board');
+      return (data.buckets.backlog || []).map((tk) => tk.id);
+    };
+    assert.deepEqual(await order(), [a, b, c], 'default order is by number');
+
+    // Drag the third card to the top: a fractional rank below the first.
+    const patched = await apiFetch(t.baseUrl, `/api/tickets/${c}`, {
+      method: 'PATCH',
+      body: { rank: 0.5, __by: 'ui' },
+    });
+    assert.equal(patched.status, 200);
+    assert.equal(patched.data.rank, 0.5, 'the API accepts + echoes the new rank');
+    assert.deepEqual(await order(), [c, a, b], 'board re-sorts by rank');
+
+    // Drop it between the first two (midpoint of numbers 1 and 2).
+    await apiFetch(t.baseUrl, `/api/tickets/${c}`, {
+      method: 'PATCH',
+      body: { rank: 1.5, __by: 'ui' },
+    });
+    assert.deepEqual(await order(), [a, c, b], 'a second reorder moves it again');
+
+    // Reorders are cosmetic: no rank rows in the audit history.
+    const detail = await apiFetch(t.baseUrl, `/api/tickets/${c}`);
+    assert.equal(detail.data.history.filter((h) => h.field === 'rank').length, 0);
+  } finally {
+    await t.close();
+  }
+});
+
 test('GET /api/tickets/:id returns 404 for missing tickets', async () => {
   const t = await startTestServer();
   try {

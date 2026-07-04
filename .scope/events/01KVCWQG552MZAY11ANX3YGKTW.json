@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG552MZAY11ANX3YGKTW",
+  "ts": "2026-06-18T08:14:29.541Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG552MZAY11ANX3YGKTV",
+    "number": 252,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Model columns as workspace data + new event kind",
+    "description": "Define a per-workspace column config: array of {id, label, color, kind: open|done|cancelled, order}. Add a workspace.columns_set (or per-column) event kind (src/event-schema.js EVENT_KINDS) and persist/replay it onto the workspace (SQLite + src/pg). Seed defaults from the current six statuses (backlog/todo/in_progress/in_review/done/cancelled) for existing workspaces via migration.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG552MZAY11ANX3YGKTS",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

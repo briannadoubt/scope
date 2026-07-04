@@ -192,7 +192,7 @@ export async function snapshotState(pool, tenantId) {
     const q = (sql) => client.query(sql, [tenantId]).then((r) => r.rows);
     const agg = await client.query('SELECT max(seq) AS cursor, count(*)::int AS count FROM events WHERE tenant_id=$1', [tenantId]);
     const workspace = await q('SELECT key, name, description, overview, next_ticket_number FROM workspace WHERE tenant_id=$1');
-    const tickets = await q('SELECT id, uid, number, type, title, description, status, priority, parent_id, branch, pr_url, assignee, labels, created_at, updated_at FROM tickets WHERE tenant_id=$1 ORDER BY number');
+    const tickets = await q('SELECT id, uid, number, type, title, description, status, priority, parent_id, branch, pr_url, assignee, labels, rank, created_at, updated_at FROM tickets WHERE tenant_id=$1 ORDER BY COALESCE(rank, number), number');
     const relations = await q('SELECT from_ticket_id, to_ticket_id, type, created_at FROM ticket_relations WHERE tenant_id=$1');
     const comments = await q('SELECT ticket_id, author, body, created_at FROM ticket_comments WHERE tenant_id=$1 ORDER BY id');
     const history = await q('SELECT ticket_id, field, old_value, new_value, changed_by, changed_at FROM ticket_history WHERE tenant_id=$1 ORDER BY id');

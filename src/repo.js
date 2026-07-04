@@ -375,9 +375,12 @@ export function listTickets(db, { type, status, parentId, assignee } = {}) {
     where.push('assignee = ?');
     params.push(assignee);
   }
+  // SCP-243: user-defined order within a column comes from `rank`; un-ranked
+  // rows (fresh replays that never carried a rank event) fall back to `number`,
+  // which is also the final tiebreak so the order is always total + stable.
   const sql = `SELECT * FROM tickets ${
     where.length ? 'WHERE ' + where.join(' AND ') : ''
-  } ORDER BY number`;
+  } ORDER BY COALESCE(rank, number), number`;
   return db.prepare(sql).all(...params).map(hydrateTicket);
 }
 
@@ -483,12 +486,15 @@ export function updateTicket(db, id, fields, who = null, model = null) {
     'pr_url',
     'assignee',
     'labels',
+    'rank',
   ];
 
   if ('status' in fields && !STATUSES.includes(fields.status))
     throw new Error(`Invalid status "${fields.status}". One of: ${STATUSES.join(', ')}`);
   if ('priority' in fields && !PRIORITIES.includes(fields.priority))
     throw new Error(`Invalid priority "${fields.priority}". One of: ${PRIORITIES.join(', ')}`);
+  if ('rank' in fields && fields.rank != null && !Number.isFinite(Number(fields.rank)))
+    throw new Error(`Invalid rank "${fields.rank}". Must be a finite number or null.`);
 
   if ('parent_id' in fields && fields.parent_id) {
     const parent = getTicket(db, fields.parent_id);
@@ -525,6 +531,21 @@ export function updateTicket(db, id, fields, who = null, model = null) {
   const setFieldEvents = [];
   for (const k of allowed) {
     if (k in fields) {
+      // Ordering rank is high-frequency and purely cosmetic. Persist it and
+      // emit a ticket.set_field event so the new position syncs, but keep it
+      // out of ticket_history and the activity toast feed — a drag shouldn't
+      // spam "changed rank" entries. A rank-only change still falls through to
+      // the bare ticket.updated emit below, so boards refresh.
+      if (k === 'rank') {
+        const newRank = fields.rank == null ? null : Number(fields.rank);
+        const curRank = ticket.rank == null ? null : Number(ticket.rank);
+        if (curRank !== newRank) {
+          updates.push('rank = ?');
+          values.push(newRank);
+          setFieldEvents.push({ field: 'rank', value: newRank });
+        }
+        continue;
+      }
       const v = k === 'labels' ? JSON.stringify(fields[k] ?? []) : fields[k];
       updates.push(`${k} = ?`);
       values.push(v);
@@ -567,6 +588,11 @@ export function updateTicket(db, id, fields, who = null, model = null) {
         historyId: change.historyId,
       });
     }
+  } else if (setFieldEvents.some((e) => e.field === 'rank')) {
+    // SCP-243: a rank-only change. Tag the change with field:'rank' so other
+    // clients still refresh the board (the reorder propagates live), but the
+    // activity feed can filter it out — a drag shouldn't post a toast.
+    emitChange({ type: 'ticket.updated', id: ticket.id, title: after.title, field: 'rank' });
   } else {
     emitChange({ type: 'ticket.updated', id: ticket.id, title: after.title });
   }

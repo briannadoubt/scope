@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVVAQ57PA3FT8BS056QD3G54",
+  "ts": "2026-06-23T22:48:20.470Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVVAQ57NBRS6WWGZHQQ40J7Z",
+    "number": 263,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Postgres schema fast path skips rank migration",
+    "description": "ensureSchema() returned early when legacy tables/indexes existed, so databases created before SCP-243 never ran ALTER TABLE tickets ADD COLUMN rank. Snapshot/RLS reads then failed with column \"rank\" does not exist. Fixed by including tickets.rank in the fast-path probe and by distinguishing a Pool from a pooled Client when running DDL.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -240,16 +240,20 @@ async function applyEvent(db, T, e, human, assignments) {
         `UPDATE tickets SET ${column}=$3, updated_at=$4 WHERE tenant_id=$1 AND id=$2`,
         [T, id, value, e.ts]
       );
-      await db.query(
-        `INSERT INTO ticket_history (tenant_id, ticket_id, field, old_value, new_value, changed_by, changed_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [
-          T, id, column,
-          oldValue == null ? null : String(stripJsonb(oldValue)),
-          value == null ? null : String(value),
-          formatActor(e.actor, e.model), e.ts,
-        ]
-      );
+      // SCP-243: `rank` is cosmetic ordering — apply it but keep it out of the
+      // audit history (matching updateTicket + the SQLite replay path).
+      if (p.field !== 'rank') {
+        await db.query(
+          `INSERT INTO ticket_history (tenant_id, ticket_id, field, old_value, new_value, changed_by, changed_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [
+            T, id, column,
+            oldValue == null ? null : String(stripJsonb(oldValue)),
+            value == null ? null : String(value),
+            formatActor(e.actor, e.model), e.ts,
+          ]
+        );
+      }
       return 1;
     }
 

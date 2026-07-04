@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KVCWQG5417CMQ0N9D9P7EE0Z",
+  "ts": "2026-06-18T08:14:29.540Z",
+  "actor": "claude",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KVCWQG5417CMQ0N9D9P7EE0Y",
+    "number": 248,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Web UI: drag cards to reorder within a column",
+    "description": "Vertical drag-to-reorder of cards inside a column, distinct from the existing cross-column status drop (src/web/app.js bindCardDnD/bindColumnDnD ~2662). Show an insertion indicator, compute the fractional rank from drop position, PATCH it, optimistic reorder then refresh. Same column = reorder, different column = status change.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01KVCWQG53X5VM1EP5FES75XZF",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -50,6 +50,13 @@ import https from 'node:https';
  *   non-2xx responses. See auth handling below.
  * @param {number} [opts.retryMs=2000] - initial reconnect delay.
  * @param {number} [opts.maxRetryMs=30000] - backoff ceiling.
+ * @param {number} [opts.idleTimeoutMs=45000] - liveness watchdog. If no bytes
+ *   arrive within this window the link is treated as half-open and force-cycled
+ *   (reconnect with backoff). The hub emits a `: keepalive` comment every ~20s,
+ *   so any healthy stream resets the timer well inside the default; a silent TCP
+ *   stall (laptop sleep, Wi-Fi switch, NAT rebind, an edge that drops the socket
+ *   without a FIN) produces no `end`/`error`, so without this the client would
+ *   believe it's connected forever. Set to 0 to disable.
  * @param {(options: object, cb: Function) => import('node:http').ClientRequest}
  *   [opts.fetchImpl] - injectable request fn (defaults to http/https `request`
  *   chosen by URL protocol); takes Node request options + a response callback.
@@ -72,6 +79,7 @@ export function connectSse(url, opts = {}) {
     onError,
     retryMs = 2000,
     maxRetryMs = 30000,
+    idleTimeoutMs = 45000,
     fetchImpl,
   } = opts;
 
@@ -89,7 +97,33 @@ export function connectSse(url, opts = {}) {
   let req = null; // in-flight ClientRequest, if any
   let res = null; // in-flight IncomingMessage, if any
   let reconnectTimer = null;
+  let idleTimer = null; // liveness watchdog; reset on every received byte
   let delay = retryMs; // current backoff delay; server `retry:` can override
+
+  const clearIdle = () => {
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    }
+  };
+
+  /**
+   * (Re)arm the liveness watchdog. Called on connect and on every received
+   * chunk (data frames AND keepalive comments are both bytes). If it fires, the
+   * stream has gone silent past the window — tear it down and reconnect, since a
+   * half-open socket never surfaces as 'end'/'error' on its own.
+   */
+  const armIdle = () => {
+    if (closed || idleTimeoutMs <= 0) return;
+    clearIdle();
+    idleTimer = setTimeout(() => {
+      idleTimer = null;
+      if (closed) return;
+      destroyRequest();
+      fail(new Error('SSE idle timeout'));
+    }, idleTimeoutMs);
+    idleTimer.unref?.();
+  };
 
   /** Schedule the next connect with the current backoff, then double it. */
   const scheduleReconnect = () => {
@@ -128,6 +162,7 @@ export function connectSse(url, opts = {}) {
 
   /** Tear down the active request/response without flipping `closed`. */
   const destroyRequest = () => {
+    clearIdle();
     // After removeAllListeners(), destroy() can still emit a final 'error'
     // (ECONNRESET / socket hang up) as the socket closes — with our handler
     // gone that would be an UNHANDLED error and crash the process on teardown
@@ -181,6 +216,7 @@ export function connectSse(url, opts = {}) {
 
       // Clean connect — reset backoff and notify the caller (catch-up hook).
       delay = retryMs;
+      armIdle(); // start the liveness watchdog for this connection
       if (!closed) onOpen?.();
 
       response.setEncoding('utf8');
@@ -249,6 +285,7 @@ export function connectSse(url, opts = {}) {
 
       response.on('data', (chunk) => {
         if (closed) return;
+        armIdle(); // any byte (incl. keepalive comments) proves liveness
         buffer += chunk;
         let idx;
         while ((idx = buffer.indexOf('\n')) !== -1) {

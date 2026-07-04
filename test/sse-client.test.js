@@ -142,6 +142,77 @@ test('reconnects with backoff after the server drops the socket', async () => {
   }
 });
 
+test('idle watchdog force-cycles a silently-stalled (half-open) connection', async () => {
+  // A half-open socket emits no 'end'/'error', so without the watchdog the
+  // client would wait forever. First connection writes nothing and holds open
+  // (the stall); the watchdog must fire, surface an error, and reconnect.
+  let conns = 0;
+  const { server, url } = await startServer((req, res) => {
+    conns += 1;
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    // Flush headers immediately (the real hub writes `retry:` up front) so the
+    // client's response callback fires and the watchdog arms.
+    res.write('retry: 2000\n');
+    if (conns >= 2) res.write(`event: change\ndata: ${JSON.stringify({ n: 2 })}\n\n`);
+    // conns === 1: nothing more — established but silent, then never ends. The
+    // watchdog must notice the stall and force a reconnect.
+  });
+
+  const events = [];
+  const errors = [];
+  let opens = 0;
+  const client = connectSse(url, {
+    retryMs: 25,
+    idleTimeoutMs: 80, // fire fast for the test
+    onOpen: () => { opens += 1; },
+    onEvent: (e) => events.push(e),
+    onError: (e) => errors.push(e),
+  });
+
+  try {
+    await waitFor(() => opens >= 2 && events.length >= 1);
+    assert.ok(opens >= 2, 'watchdog tripped a reconnect on the stalled connection');
+    assert.ok(errors.some((e) => /idle timeout/i.test(e.message)), 'idle timeout surfaced via onError');
+    assert.equal(events[0].data.n, 2, 'received the event from the recovered connection');
+  } finally {
+    client.close();
+    await closeServer(server);
+  }
+});
+
+test('keepalive comments reset the watchdog — a healthy stream is not cycled', async () => {
+  // The hub proves liveness with `: keepalive` comments. Each is bytes on the
+  // wire, so it must reset the idle timer and keep a quiet-but-live stream up.
+  let conns = 0;
+  const timers = [];
+  const { server, url } = await startServer((req, res) => {
+    conns += 1;
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.write(': keepalive\n\n');
+    const t = setInterval(() => res.write(': keepalive\n\n'), 30);
+    timers.push(t);
+    res.on('close', () => clearInterval(t));
+  });
+
+  let opens = 0;
+  const client = connectSse(url, {
+    retryMs: 25,
+    idleTimeoutMs: 80, // keepalives at 30ms must keep resetting this
+    onOpen: () => { opens += 1; },
+  });
+
+  try {
+    // Over a window several idle-timeouts long, no reconnect should occur.
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(opens, 1, 'single stable connection — keepalives kept the watchdog from firing');
+    assert.equal(conns, 1, 'server saw exactly one connection');
+  } finally {
+    client.close();
+    for (const t of timers) clearInterval(t);
+    await closeServer(server);
+  }
+});
+
 test('sends Authorization: Bearer <token>', async () => {
   let seenAuth = null;
   const { server, url } = await startServer((req, res) => {
