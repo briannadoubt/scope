@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWQFXBA4TNFM4K3VYCTG8MFW",
+  "ts": "2026-07-04T21:17:50.276Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWQFXBA4TNFM4K3VYCTG8MFV",
+    "number": 271,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Quiet workspace storage by default",
+    "description": "Make Scope attach to a project without flooding git with event files. Default new workspaces to machine-local event storage plus cloud sync, keep git-carried events as an explicit advanced mode, and provide a migration path for existing .scope/events logs.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWQFYHKM2PKB3ZR5K54X0EQ7",
+  "ts": "2026-07-04T21:18:29.492Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWQFYHKKMTDXF2XK6R4THWYK",
+    "number": 275,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Migrate existing repo events to local storage",
+    "description": "Add a safe migration command that copies existing .scope/events into machine-local storage, verifies replay equivalence, updates metadata/gitignore, leaves a recoverable backup or dry-run summary, and preserves an escape hatch back to git-events mode.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": "01KWQFXBA4TNFM4K3VYCTG8MFV",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

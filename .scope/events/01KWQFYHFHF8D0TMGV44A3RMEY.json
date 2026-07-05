@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWQFYHFHF8D0TMGV44A3RMEY",
+  "ts": "2026-07-04T21:18:29.361Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWQFYHFGQ0QDZ9NVXP9FHM2C",
+    "number": 274,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Default init to quiet local storage",
+    "description": "Change scope init and app onboarding so new workspaces keep event files out of git by default, with --git-events or an explicit mode command preserving the old repo-carried behavior.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KWQFXBA4TNFM4K3VYCTG8MFV",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

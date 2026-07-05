@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWQFYHE7CNNN8BTDRNRCJNKN",
+  "ts": "2026-07-04T21:18:29.319Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWQFYHE54XN4F173NPNTGSGD",
+    "number": 272,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Design quiet storage modes and repo marker",
+    "description": "Define the new default: repo contains a small workspace marker/config, event log and cache live in machine-local Scope data, cloud sync is the normal sharing path, and git-carried events remain an explicit advanced mode.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KWQFXBA4TNFM4K3VYCTG8MFV",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

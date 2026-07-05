@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWQFYS0YACTG3XR133R28G7R",
+  "ts": "2026-07-04T21:18:37.086Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWQFYS0WTH9SB4Q2Y2NA2W7H",
+    "number": 276,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Make connect/status explain local plus cloud storage",
+    "description": "Update CLI and app surfaces so scope connect uses the official cloud by default, starts sync, and explains that events are stored locally unless git-events mode is explicitly enabled. Include troubleshooting/status output for local store, cloud link, and git-events mode.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KWQFXBA4TNFM4K3VYCTG8MFV",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

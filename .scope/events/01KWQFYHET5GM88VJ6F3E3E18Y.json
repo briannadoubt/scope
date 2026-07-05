@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KWQFYHET5GM88VJ6F3E3E18Y",
+  "ts": "2026-07-04T21:18:29.338Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KWQFYHET5GM88VJ6F3E3E18X",
+    "number": 273,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Add local event-store resolution layer",
+    "description": "Introduce storage metadata and helpers so eventsDir/eventsDirForDb can resolve either repo-local .scope/events or machine-local storage, while keeping existing append/read/replay call sites stable.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KWQFXBA4TNFM4K3VYCTG8MFV",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}
