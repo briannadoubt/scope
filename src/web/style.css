@@ -721,7 +721,7 @@ button { font-family: inherit; }
 .card.last-moved { box-shadow: 0 0 0 2px var(--accent); border-color: var(--accent); }
 
 /* status dots */
-.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--status-color, var(--text-dim)); }
 .dot.backlog { background: var(--text-dim); }
 .dot.todo { background: var(--text-muted); }
 .dot.in_progress { background: var(--yellow); }
@@ -886,6 +886,58 @@ button { font-family: inherit; }
 .modal textarea { min-height: 100px; resize: vertical; }
 .modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .modal .error { color: var(--red); font-size: 12px; margin-top: 8px; }
+
+.column-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(54vh, 460px);
+  overflow: auto;
+}
+.column-editor-row {
+  display: grid;
+  grid-template-columns: 30px 30px minmax(120px, 1fr) minmax(110px, 0.8fr) 42px 110px 34px 30px;
+  gap: 6px;
+  align-items: center;
+}
+.column-editor-row input,
+.column-editor-row select {
+  min-width: 0;
+}
+.column-editor-row .col-color {
+  padding: 2px;
+  height: 32px;
+}
+.column-editor-row .col-count {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: right;
+}
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elev-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.icon-btn:hover:not(:disabled) { color: var(--text); background: #2a2f37; }
+.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+@media (max-width: 680px) {
+  .column-editor-row {
+    grid-template-columns: 30px 30px 1fr 42px 30px;
+  }
+  .column-editor-row .col-id,
+  .column-editor-row .col-kind,
+  .column-editor-row .col-count {
+    grid-column: span 1;
+  }
+}
 
 /* API-keys manager (SCP-174) */
 .modal-head h2 { margin: 0 0 4px; font-size: 16px; }

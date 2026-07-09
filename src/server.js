@@ -60,7 +60,7 @@ import { requireTenantRole } from './auth_hosted/tenancy.js';
 import { getRole, claimAlias, removeAlias, listAliases, allowedActorsFor } from './auth_hosted/membership.js';
 import {
   listProjects, listProjectBoards, createProjectBoard, readBoard,
-  renameProject, archiveProject,
+  renameProject, updateProjectBoard, archiveProject,
 } from './auth_hosted/tenant-board.js';
 import { ensureReplica, refreshReplica, flushReplica, closeAllReplicas, evictReplica } from './auth_hosted/tenant-replica.js';
 import { uploadEvents, pullEvents, existingEventIds } from './pg/store.js';
@@ -68,6 +68,7 @@ import { serverError } from './http-errors.js';
 import { resolveBinding, probeRemote, collabProxyRouter } from './remote-client.js';
 import { DEFAULT_CLOUD_URL, readCredential, readRemoteConfig, writeRemoteConfig, writeCredential, clearRemoteConfig, clearCredential } from './remote-config.js';
 import { migrateEventsToLocal } from './workspace-storage.js';
+import { openColumns, terminalColumns } from './columns.js';
 import { startRemoteSync } from './remote-sync.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -389,9 +390,9 @@ export async function startServer({
       } catch (e) { serverError(res, e); }
     };
     tApi.patch('/api/projects/:tenantId', ownerOf('tenantId'), async (req, res) => {
-      const name = req.body && req.body.name;
-      if (!name) return res.status(400).json({ error: 'name required' });
-      try { res.json(await renameProject(pool, req.tenantId, { accountId: req.principal.accountId, name })); }
+      const body = req.body || {};
+      if (body.name === undefined && body.columns === undefined) return res.status(400).json({ error: 'name or columns required' });
+      try { res.json(await updateProjectBoard(pool, req.tenantId, { accountId: req.principal.accountId, name: body.name, columns: body.columns })); }
       catch (e) { res.status(400).json({ error: e.message }); }
     });
     tApi.delete('/api/projects/:tenantId', ownerOf('tenantId'), async (req, res) => {
@@ -744,9 +745,13 @@ export async function startServer({
     // refresh so they never block on the network.
     if (binding && !lastProbeAt) await refreshProbe().catch(() => {});
     else if (binding && Date.now() - lastProbeAt > 15000) refreshProbe().catch(() => {});
+    const primaryWorkspace = primaryScopeDir ? (() => {
+      try { return primaryWs?.db ? getWorkspace(primaryWs.db) : null; } catch { return null; }
+    })() : null;
     res.json({
       version: PKG.version,
       statuses: SCHEMA_STATUSES,
+      columns: primaryWorkspace?.columns || [],
       priorities: SCHEMA_PRIORITIES,
       ticket_types: SCHEMA_TICKET_TYPES,
       relation_types: SCHEMA_RELATION_TYPES,
@@ -866,6 +871,7 @@ export async function startServer({
           name: updated.name,
           description: updated.description ?? '',
           overview: updated.overview ?? '',
+          columns: updated.columns ?? [],
         });
       });
     } catch (e) {
@@ -917,6 +923,7 @@ export async function startServer({
       name: updated.name,
       description: updated.description ?? '',
       overview: updated.overview ?? '',
+      columns: updated.columns ?? [],
       created_at: updated.created_at,
       updated_at: updated.updated_at,
       workspace: w.id,
@@ -1102,9 +1109,20 @@ export async function startServer({
   app.get('/api/board', ws((req, res, w) => {
     const { epic } = req.query;
     const tickets = listTickets(w.db, { parentId: epic });
-    const buckets = Object.fromEntries(SCHEMA_STATUSES.map((s) => [s, []]));
-    for (const t of tickets) if (buckets[t.status]) buckets[t.status].push(t);
-    res.json({ columns: SCHEMA_STATUSES, buckets });
+    const workspace = getWorkspace(w.db);
+    const columns = openColumns(workspace.columns);
+    const terminal = terminalColumns(workspace.columns);
+    const allColumnIds = new Set([...columns, ...terminal].map((c) => c.id));
+    const buckets = Object.fromEntries([...columns, ...terminal].map((c) => [c.id, []]));
+    for (const t of tickets) {
+      if (!buckets[t.status]) buckets[t.status] = [];
+      buckets[t.status].push(t);
+      if (!allColumnIds.has(t.status)) {
+        allColumnIds.add(t.status);
+        columns.push({ id: t.status, label: t.status, color: '#64748b', kind: 'open', order: columns.length * 10 + 1000 });
+      }
+    }
+    res.json({ columns, terminal_columns: terminal, buckets });
   }));
 
   /* ---------- SSE ---------- */

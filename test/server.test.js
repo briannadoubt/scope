@@ -215,7 +215,7 @@ test('board endpoint groups tickets into status buckets', async () => {
 
     const board = await apiFetch(t.baseUrl, '/api/board?project=a');
     assert.equal(board.status, 200);
-    assert.ok(board.data.columns.includes('done'));
+    assert.ok(board.data.columns.some((column) => column.id === 'done'));
     const inTodo = board.data.buckets.todo.map((t) => t.id);
     const inDone = board.data.buckets.done.map((t) => t.id);
     assert.ok(inTodo.includes(s1.id));

@@ -16,6 +16,7 @@ import { compareEvents, formatActor } from './event-schema.js';
 import { resolveDisplayNumbers, nextNumberSeed } from './identity.js';
 import { readAllEvents, eventsDir, logHasInit } from './event-store.js';
 import { COLUMN_TO_FIELD, RELATION_INVERSE } from './enums.js';
+import { normalizeColumns } from './columns.js';
 // SCP-219: tail-append decision helpers shared with the PG fast path.
 import { isTailAppend, canonicalMax } from './pg/incremental.js';
 
@@ -286,10 +287,12 @@ function applyEvent(db, e, human, assignments) {
   switch (e.kind) {
     case 'workspace.init':
     case 'workspace.set': {
-      const cols = ['key', 'name', 'description', 'overview'].filter((k) => k in p);
+      const cols = ['key', 'name', 'description', 'overview', 'columns'].filter((k) => k in p);
       if (cols.length) {
         const sets = cols.map((c) => `${c} = ?`).join(', ');
-        db.prepare(`UPDATE workspace SET ${sets} WHERE id = 1`).run(...cols.map((c) => p[c]));
+        db.prepare(`UPDATE workspace SET ${sets} WHERE id = 1`).run(...cols.map((c) => (
+          c === 'columns' ? JSON.stringify(normalizeColumns(p[c])) : p[c]
+        )));
       }
       return 1;
     }

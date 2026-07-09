@@ -119,10 +119,11 @@ struct BoardView: View {
     private var boardContent: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(alignment: .top, spacing: 16) {
-                ForEach(TicketStatus.allCases) { status in
+                ForEach(store.boardColumns) { column in
                     ColumnView(
-                        status: status,
-                        tickets: tickets(in: status)
+                        column: column,
+                        tickets: tickets(in: column.status),
+                        flow: store.boardColumns.map(\.status)
                     ) { ticket in
                         selectedTicket = ticket
                     }

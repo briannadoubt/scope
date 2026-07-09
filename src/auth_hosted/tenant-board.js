@@ -7,7 +7,7 @@
  * local repo builds them, so the PG replay materializes them identically).
  */
 import { makeEvent } from '../event-schema.js';
-import { SCHEMA_STATUSES } from '../repo.js';
+import { DEFAULT_COLUMNS, normalizeColumns, openColumns, terminalColumns } from '../columns.js';
 import { uploadEvents, snapshotState } from '../pg/store.js';
 import { createProject, listMemberships } from './membership.js';
 
@@ -66,7 +66,7 @@ export async function createProjectBoard(pool, { accountId, name, key } = {}) {
   if (!name) throw new Error('createProjectBoard: name required');
   const k = (key && String(key).toUpperCase()) || deriveKey(name);
   const { tenantId } = await createProject(pool, { name, ownerAccountId: accountId });
-  const evt = makeEvent('workspace.init', { key: k, name }, { actor: accountId });
+  const evt = makeEvent('workspace.init', { key: k, name, columns: DEFAULT_COLUMNS }, { actor: accountId });
   await uploadEvents(pool, tenantId, [evt]);
   return { tenantId, key: k, name };
 }
@@ -82,6 +82,21 @@ export async function renameProject(pool, tenantId, { accountId, name } = {}) {
   const evt = makeEvent('workspace.set', { name }, { actor: accountId });
   await uploadEvents(pool, tenantId, [evt]);
   return { tenantId, name };
+}
+
+export async function updateProjectBoard(pool, tenantId, { accountId, name, columns } = {}) {
+  const payload = {};
+  if (name !== undefined) {
+    if (!name) throw new Error('updateProjectBoard: name required');
+    await pool.query('UPDATE projects SET name=$2 WHERE tenant_id=$1', [tenantId, name]);
+    payload.name = name;
+  }
+  if (columns !== undefined) payload.columns = normalizeColumns(columns);
+  if (Object.keys(payload).length) {
+    const evt = makeEvent('workspace.set', payload, { actor: accountId });
+    await uploadEvents(pool, tenantId, [evt]);
+  }
+  return { tenantId, ...payload };
 }
 
 /**
@@ -102,9 +117,12 @@ export async function archiveProject(pool, tenantId, { now } = {}) {
  */
 export async function readBoard(pool, tenantId) {
   const { state } = await snapshotState(pool, tenantId);
-  const buckets = Object.fromEntries(SCHEMA_STATUSES.map((s) => [s, []]));
+  const workspaceColumns = state.workspace?.columns?.length ? state.workspace.columns : DEFAULT_COLUMNS;
+  const columns = openColumns(workspaceColumns);
+  const terminal = terminalColumns(workspaceColumns);
+  const buckets = Object.fromEntries([...columns, ...terminal].map((c) => [c.id, []]));
   for (const t of state.tickets || []) {
     (buckets[t.status] || (buckets[t.status] = [])).push(t);
   }
-  return { columns: SCHEMA_STATUSES, buckets, workspace: state.workspace };
+  return { columns, terminal_columns: terminal, buckets, workspace: state.workspace };
 }

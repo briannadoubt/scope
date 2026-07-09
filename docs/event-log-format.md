@@ -157,7 +157,7 @@ Mirrors `createTicket()` in `repo.js`. Payload:
   "ticketType": "story",          // epic | story | bug
   "title": "OAuth login",
   "description": "",
-  "status": "backlog",            // backlog|todo|in_progress|in_review|done|cancelled
+  "status": "backlog",            // any status id configured in workspace columns
   "priority": "medium",           // low|medium|high|urgent
   "parentId": "01JZ9F2K6...",     // parent ULID, or null
   "branch": null,
@@ -194,8 +194,9 @@ Tombstone. Mirrors `deleteTicket()`. Payload:
 Replay marks the ticket deleted; it does not vacuum prior events. A delete that
 arrives before some of the ticket's other events still resolves coherently
 because the tombstone is applied in timestamp order with everything else.
-(Cancelling a ticket is *not* a delete — it's `ticket.set_field status=cancelled`,
-which preserves the card and its history.)
+(Cancelling a ticket is *not* a delete — it's `ticket.set_field` to a status
+whose workspace column has `kind:"cancelled"`, which preserves the card and its
+history.)
 
 ### `comment.add`
 Mirrors `addComment()`. Payload:

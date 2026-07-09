@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { ulid } from './ulid.js';
 import { formatActor } from './event-schema.js';
 import { storageMode, updateScopeGitignore, workspaceDbPath } from './workspace-storage.js';
+import { DEFAULT_COLUMNS, parseColumns } from './columns.js';
 
 export const SCOPE_DIR_NAME = '.scope';
 export const DB_FILE_NAME = 'scope.db';
@@ -113,6 +114,7 @@ const CREATE_WORKSPACE = `
     name TEXT NOT NULL,
     description TEXT DEFAULT '',
     overview TEXT DEFAULT '',
+    columns TEXT DEFAULT '[]',
     next_ticket_number INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -127,8 +129,7 @@ const CREATE_TICKETS = `
     type TEXT NOT NULL CHECK(type IN ('epic','story','bug')),
     title TEXT NOT NULL,
     description TEXT DEFAULT '',
-    status TEXT NOT NULL DEFAULT 'backlog'
-      CHECK(status IN ('backlog','todo','in_progress','in_review','done','cancelled')),
+    status TEXT NOT NULL DEFAULT 'backlog',
     priority TEXT DEFAULT 'medium'
       CHECK(priority IN ('low','medium','high','urgent')),
     parent_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
@@ -313,13 +314,17 @@ export function ensureSearchIndex(db) {
   }
 }
 
-const CURRENT_SCHEMA_VERSION = '5';
+const CURRENT_SCHEMA_VERSION = '6';
 
 function tableExists(db, name) {
   const row = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?")
     .get(name);
   return !!row;
+}
+
+function defaultColumnsJson() {
+  return JSON.stringify(DEFAULT_COLUMNS);
 }
 
 function getSchemaVersion(db) {
@@ -413,6 +418,65 @@ function ensureUidColumn(db) {
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_uid ON tickets(uid)');
 }
 
+function ensureWorkspaceColumnsColumn(db) {
+  const cols = db.prepare('PRAGMA table_info(workspace)').all();
+  if (!cols.some((c) => c.name === 'columns')) {
+    db.exec("ALTER TABLE workspace ADD COLUMN columns TEXT DEFAULT '[]'");
+  }
+  db.prepare("UPDATE workspace SET columns = ? WHERE columns IS NULL OR columns = '' OR columns = '[]'")
+    .run(defaultColumnsJson());
+}
+
+function ticketsSql(db) {
+  return db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'tickets'")
+    .get()?.sql || '';
+}
+
+function ensureDynamicStatusColumn(db) {
+  if (!/CHECK\s*\(\s*status\s+IN/i.test(ticketsSql(db))) return;
+  db.exec(`
+    DROP INDEX IF EXISTS idx_tickets_status;
+    DROP INDEX IF EXISTS idx_tickets_parent;
+    DROP INDEX IF EXISTS idx_tickets_type;
+    DROP INDEX IF EXISTS idx_tickets_uid;
+
+    CREATE TABLE tickets_dynamic (
+      id TEXT PRIMARY KEY,
+      uid TEXT,
+      number INTEGER NOT NULL,
+      type TEXT NOT NULL CHECK(type IN ('epic','story','bug')),
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'backlog',
+      priority TEXT DEFAULT 'medium'
+        CHECK(priority IN ('low','medium','high','urgent')),
+      parent_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+      branch TEXT,
+      pr_url TEXT,
+      assignee TEXT,
+      labels TEXT DEFAULT '[]',
+      rank REAL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(number)
+    );
+    INSERT INTO tickets_dynamic
+      (id, uid, number, type, title, description, status, priority,
+       parent_id, branch, pr_url, assignee, labels, rank, created_at, updated_at)
+    SELECT id, uid, number, type, title, description, status, priority,
+           parent_id, branch, pr_url, assignee, labels, rank, created_at, updated_at
+    FROM tickets;
+    DROP TABLE tickets;
+    ALTER TABLE tickets_dynamic RENAME TO tickets;
+
+    CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
+    CREATE INDEX IF NOT EXISTS idx_tickets_parent ON tickets(parent_id);
+    CREATE INDEX IF NOT EXISTS idx_tickets_type ON tickets(type);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_uid ON tickets(uid);
+  `);
+}
+
 /**
  * v4 → v5: give every ticket a numeric `rank` for user-defined ordering within
  * a board column (SCP-243). Idempotent — a no-op once the column exists.
@@ -465,9 +529,9 @@ function migrate(db, scopeDir) {
       const now = nowIso();
       db.prepare(
         `INSERT INTO workspace
-           (id, key, name, description, overview, next_ticket_number, created_at, updated_at)
-         VALUES (1, ?, ?, '', '', 1, ?, ?)`
-      ).run(deriveDefaultKey(scopeDir), 'Workspace', now, now);
+           (id, key, name, description, overview, columns, next_ticket_number, created_at, updated_at)
+         VALUES (1, ?, ?, '', '', ?, 1, ?, ?)`
+      ).run(deriveDefaultKey(scopeDir), 'Workspace', defaultColumnsJson(), now, now);
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
@@ -505,13 +569,14 @@ function migrate(db, scopeDir) {
       db.exec(CREATE_WORKSPACE);
       db.prepare(
         `INSERT INTO workspace
-           (id, key, name, description, overview, next_ticket_number, created_at, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?)`
+           (id, key, name, description, overview, columns, next_ticket_number, created_at, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         project.key,
         project.name,
         project.description ?? '',
         project.overview ?? '',
+        defaultColumnsJson(),
         project.next_ticket_number ?? 1,
         project.created_at ?? now,
         now
@@ -535,8 +600,7 @@ function migrate(db, scopeDir) {
             type TEXT NOT NULL CHECK(type IN ('epic','story','bug')),
             title TEXT NOT NULL,
             description TEXT DEFAULT '',
-            status TEXT NOT NULL DEFAULT 'backlog'
-              CHECK(status IN ('backlog','todo','in_progress','in_review','done','cancelled')),
+            status TEXT NOT NULL DEFAULT 'backlog',
             priority TEXT DEFAULT 'medium'
               CHECK(priority IN ('low','medium','high','urgent')),
             parent_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
@@ -594,6 +658,8 @@ function migrate(db, scopeDir) {
       ensureUidColumn(db);
       // v5: numeric rank for user-defined column ordering (SCP-243).
       ensureRankColumn(db);
+      ensureWorkspaceColumnsColumn(db);
+      ensureDynamicStatusColumn(db);
 
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
@@ -624,6 +690,8 @@ function migrate(db, scopeDir) {
       if (v < 3) rebuildAuxTables(db);
       ensureUidColumn(db);
       ensureRankColumn(db);
+      ensureWorkspaceColumnsColumn(db);
+      ensureDynamicStatusColumn(db);
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
@@ -647,14 +715,16 @@ function migrate(db, scopeDir) {
   db.exec(CREATE_AUX_TABLES);
   ensureUidColumn(db);
   ensureRankColumn(db);
+  ensureWorkspaceColumnsColumn(db);
+  ensureDynamicStatusColumn(db);
   const existing = db.prepare('SELECT id FROM workspace WHERE id = 1').get();
   if (!existing) {
     const now = nowIso();
     db.prepare(
       `INSERT INTO workspace
-         (id, key, name, description, overview, next_ticket_number, created_at, updated_at)
-       VALUES (1, ?, ?, '', '', 1, ?, ?)`
-    ).run(deriveDefaultKey(scopeDir), 'Workspace', now, now);
+         (id, key, name, description, overview, columns, next_ticket_number, created_at, updated_at)
+       VALUES (1, ?, ?, '', '', ?, 1, ?, ?)`
+    ).run(deriveDefaultKey(scopeDir), 'Workspace', defaultColumnsJson(), now, now);
   }
   if (!version) {
     db.prepare(
@@ -673,7 +743,10 @@ export function nowIso() {
 export function getWorkspace(db) {
   const row = db.prepare('SELECT * FROM workspace WHERE id = 1').get();
   if (!row) throw new Error('Workspace row missing — database not initialized.');
-  return row;
+  return {
+    ...row,
+    columns: parseColumns(row.columns),
+  };
 }
 
 /**

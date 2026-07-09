@@ -1,12 +1,20 @@
 import Foundation
 
-enum TicketStatus: String, Codable, CaseIterable, Identifiable {
-    case backlog
-    case todo
-    case in_progress
-    case in_review
-    case done
-    case cancelled
+struct TicketStatus: RawRepresentable, Codable, Hashable, CaseIterable, Identifiable {
+    var rawValue: String
+
+    init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    static let backlog = TicketStatus(rawValue: "backlog")
+    static let todo = TicketStatus(rawValue: "todo")
+    static let in_progress = TicketStatus(rawValue: "in_progress")
+    static let in_review = TicketStatus(rawValue: "in_review")
+    static let done = TicketStatus(rawValue: "done")
+    static let cancelled = TicketStatus(rawValue: "cancelled")
+
+    static let allCases: [TicketStatus] = [.backlog, .todo, .in_progress, .in_review, .done, .cancelled]
 
     var id: String { rawValue }
 
@@ -18,6 +26,11 @@ enum TicketStatus: String, Codable, CaseIterable, Identifiable {
         case .in_review:   "In Review"
         case .done:        "Done"
         case .cancelled:   "Cancelled"
+        default:
+            rawValue
+                .split(separator: "_")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " ")
         }
     }
 
@@ -38,6 +51,56 @@ enum TicketStatus: String, Codable, CaseIterable, Identifiable {
     var previous: TicketStatus? {
         guard let i = Self.flow.firstIndex(of: self), i > 0 else { return nil }
         return Self.flow[i - 1]
+    }
+
+    func next(in flow: [TicketStatus]) -> TicketStatus? {
+        guard let i = flow.firstIndex(of: self), i + 1 < flow.count else { return nil }
+        return flow[i + 1]
+    }
+
+    func previous(in flow: [TicketStatus]) -> TicketStatus? {
+        guard let i = flow.firstIndex(of: self), i > 0 else { return nil }
+        return flow[i - 1]
+    }
+}
+
+struct BoardColumn: Identifiable, Codable, Hashable, Equatable {
+    let id: String
+    var label: String
+    var color: String
+    var kind: String
+    var order: Double
+
+    var status: TicketStatus { TicketStatus(rawValue: id) }
+
+    static let defaults: [BoardColumn] = [
+        BoardColumn(id: "backlog", label: "Backlog", color: "#64748b", kind: "open", order: 10),
+        BoardColumn(id: "todo", label: "Todo", color: "#2563eb", kind: "open", order: 20),
+        BoardColumn(id: "in_progress", label: "In Progress", color: "#7c3aed", kind: "open", order: 30),
+        BoardColumn(id: "in_review", label: "In Review", color: "#ca8a04", kind: "open", order: 40),
+        BoardColumn(id: "done", label: "Done", color: "#16a34a", kind: "done", order: 50),
+        BoardColumn(id: "cancelled", label: "Cancelled", color: "#6b7280", kind: "cancelled", order: 60),
+    ]
+}
+
+struct BoardResponse: Decodable, Equatable {
+    let columns: [BoardColumn]
+    let terminalColumns: [BoardColumn]
+    let buckets: [String: [Ticket]]
+
+    enum CodingKeys: String, CodingKey {
+        case columns
+        case terminalColumns = "terminal_columns"
+        case buckets
+    }
+
+    var visibleColumns: [BoardColumn] {
+        (columns.isEmpty ? BoardColumn.defaults.filter { $0.kind != "cancelled" } : columns)
+            .sorted { $0.order == $1.order ? $0.id < $1.id : $0.order < $1.order }
+    }
+
+    var allTickets: [Ticket] {
+        buckets.values.flatMap { $0 }
     }
 }
 

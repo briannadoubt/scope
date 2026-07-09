@@ -2,8 +2,9 @@ import SwiftUI
 
 struct ColumnView: View {
 
-    let status: TicketStatus
+    let column: BoardColumn
     let tickets: [Ticket]
+    let flow: [TicketStatus]
     let onTap: (Ticket) -> Void
 
     private static let columnWidth: CGFloat = 300
@@ -13,10 +14,10 @@ struct ColumnView: View {
             // MARK: Header
             HStack(spacing: 8) {
                 Circle()
-                    .fill(status.accentColor)
+                    .fill(column.accentColor)
                     .frame(width: 8, height: 8)
 
-                Text(status.displayName)
+                Text(column.label)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
 
@@ -46,7 +47,7 @@ struct ColumnView: View {
                         // during the gesture and commits on release past the
                         // threshold; the resulting SSE update animates the
                         // card into its new column.
-                        SwipeCardContainer(ticket: ticket) {
+                        SwipeCardContainer(ticket: ticket, flow: flow) {
                             onTap(ticket)
                         }
                     }
@@ -69,17 +70,35 @@ struct ColumnView: View {
     }
 }
 
-// MARK: - TicketStatus helpers
+// MARK: - BoardColumn helpers
 
-private extension TicketStatus {
+extension BoardColumn {
+    var accentColor: Color {
+        Color(hex: color) ?? status.accentColor
+    }
+}
+
+extension TicketStatus {
     var accentColor: Color {
         switch self {
-        case .backlog:     .secondary
-        case .todo:        .blue
+        case .backlog: .secondary
+        case .todo: .blue
         case .in_progress: .orange
-        case .in_review:   .purple
-        case .done:        .green
-        case .cancelled:   .gray
+        case .in_review: .purple
+        case .done: .green
+        case .cancelled: .gray
+        default: .secondary
         }
+    }
+}
+
+private extension Color {
+    init?(hex: String) {
+        let trimmed = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard trimmed.count == 6, let value = Int(trimmed, radix: 16) else { return nil }
+        let r = Double((value >> 16) & 0xff) / 255
+        let g = Double((value >> 8) & 0xff) / 255
+        let b = Double(value & 0xff) / 255
+        self = Color(red: r, green: g, blue: b)
     }
 }

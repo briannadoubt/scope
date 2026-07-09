@@ -69,7 +69,13 @@ export function backfillEvents(db, scopeDir, { actor = 'migration' } = {}) {
   // 1. workspace.init
   add(
     'workspace.init',
-    { key: ws.key, name: ws.name, description: ws.description ?? '', overview: ws.overview ?? '' },
+    {
+      key: ws.key,
+      name: ws.name,
+      description: ws.description ?? '',
+      overview: ws.overview ?? '',
+      columns: ws.columns,
+    },
     ws.created_at
   );
 

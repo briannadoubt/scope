@@ -86,8 +86,8 @@ struct NewTicketView: View {
                     .pickerStyle(.menu)
 
                     Picker("Status", selection: $status) {
-                        ForEach(TicketStatus.allCases) { s in
-                            Text(s.displayName).tag(s)
+                        ForEach(store.boardColumns) { column in
+                            Text(column.label).tag(column.status)
                         }
                     }
                     .pickerStyle(.menu)
@@ -113,6 +113,11 @@ struct NewTicketView: View {
             .overlay {
                 if isSaving {
                     savingOverlay
+                }
+            }
+            .onAppear {
+                if !store.boardColumns.contains(where: { $0.status == status }) {
+                    status = firstBoardStatus
                 }
             }
         }
@@ -182,6 +187,12 @@ struct NewTicketView: View {
                 saveError = error.localizedDescription
             }
         }
+    }
+}
+
+private extension NewTicketView {
+    var firstBoardStatus: TicketStatus {
+        store.boardColumns.first?.status ?? .backlog
     }
 }
 

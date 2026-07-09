@@ -33,11 +33,80 @@ const STATUS_LABELS = {
   cancelled: 'Cancelled',
 };
 
-const BOARD_COLUMNS = ['backlog', 'todo', 'in_progress', 'in_review', 'done'];
+const FALLBACK_COLUMNS = [
+  { id: 'backlog', label: 'Backlog', color: '#64748b', kind: 'open', order: 10 },
+  { id: 'todo', label: 'Todo', color: '#2563eb', kind: 'open', order: 20 },
+  { id: 'in_progress', label: 'In progress', color: '#7c3aed', kind: 'open', order: 30 },
+  { id: 'in_review', label: 'In review', color: '#ca8a04', kind: 'open', order: 40 },
+  { id: 'done', label: 'Done', color: '#16a34a', kind: 'done', order: 50 },
+  { id: 'cancelled', label: 'Cancelled', color: '#6b7280', kind: 'cancelled', order: 60 },
+];
+
+function normalizeColumn(column, idx = 0) {
+  if (typeof column === 'string') {
+    return {
+      id: column,
+      label: STATUS_LABELS[column] || column.replaceAll('_', ' '),
+      color: '#64748b',
+      kind: column === 'done' ? 'done' : column === 'cancelled' ? 'cancelled' : 'open',
+      order: (idx + 1) * 10,
+    };
+  }
+  const id = String(column?.id || '').trim();
+  return {
+    id,
+    label: String(column?.label || STATUS_LABELS[id] || id.replaceAll('_', ' ')).trim(),
+    color: /^#[0-9a-fA-F]{6}$/.test(String(column?.color || '')) ? column.color : '#64748b',
+    kind: column?.kind || (id === 'done' ? 'done' : id === 'cancelled' ? 'cancelled' : 'open'),
+    order: Number.isFinite(Number(column?.order)) ? Number(column.order) : (idx + 1) * 10,
+  };
+}
+
+function allColumns() {
+  const source =
+    (state.board?.columns?.length ? state.board.columns : null) ||
+    (state.meta?.columns?.length ? state.meta.columns : null) ||
+    FALLBACK_COLUMNS;
+  return source
+    .map(normalizeColumn)
+    .filter((c) => c.id)
+    .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+}
+
+function boardColumns() {
+  return allColumns().filter((c) => c.kind !== 'cancelled');
+}
+
+function statusOptions() {
+  return allColumns();
+}
+
+function columnById(id) {
+  return allColumns().find((c) => c.id === id) || normalizeColumn(id);
+}
+
+function statusLabel(status) {
+  return columnById(status).label || status;
+}
+
+function statusDot(status) {
+  const column = columnById(status);
+  return `<span class="dot ${escapeHtml(status)}" style="--status-color:${escapeHtml(column.color)}"></span>`;
+}
 
 // The non-terminal board columns — work that still counts as "open". An epic
 // with anything here in its subtree isn't actually complete.
-const OPEN_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review'];
+function openStatusIds() {
+  return new Set(allColumns().filter((c) => c.kind === 'open').map((c) => c.id));
+}
+
+function doneStatusIds() {
+  return new Set(allColumns().filter((c) => c.kind === 'done').map((c) => c.id));
+}
+
+function cancelledStatusIds() {
+  return new Set(allColumns().filter((c) => c.kind === 'cancelled').map((c) => c.id));
+}
 
 /* ------------- API ------------- */
 
@@ -587,6 +656,9 @@ function openViewPopover() {
         <span>Show done epics</span>
       </label>
     </div>
+    <div class="popover-section">
+      <button type="button" class="pane-foot" id="vp-columns">Manage columns</button>
+    </div>
   `;
   pop.querySelector('#vp-epic').addEventListener('change', async (e) => {
     state.epicFilter = e.target.value;
@@ -608,6 +680,145 @@ function openViewPopover() {
     state.showDoneEpics = e.target.checked;
     localStorage.setItem('scope.showDoneEpics', String(state.showDoneEpics));
     renderBoard();
+  });
+  pop.querySelector('#vp-columns').addEventListener('click', () => {
+    closePopover();
+    openColumnsModal();
+  });
+}
+
+function slugColumnId(label, existing = new Set()) {
+  const base = String(label || 'column')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/^[0-9]+/, '')
+    .slice(0, 24) || 'column';
+  let id = base.length >= 2 ? base : `${base}_x`;
+  let n = 2;
+  while (existing.has(id)) {
+    const suffix = `_${n++}`;
+    id = `${base.slice(0, Math.max(2, 31 - suffix.length))}${suffix}`;
+  }
+  return id;
+}
+
+function columnTicketCounts() {
+  const counts = {};
+  for (const [status, tickets] of Object.entries(state.board?.buckets || {})) {
+    counts[status] = tickets.length;
+  }
+  return counts;
+}
+
+function columnEditorRow(column, idx, count = 0) {
+  return `
+    <div class="column-editor-row" data-i="${idx}">
+      <button type="button" class="icon-btn col-up" title="Move up">↑</button>
+      <button type="button" class="icon-btn col-down" title="Move down">↓</button>
+      <input class="col-label" value="${escapeHtml(column.label)}" placeholder="Label" />
+      <input class="col-id" value="${escapeHtml(column.id)}" placeholder="status_id" ${count ? 'readonly' : ''} />
+      <input class="col-color" type="color" value="${escapeHtml(column.color)}" title="Color" />
+      <select class="col-kind">
+        ${['open', 'done', 'cancelled'].map((k) => `<option value="${k}"${column.kind === k ? ' selected' : ''}>${k}</option>`).join('')}
+      </select>
+      <span class="col-count">${count}</span>
+      <button type="button" class="icon-btn col-remove" title="Remove" ${count ? 'disabled' : ''}>×</button>
+    </div>
+  `;
+}
+
+async function openColumnsModal() {
+  if (!state.currentWorkspace) return toast('Select a workspace first.');
+  if (collabRole() === 'viewer') return toast('Viewers cannot edit columns.');
+  let columns = allColumns().map((c, idx) => ({ ...c, order: (idx + 1) * 10 }));
+  const counts = columnTicketCounts();
+  const modal = openModal(`
+    <div class="modal-head"><h2>Board columns</h2></div>
+    <p class="modal-sub">Columns are stored on the workspace and sync with the board.</p>
+    <div class="column-editor" id="column-editor"></div>
+    <div id="columns-err" class="modal-error" role="alert"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="columns-add">Add column</button>
+      <button type="button" class="btn primary" id="columns-save">Save columns</button>
+    </div>
+  `);
+  const list = modal.querySelector('#column-editor');
+  const errEl = modal.querySelector('#columns-err');
+
+  const readRows = () => [...list.querySelectorAll('.column-editor-row')].map((row, idx) => ({
+    id: row.querySelector('.col-id').value.trim(),
+    label: row.querySelector('.col-label').value.trim(),
+    color: row.querySelector('.col-color').value,
+    kind: row.querySelector('.col-kind').value,
+    order: (idx + 1) * 10,
+  }));
+  const render = () => {
+    list.innerHTML = columns.map((c, idx) => columnEditorRow(c, idx, counts[c.id] || 0)).join('');
+    list.querySelectorAll('.column-editor-row').forEach((row) => {
+      const idx = Number(row.dataset.i);
+      row.querySelector('.col-up').disabled = idx === 0;
+      row.querySelector('.col-down').disabled = idx === columns.length - 1;
+      row.querySelector('.col-up').addEventListener('click', () => {
+        columns = readRows();
+        [columns[idx - 1], columns[idx]] = [columns[idx], columns[idx - 1]];
+        render();
+      });
+      row.querySelector('.col-down').addEventListener('click', () => {
+        columns = readRows();
+        [columns[idx + 1], columns[idx]] = [columns[idx], columns[idx + 1]];
+        render();
+      });
+      row.querySelector('.col-remove').addEventListener('click', () => {
+        columns = readRows().filter((_, i) => i !== idx);
+        render();
+      });
+      row.querySelector('.col-label').addEventListener('input', (e) => {
+        const idInput = row.querySelector('.col-id');
+        if (!idInput.readOnly && !idInput.dataset.touched) {
+          const existing = new Set(readRows().map((c, i) => (i === idx ? null : c.id)).filter(Boolean));
+          idInput.value = slugColumnId(e.target.value, existing);
+        }
+      });
+      row.querySelector('.col-id').addEventListener('input', (e) => {
+        e.target.dataset.touched = '1';
+      });
+    });
+  };
+  render();
+
+  modal.querySelector('#columns-add').addEventListener('click', () => {
+    columns = readRows();
+    const existing = new Set(columns.map((c) => c.id));
+    columns.push({ id: slugColumnId('new column', existing), label: 'New column', color: '#64748b', kind: 'open', order: (columns.length + 1) * 10 });
+    render();
+  });
+  modal.querySelector('#columns-save').addEventListener('click', async () => {
+    errEl.textContent = '';
+    const next = readRows();
+    try {
+      const ids = new Set();
+      for (const c of next) {
+        if (!/^[a-z][a-z0-9_]{1,31}$/.test(c.id)) throw new Error(`Invalid column id "${c.id}".`);
+        if (ids.has(c.id)) throw new Error(`Duplicate column id "${c.id}".`);
+        ids.add(c.id);
+        if (!c.label) throw new Error(`Column "${c.id}" needs a label.`);
+      }
+      if (!next.some((c) => c.kind === 'done')) throw new Error('At least one column must be marked done.');
+      const missing = Object.entries(counts).filter(([id, count]) => count > 0 && !ids.has(id));
+      if (missing.length) throw new Error(`Move tickets out of ${missing.map(([id]) => id).join(', ')} before removing it.`);
+      const path = state.meta?.hosted
+        ? `/api/projects/${encodeURIComponent(state.currentWorkspace)}`
+        : `/api/workspaces/${encodeURIComponent(state.currentWorkspace)}`;
+      await api(path, { method: 'PATCH', body: { columns: next, __by: 'ui' } });
+      closeModal();
+      await reloadWorkspaces();
+      await reloadMeta();
+      await refresh();
+      toast('Columns updated.', { variant: 'info' });
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
   });
 }
 
@@ -1943,8 +2154,8 @@ function renderEmpty(msg) {
 
 function isBoardEmpty(board) {
   if (!board || !board.buckets) return false;
-  for (const status of BOARD_COLUMNS) {
-    if ((board.buckets[status] || []).length > 0) return false;
+  for (const column of boardColumns()) {
+    if ((board.buckets[column.id] || []).length > 0) return false;
   }
   return true;
 }
@@ -2189,7 +2400,7 @@ function renderBoard() {
       <span class="lane-break" aria-hidden="true"></span>
       ${isEpic && lane.status
         ? `<span class="lane-status ${lane.status}">
-             <span class="dot ${lane.status}"></span>${escapeHtml(lane.status.replace('_', ' '))}
+             ${statusDot(lane.status)}${escapeHtml(lane.status === 'not_complete' ? 'not complete' : statusLabel(lane.status))}
            </span>`
         : lane.meta
           ? `<span class="lane-meta">${escapeHtml(lane.meta)}</span>`
@@ -2327,7 +2538,8 @@ const laneScrollbarRO = typeof ResizeObserver !== 'undefined'
   : null;
 
 function renderColumnRow(parent, buckets, { showHeader, lane = null }) {
-  for (const status of BOARD_COLUMNS) {
+  for (const column of boardColumns()) {
+    const status = column.id;
     const tickets = buckets[status] || [];
     const col = document.createElement('section');
     col.className = 'column';
@@ -2337,19 +2549,19 @@ function renderColumnRow(parent, buckets, { showHeader, lane = null }) {
       ${showHeader
         ? `<div class="column-head">
              <div class="column-title">
-               <span class="dot ${status}"></span>
-               ${STATUS_LABELS[status]}
+               ${statusDot(status)}
+               ${escapeHtml(column.label)}
                <span class="column-count">${tickets.length}</span>
              </div>
-             <button class="column-add" title="New ticket in ${STATUS_LABELS[status]}">+</button>
+             <button class="column-add" title="New ticket in ${escapeHtml(column.label)}">+</button>
            </div>`
         : `<div class="column-head" style="padding:4px 6px;">
              <div class="column-title" style="font-size:10px;opacity:0.6;">
-               <span class="dot ${status}"></span>
-               ${STATUS_LABELS[status]}
+               ${statusDot(status)}
+               ${escapeHtml(column.label)}
                <span class="column-count">${tickets.length}</span>
              </div>
-             <button class="column-add" title="New ticket in ${STATUS_LABELS[status]}">+</button>
+             <button class="column-add" title="New ticket in ${escapeHtml(column.label)}">+</button>
            </div>`}
       <div class="column-body"></div>
     `;
@@ -2378,6 +2590,10 @@ function toggleLane(key) {
  */
 function buildLanes(board, groupBy) {
   const allTickets = Object.values(board.buckets).flat();
+  const openStatuses = openStatusIds();
+  const doneStatuses = doneStatusIds();
+  const cancelledStatuses = cancelledStatusIds();
+  const visibleStatuses = new Set(boardColumns().map((c) => c.id));
   const epicById = {};
   for (const t of allTickets) if (t.type === 'epic') epicById[t.id] = t;
   // When the board is filtered to a single epic, the API response doesn't
@@ -2396,7 +2612,7 @@ function buildLanes(board, groupBy) {
   // re-walking each epic's subtree.
   const epicsWithOpenWork = new Set();
   for (const t of allTickets) {
-    if (t.type === 'epic' || !OPEN_STATUSES.includes(t.status)) continue;
+    if (t.type === 'epic' || !openStatuses.has(t.status)) continue;
     let cur = t.parent_id ? epicById[t.parent_id] : null;
     const seen = new Set();
     while (cur && !seen.has(cur.id)) {
@@ -2420,8 +2636,8 @@ function buildLanes(board, groupBy) {
   // "Show done" off — it isn't really finished, so hiding it would bury the
   // unresolved tickets. Genuinely-done epics still hide as before.
   const isHiddenEpic = (e) =>
-    (hideDone && e?.status === 'done' && !epicsWithOpenWork.has(e.id)) ||
-    (hideCancelled && e?.status === 'cancelled');
+    (hideDone && doneStatuses.has(e?.status) && !epicsWithOpenWork.has(e.id)) ||
+    (hideCancelled && cancelledStatuses.has(e?.status));
   const isHiddenEpicId = (id) => isHiddenEpic(epicById[id]);
 
   const groups = new Map();
@@ -2429,7 +2645,7 @@ function buildLanes(board, groupBy) {
     if (!groups.has(key)) {
       groups.set(key, {
         key, label, count: 0,
-        buckets: Object.fromEntries(BOARD_COLUMNS.map((s) => [s, []])),
+        buckets: Object.fromEntries(boardColumns().map((c) => [c.id, []])),
         ...extras,
       });
     }
@@ -2444,11 +2660,11 @@ function buildLanes(board, groupBy) {
     // for ticket-less drive-bys, 'done' usually means 'closed for good' and
     // keeping them around is noise. Real epic lanes are still controlled by
     // the Show-Done-Epics toggle.
-    if ((key === '__bugs' || key === '__none') && t.status === 'done') continue;
+    if ((key === '__bugs' || key === '__none') && doneStatuses.has(t.status)) continue;
     // Statuses outside the board's columns (cancelled, etc.) shouldn't
     // create a lane on their own — there's no bucket for them to land in,
     // so a lane built just to host them stays empty (SCP-70).
-    if (!BOARD_COLUMNS.includes(t.status)) continue;
+    if (!visibleStatuses.has(t.status)) continue;
     const g = ensure(key, label, extras);
     g.buckets[t.status].push(t);
     g.count++;
@@ -2480,7 +2696,7 @@ function buildLanes(board, groupBy) {
       // open. If any ticket in its subtree sits in backlog/todo/in_progress/
       // in_review, surface the lane as "not complete" instead of a green Done
       // badge — otherwise the lane misleadingly reads as finished work.
-      if (lane.status === 'done' && epicsWithOpenWork.has(lane.epicId)) {
+      if (doneStatuses.has(lane.status) && epicsWithOpenWork.has(lane.epicId)) {
         lane.status = 'not_complete';
       }
       lane.depth = epicDepth(lane.epicId, epicById);
@@ -2547,6 +2763,7 @@ function epicSubtreeIds(epicId, epicById) {
 
 function epicProgressFromTickets(epicId, allTickets, epicById = {}) {
   const subtree = epicSubtreeIds(epicId, epicById);
+  const doneStatuses = doneStatusIds();
   let total = 0, done = 0;
   for (const t of allTickets) {
     // Sub-epics are containers, not work — count only the stories/bugs nested
@@ -2554,7 +2771,7 @@ function epicProgressFromTickets(epicId, allTickets, epicById = {}) {
     if (t.type === 'epic') continue;
     if (subtree.has(t.parent_id)) {
       total++;
-      if (t.status === 'done') done++;
+      if (doneStatuses.has(t.status)) done++;
     }
   }
   return { total, done, percent: total ? Math.round((done / total) * 100) : 0 };
@@ -2798,7 +3015,7 @@ function bindColumnDnD(col) {
           body: patch,
         });
       }
-      if (!sameColumn && status === 'done') burstConfetti();
+      if (!sameColumn && doneStatusIds().has(status)) burstConfetti();
       await refresh();
     } catch (err) {
       toast(err.message);
@@ -2840,12 +3057,9 @@ function renderDrawer(t) {
     <div class="row">
       <span class="label">Status</span>
       <select data-field="status">
-        ${state.meta.statuses
-          .map(
-            (s) =>
-              `<option value="${s}" ${s === t.status ? 'selected' : ''}>${STATUS_LABELS[s] || s}</option>`
-          )
-          .join('')}
+        ${statusOptions()
+            .map((c) => `<option value="${escapeHtml(c.id)}" ${c.id === t.status ? 'selected' : ''}>${escapeHtml(c.label)}</option>`)
+            .join('')}
       </select>
     </div>
     <div class="row">
@@ -2914,7 +3128,7 @@ function renderDrawer(t) {
                   <span class="badge ${c.type}">${c.type}</span>
                   <span style="font-family: ui-monospace, monospace; color: var(--text-muted)">${c.id}</span>
                   <span class="child-title">${escapeHtml(c.title)}</span>
-                  <span class="dot ${c.status}" title="${c.status}"></span>
+	                  ${statusDot(c.status)}
                 </div>`
                 )
                 .join('')}
@@ -2935,7 +3149,7 @@ function renderDrawer(t) {
                 <span class="rel-type">${r.type}</span>
                 <span style="font-family: ui-monospace, monospace; color: var(--text-muted)">${r.to_ticket_id}</span>
                 <span style="flex:1">${escapeHtml(r.title || '')}</span>
-                ${r.status ? `<span class="dot ${r.status}" title="${r.status}"></span>` : ''}
+	                ${r.status ? statusDot(r.status) : ''}
                 <button class="btn ghost" data-remove="${r.to_ticket_id}|${r.type}" title="Remove">×</button>
               </div>`
                 )
@@ -3080,7 +3294,7 @@ async function saveDrawer(t) {
       method: 'PATCH',
       body: fields,
     });
-    if (fields.status === 'done' && t.status !== 'done') burstConfetti();
+    if (doneStatusIds().has(fields.status) && !doneStatusIds().has(t.status)) burstConfetti();
     await refresh();
     openDrawer(t.id);
   } catch (err) {
@@ -3293,7 +3507,7 @@ function searchRowHtml(t, i) {
         <span class="search-title">${escapeHtml(t.title)}</span>
         <span class="search-grow"></span>
         ${pri}
-        <span class="search-status">${escapeHtml(STATUS_LABELS[t.status] || t.status)}</span>
+        <span class="search-status">${escapeHtml(statusLabel(t.status))}</span>
       </div>
       ${meta.length ? `<div class="search-row-meta">${meta.join('')}</div>` : ''}
     </div>`;
@@ -3408,7 +3622,7 @@ async function openTicketModal({ status = 'backlog', parent = '' } = {}) {
     </label>
     <label>Status
       <select id="t-status">
-        ${state.meta.statuses.map((s) => `<option value="${s}" ${s === status ? 'selected' : ''}>${STATUS_LABELS[s] || s}</option>`).join('')}
+        ${statusOptions().map((c) => `<option value="${escapeHtml(c.id)}" ${c.id === status ? 'selected' : ''}>${escapeHtml(c.label)}</option>`).join('')}
       </select>
     </label>
     <label>Priority
@@ -3486,7 +3700,7 @@ async function renderOverview() {
                 </div>
                 <div class="epic-title">${escapeHtml(e.title)}</div>
                 <div class="epic-stats">
-                  <span class="dot ${e.status}"></span> ${e.status} ·
+	                  ${statusDot(e.status)} ${escapeHtml(statusLabel(e.status))} ·
                   ${e.progress.done}/${e.progress.total} done (${e.progress.percent}%)
                 </div>
                 <div class="progress-bar" style="margin-top: 8px;">
@@ -3898,7 +4112,7 @@ function buildGraphNode(node) {
       <span class="badge ${t.type}">${t.type}</span>
       <span class="gn-id">${escapeHtml(t.id)}</span>
       ${count}
-      <span class="dot ${t.status}" title="${escapeHtml(t.status)}"></span>
+	      ${statusDot(t.status)}
     </div>
     <div class="gn-title">${escapeHtml(t.title)}</div>
   `;

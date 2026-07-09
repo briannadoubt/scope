@@ -67,9 +67,9 @@ trusted by the keychain.
 
 - **CLI** — `workspace / ticket / epic / link / status / branch / pr / board`
   with `--json` output on every command for agent consumption.
-- **Web UI** — kanban columns, drag-and-drop, ticket drawer with inline edit,
-  workspace overview, epic filter, **swimlanes** (group by epic / assignee /
-  priority / type), live updates via SSE.
+- **Web UI** — configurable kanban columns, drag-and-drop, ticket drawer with
+  inline edit, workspace overview, epic filter, **swimlanes** (group by epic /
+  assignee / priority / type), live updates via SSE.
 - **`scope serve` hub** — one long-lived process that serves the UI, the REST
   API, and the SSE event stream on `https://localhost:4321` (loopback HTTP
   also bound for CLI traffic). Multiple agents and a human in the browser all
@@ -95,8 +95,9 @@ scope serve
 
 The **Group by** picker in the topbar turns the board into swimlanes — one
 horizontal row per epic, assignee, priority, or type, each with its own
-status columns. State (group choice, collapsed lanes) persists in
-`localStorage`.
+status columns. **Manage columns** in that same popover lets you add, rename,
+reorder, recolor, and classify workspace-specific statuses. State (group
+choice, collapsed lanes) persists in `localStorage`.
 
 The little dot next to the refresh button is your live indicator:
 **green** = SSE connected, **blue flash** = just applied a change,
@@ -252,7 +253,7 @@ for the format and conflict semantics.
 | `scope workspace add / list / remove` | Manage which workspaces the running hub knows about. |
 | `scope ticket create <title> -t <type> [--parent <epic>]` | New ticket in the current workspace. |
 | `scope ticket list / show / edit / delete` | Manage tickets. `edit` accepts a comma-separated id list (atomic). |
-| `scope status <ids> <status> [--by <name>]` | Move a ticket. `ids` may be comma-separated to move several atomically. |
+| `scope status <ids> <status> [--by <name>]` | Move a ticket to any status id configured in the workspace columns. `ids` may be comma-separated to move several atomically. |
 | `scope batch [-f ops.json]` | Apply many ops as one atomic transaction (or pipe the JSON array on stdin). Supports `$ref` to reference a ticket created earlier in the batch. The supported path for bulk/compound edits — never edit `scope.db` directly. |
 | `scope branch <id> [<name>] [--in-progress]` | Get/set branch, optionally flip status. |
 | `scope pr <id> [<url>] [--in-review\|--merged]` | Get/set PR, optionally flip status. |
@@ -289,7 +290,9 @@ Every command accepts `--json` for machine-readable output.
 - **CLI** — Node 20+ ES modules, `commander` for parsing.
 - **Server** — Express. Mounts the REST API and an SSE `/events` channel.
   `GET /api/workspaces` returns `{id, scope_dir, label, key, name,
-  description, overview}`; `GET /api/projects` is kept as a back-compat shim
+  description, overview, columns}`; `GET /api/board` returns `{columns,
+  terminal_columns, buckets}` so web, hosted, and iOS clients render the same
+  workspace-defined status pipeline. `GET /api/projects` is kept as a back-compat shim
   that synthesizes one project per workspace for older clients.
 - **Realtime** — in-process `EventEmitter` bus emits on every mutation;
   `fs.watch` on `.scope/` plus a `PRAGMA data_version` check catches writes

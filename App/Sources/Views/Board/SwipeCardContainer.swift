@@ -19,6 +19,7 @@ import SwiftUI
 /// reveal label stays hidden and the card resists the drag at zero offset.
 struct SwipeCardContainer: View {
     let ticket: Ticket
+    let flow: [TicketStatus]
     let onTap: () -> Void
 
     @Environment(AppStore.self) private var store
@@ -65,13 +66,13 @@ struct SwipeCardContainer: View {
         // edges of the card's container so they appear to slide out from
         // under it.
         HStack {
-            if offset > 0, let prev = ticket.status.previous {
+            if offset > 0, let prev = ticket.status.previous(in: flow) {
                 RevealLabel(text: prev.displayName, systemImage: "arrow.left", tint: .orange,
                             alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             Spacer(minLength: 0)
-            if offset < 0, let next = ticket.status.next {
+            if offset < 0, let next = ticket.status.next(in: flow) {
                 RevealLabel(text: next.displayName, systemImage: "arrow.right", tint: .green,
                             alignment: .trailing)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -91,9 +92,9 @@ struct SwipeCardContainer: View {
             .onEnded { value in
                 guard !isCommitting else { return }
                 let dx = clampedOffset(value.translation.width)
-                if dx <= -Self.commitThreshold, let next = ticket.status.next {
+                if dx <= -Self.commitThreshold, let next = ticket.status.next(in: flow) {
                     commit(to: next)
-                } else if dx >= Self.commitThreshold, let prev = ticket.status.previous {
+                } else if dx >= Self.commitThreshold, let prev = ticket.status.previous(in: flow) {
                     commit(to: prev)
                 } else {
                     offset = 0
@@ -106,10 +107,10 @@ struct SwipeCardContainer: View {
     /// in allowed directions.
     private func clampedOffset(_ raw: CGFloat) -> CGFloat {
         if raw < 0 {
-            guard ticket.status.next != nil else { return 0 }
+            guard ticket.status.next(in: flow) != nil else { return 0 }
             return max(raw, -Self.revealMax * 1.15)
         } else if raw > 0 {
-            guard ticket.status.previous != nil else { return 0 }
+            guard ticket.status.previous(in: flow) != nil else { return 0 }
             return min(raw, Self.revealMax * 1.15)
         }
         return 0
@@ -122,7 +123,7 @@ struct SwipeCardContainer: View {
         // Slide the card the rest of the way off so the transition reads as
         // "the card left the column" — then snap back to zero once the SSE
         // update arrives (which will move the card to its real new column).
-        offset = (newStatus == ticket.status.next ? -1 : 1) * Self.revealMax
+        offset = (newStatus == ticket.status.next(in: flow) ? -1 : 1) * Self.revealMax
 
         Task {
             do {
@@ -185,7 +186,7 @@ private struct RevealLabel: View {
         createdAt: .now,
         updatedAt: .now
     )
-    return SwipeCardContainer(ticket: ticket) {}
+    return SwipeCardContainer(ticket: ticket, flow: TicketStatus.flow) {}
         .environment(store)
         .padding()
         .background(Color(uiColor: .systemBackground))

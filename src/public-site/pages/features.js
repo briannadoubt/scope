@@ -49,8 +49,8 @@ const SECTIONS = [
        <code>pr</code>, and <code>board</code>, each with <code>--json</code> output for
        machine consumption. Agents read state before writing it; humans use the same
        commands interactively.`,
-      `The web UI is a GitHub-Projects-style kanban: drag-and-drop columns, a ticket
-       drawer with inline edit, a workspace overview, an epic filter, and swimlanes
+      `The web UI is a GitHub-Projects-style kanban: configurable drag-and-drop
+       columns, a ticket drawer with inline edit, a workspace overview, an epic filter, and swimlanes
        that group by epic, assignee, priority, or type. The iOS app is a SwiftUI client
        that discovers the hub over Bonjour, pairs via mTLS, and renders the same board
        and ticket detail with the same live updates.`,

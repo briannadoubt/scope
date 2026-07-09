@@ -20,6 +20,7 @@ import {
   RELATION_TYPES as SCHEMA_RELATION_TYPES,
   TICKET_FIELDS,
 } from './enums.js';
+import { normalizeColumns } from './columns.js';
 
 export { ulid, TICKET_FIELDS };
 
@@ -102,6 +103,7 @@ const isUlid = (v) => typeof v === 'string' && /^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{26}
 const isNullableStr = (v) => v === null || typeof v === 'string';
 // Same shape updateWorkspace enforces for a workspace key.
 const isKeyPrefix = (v) => typeof v === 'string' && /^[A-Z][A-Z0-9]{1,9}$/.test(v);
+const isStatusId = (v) => typeof v === 'string' && /^[a-z][a-z0-9_]{1,31}$/.test(v);
 
 /**
  * Throw EventValidationError if `evt` violates the spec. Used by the writer
@@ -138,13 +140,22 @@ function validatePayload(kind, p) {
       // is a stored-XSS vector via the sync-push event path.
       if (!isKeyPrefix(p.key)) fail('workspace.init.key must be 2-10 uppercase alnum');
       if (!isNonEmptyStr(p.name)) fail('workspace.init.name required');
+      if ('columns' in p) {
+        try { normalizeColumns(p.columns); }
+        catch (e) { fail(`workspace.init.columns invalid: ${e.message}`); }
+      }
       break;
 
     case 'workspace.set': {
-      const keys = ['key', 'name', 'description', 'overview'];
+      const keys = ['key', 'name', 'description', 'overview', 'columns'];
       const present = keys.filter((k) => k in p);
       if (!present.length) fail('workspace.set needs at least one field');
-      for (const k of present) if (!isStr(p[k])) fail(`workspace.set.${k} must be a string`);
+      for (const k of present) {
+        if (k === 'columns') {
+          try { normalizeColumns(p[k]); }
+          catch (e) { fail(`workspace.set.columns invalid: ${e.message}`); }
+        } else if (!isStr(p[k])) fail(`workspace.set.${k} must be a string`);
+      }
       if ('key' in p && !isKeyPrefix(p.key)) fail('workspace.set.key must be 2-10 uppercase alnum');
       break;
     }
@@ -163,7 +174,7 @@ function validatePayload(kind, p) {
       if (!isKeyPrefix(p.keyPrefix)) fail('ticket.create.keyPrefix must be 2-10 uppercase alnum');
       oneOf('ticket.create.ticketType', p.ticketType, SCHEMA_TICKET_TYPES);
       if (!isNonEmptyStr(p.title)) fail('ticket.create.title required');
-      oneOf('ticket.create.status', p.status, SCHEMA_STATUSES);
+      if (!isStatusId(p.status)) fail('ticket.create.status must be a valid column id');
       oneOf('ticket.create.priority', p.priority, SCHEMA_PRIORITIES);
       if (!isNullableStr(p.parentId)) fail('ticket.create.parentId must be string|null');
       if (!Array.isArray(p.labels)) fail('ticket.create.labels must be an array');
@@ -202,7 +213,7 @@ function validatePayload(kind, p) {
 function validateFieldValue(field, value) {
   switch (field) {
     case 'status':
-      oneOf('status', value, SCHEMA_STATUSES);
+      if (!isStatusId(value)) fail('status value must be a valid column id');
       break;
     case 'priority':
       oneOf('priority', value, SCHEMA_PRIORITIES);

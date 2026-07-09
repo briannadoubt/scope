@@ -79,9 +79,9 @@ test('validateEvent rejects malformed events', () => {
   const t = (fn, label) =>
     assert.throws(fn, EventValidationError, label);
 
-  // bad enum value
-  t(() => makeEvent('ticket.set_field', { ticketId: 'X', field: 'status', value: 'bogus' }, { actor: 'a' }),
-    'invalid status enum');
+  // bad status id shape; actual status membership is workspace-specific.
+  t(() => makeEvent('ticket.set_field', { ticketId: 'X', field: 'status', value: 'Bad Status' }, { actor: 'a' }),
+    'invalid status id shape');
   // missing actor
   t(() => makeEvent('ticket.delete', { ticketId: 'X' }, {}), 'missing actor');
   // unknown kind

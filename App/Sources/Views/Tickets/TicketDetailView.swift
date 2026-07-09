@@ -116,8 +116,8 @@ struct TicketDetailView: View {
                     .pickerStyle(.menu)
 
                     Picker("Status", selection: $draftStatus) {
-                        ForEach(TicketStatus.allCases) { status in
-                            Text(status.displayName).tag(status)
+                        ForEach(store.boardColumns) { column in
+                            Text(column.label).tag(column.status)
                         }
                     }
                     .pickerStyle(.menu)
@@ -130,7 +130,7 @@ struct TicketDetailView: View {
                     .pickerStyle(.menu)
                 } else {
                     metadataRow(label: "Type",     value: ticket.type.rawValue.capitalized)
-                    metadataRow(label: "Status",   value: ticket.status.displayName)
+                    metadataRow(label: "Status",   value: statusLabel(ticket.status))
                     metadataRow(label: "Priority", value: ticket.priority.rawValue.capitalized)
                 }
             }
@@ -257,6 +257,10 @@ struct TicketDetailView: View {
             Spacer()
             Text(value)
         }
+    }
+
+    private func statusLabel(_ status: TicketStatus) -> String {
+        store.boardColumns.first { $0.status == status }?.label ?? status.displayName
     }
 
     // MARK: Actions

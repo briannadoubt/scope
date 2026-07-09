@@ -149,7 +149,7 @@ export function renderCliReference(ctx) {
     ['scope workspace rekey &lt;KEY&gt;', 'Change the key and reprefix every existing ticket (<code>MA-1</code> → <code>APP-1</code>).'],
     ['scope ticket create &lt;title&gt; -t &lt;type&gt; [--parent &lt;epic&gt;]', 'New ticket in the current workspace.'],
     ['scope ticket list / show / edit / delete', 'Manage tickets. <code>edit</code> accepts a comma-separated id list (atomic).'],
-    ['scope status &lt;ids&gt; &lt;status&gt; [--by &lt;name&gt;]', 'Move a ticket. <code>ids</code> may be comma-separated to move several atomically.'],
+    ['scope status &lt;ids&gt; &lt;status&gt; [--by &lt;name&gt;]', 'Move a ticket to any status id configured in the workspace columns. <code>ids</code> may be comma-separated.'],
     ['scope batch [-f ops.json]', 'Apply many ops as one atomic transaction. Supports <code>$ref</code> to reference a ticket created earlier in the batch.'],
     ['scope branch &lt;id&gt; [&lt;name&gt;] [--in-progress]', 'Get/set branch, optionally flip status.'],
     ['scope pr &lt;id&gt; [&lt;url&gt;] [--in-review | --merged]', 'Get/set PR, optionally flip status.'],

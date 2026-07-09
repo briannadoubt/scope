@@ -12,6 +12,7 @@ import {
   RELATION_INVERSE,
   COLUMN_TO_FIELD,
 } from './enums.js';
+import { doneColumnIds, normalizeColumns, statusIds } from './columns.js';
 
 /* ---------------- event emission (SCP-108) ---------------- */
 
@@ -185,7 +186,7 @@ export function listWorkspaces(db) {
 
 export function updateWorkspace(db, fields = {}, who = null, model = null) {
   const ws = getWorkspace(db);
-  const allowed = ['key', 'name', 'description', 'overview'];
+  const allowed = ['key', 'name', 'description', 'overview', 'columns'];
   const updates = [];
   const values = [];
   const changed = {};
@@ -196,9 +197,10 @@ export function updateWorkspace(db, fields = {}, who = null, model = null) {
           `Invalid workspace key "${fields[k]}" — use 2-10 uppercase letters/digits, e.g. "SCP".`
         );
       }
+      const value = k === 'columns' ? normalizeColumns(fields[k]) : fields[k];
       updates.push(`${k} = ?`);
-      values.push(fields[k]);
-      changed[k] = fields[k];
+      values.push(k === 'columns' ? JSON.stringify(value) : value);
+      changed[k] = value;
     }
   }
   if (!updates.length) return ws;
@@ -209,6 +211,17 @@ export function updateWorkspace(db, fields = {}, who = null, model = null) {
   emit(db, 'workspace.set', changed, who, model);
   emitChange({ type: 'workspace.updated', id: 1 });
   return updated;
+}
+
+function validStatuses(db) {
+  return statusIds(getWorkspace(db).columns);
+}
+
+function assertValidStatus(db, status) {
+  const allowed = validStatuses(db);
+  if (!allowed.includes(status)) {
+    throw new Error(`Invalid status "${status}". One of: ${allowed.join(', ')}`);
+  }
 }
 
 /**
@@ -256,7 +269,7 @@ export function createTicket(
   }
 ) {
   if (!TICKET_TYPES.includes(type)) throw new Error(`Invalid type "${type}". Use epic|story|bug.`);
-  if (!STATUSES.includes(status)) throw new Error(`Invalid status "${status}".`);
+  assertValidStatus(db, status);
   if (!PRIORITIES.includes(priority)) throw new Error(`Invalid priority "${priority}".`);
   if (!title || !title.trim()) throw new Error('Ticket title is required.');
 
@@ -489,8 +502,7 @@ export function updateTicket(db, id, fields, who = null, model = null) {
     'rank',
   ];
 
-  if ('status' in fields && !STATUSES.includes(fields.status))
-    throw new Error(`Invalid status "${fields.status}". One of: ${STATUSES.join(', ')}`);
+  if ('status' in fields) assertValidStatus(db, fields.status);
   if ('priority' in fields && !PRIORITIES.includes(fields.priority))
     throw new Error(`Invalid priority "${fields.priority}". One of: ${PRIORITIES.join(', ')}`);
   if ('rank' in fields && fields.rank != null && !Number.isFinite(Number(fields.rank)))
@@ -808,17 +820,20 @@ export function epicProgress(db, epicId) {
        GROUP BY status`
     )
     .all(...ids);
-  const counts = Object.fromEntries(STATUSES.map((s) => [s, 0]));
+  const columns = getWorkspace(db).columns;
+  const counts = Object.fromEntries(statusIds(columns).map((s) => [s, 0]));
+  const doneIds = new Set(doneColumnIds(columns));
   let total = 0;
   for (const r of rows) {
     counts[r.status] = r.n;
     total += r.n;
   }
+  const done = Array.from(doneIds).reduce((sum, id) => sum + (counts[id] || 0), 0);
   return {
     total,
     counts,
-    done: counts.done,
-    percent: total ? Math.round((counts.done / total) * 100) : 0,
+    done,
+    percent: total ? Math.round((done / total) * 100) : 0,
   };
 }
 

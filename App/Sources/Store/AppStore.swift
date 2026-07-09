@@ -22,6 +22,7 @@ final class AppStore {
     }
 
     var tickets: [Ticket] = []
+    var boardColumns: [BoardColumn] = BoardColumn.defaults.filter { $0.kind != "cancelled" }
     var isLoading: Bool = false
     var error: String? = nil
 
@@ -89,6 +90,7 @@ final class AppStore {
         workspaces = []
         _selectedWorkspace = nil
         tickets = []
+        boardColumns = BoardColumn.defaults.filter { $0.kind != "cancelled" }
         // Start watching the network path now that we actually have a hub
         // to talk to. The transition handler refreshes state when we come
         // back online so any writes that happened on the hub during the
@@ -125,6 +127,7 @@ final class AppStore {
         workspaces = []
         _selectedWorkspace = nil
         tickets = []
+        boardColumns = BoardColumn.defaults.filter { $0.kind != "cancelled" }
         if clearSavedConnection {
             do {
                 try connectionStore.clear()
@@ -183,8 +186,9 @@ final class AppStore {
         defer { isLoading = false }
         do {
             // Workspace ID is injected automatically by HubClient.url(for:).
-            let list: [Ticket] = try await client.get("/api/tickets")
-            tickets = list
+            let board: BoardResponse = try await client.get("/api/board")
+            boardColumns = board.visibleColumns
+            tickets = board.allTickets
         } catch {
             self.error = error.localizedDescription
         }

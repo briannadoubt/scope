@@ -801,6 +801,7 @@ private extension TicketStatus {
         case .in_review:   .purple
         case .done:        .green
         case .cancelled:   .gray
+        default:           .secondary
         }
     }
 }
