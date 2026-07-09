@@ -2,9 +2,10 @@
  * Event store — the append-only, one-file-per-event log on disk
  * (docs/event-log-format.md, SCP-108).
  *
- * Each event lives at `.scope/events/<ulid>.json`. Writes are atomic
- * (tmp + rename) so a concurrent reader or sync daemon never sees a
- * half-written event. Because filenames are globally-unique ULIDs, two
+ * Each event lives at `<resolved-events-dir>/<ulid>.json`. The resolved dir is
+ * either machine-local storage (default) or `.scope/events` in git-events mode.
+ * Writes are atomic (tmp + rename) so a concurrent reader or sync daemon never
+ * sees a half-written event. Because filenames are globally-unique ULIDs, two
  * replicas appending concurrently never touch the same path — a merge is pure
  * union of files, with nothing to conflict on.
  */
@@ -20,6 +21,7 @@ import {
 import { dirname, join, basename, resolve, sep } from 'node:path';
 
 import { validateEvent, compareEvents } from './event-schema.js';
+import { workspaceEventsDir } from './workspace-storage.js';
 
 export const EVENTS_DIR_NAME = 'events';
 
@@ -28,17 +30,17 @@ function fail_path(id) {
   throw new Error(`unsafe event id ${JSON.stringify(id)} (must be a bare ULID filename)`);
 }
 
-/** Absolute path to the events dir for a given .scope directory. */
+/** Absolute path to the authoritative events dir for a given .scope directory. */
 export function eventsDir(scopeDir) {
-  return join(scopeDir, EVENTS_DIR_NAME);
+  return workspaceEventsDir(scopeDir);
 }
 
 /**
- * Absolute path to the events dir for an open better-sqlite3 handle. The db
- * lives at `<scopeDir>/scope.db`, so its parent dir is the .scope dir.
+ * Absolute path to the events dir for an open better-sqlite3 handle. The db and
+ * event log live side-by-side in the resolved workspace data directory.
  */
 export function eventsDirForDb(db) {
-  return eventsDir(dirname(db.name));
+  return join(dirname(db.name), EVENTS_DIR_NAME);
 }
 
 /**

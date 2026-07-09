@@ -44,16 +44,17 @@ Install if needed: `brew install briannadoubt/tap/scope`
 
 ```bash
 scope init
-scope project create my-app MA "My App"
+scope workspace set --key MA --name "My App"
+scope connect
 
-scope ticket create MA "Auth refactor" -t epic -p high
-scope ticket create MA "OAuth login"  -t story --parent MA-1
+scope ticket create "Auth refactor" -t epic -p high
+scope ticket create "OAuth login"  -t story --parent MA-1
 
 scope branch  MA-2 feat/oauth --in-progress
 scope pr      MA-2 https://github.com/owner/repo/pull/42 --in-review
 scope status  MA-2 done
 
-scope board -p MA
+scope board
 scope --json ticket show MA-2
 scope comment MA-2 "Token expiry was 5min; bumped to 1h" --by cursor
 scope link add MA-2 blocked_by MA-7

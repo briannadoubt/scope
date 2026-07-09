@@ -62,6 +62,8 @@ Branches and PR URLs can be attached to any ticket and are surfaced in the UI.
 # one-time setup in a repo
 scope init --key MA --name "My App"
 scope workspace set --description "Short description"
+scope auth login
+scope connect
 
 # inspect
 scope workspace show
@@ -184,30 +186,18 @@ picks its own port (4322, 4323, ...) and forwards to the shared hub on 4321.
 
 ## Collaboration (deploy-free)
 
-Scope is event-sourced: the source of truth is the append-only log in
-`.scope/events/` (one ULID-named JSON file per change). `scope.db` is a
-gitignored cache rebuilt from the log automatically. To collaborate, **commit
-and `git pull` the `.scope/events/` directory** — merges are a pure union of new
-files, so there's nothing to conflict on and no server to deploy. The next
-`scope` command rebuilds the cache from the merged log. Concurrent edits resolve
-last-writer-wins by timestamp; new tickets/comments/relations union; ticket
-numbers are de-collided deterministically at replay. Any file sync works (git,
-iCloud, Dropbox, Syncthing). Run `scope serve` only when you want sub-second
-live updates on a machine/LAN — it's an optimization over the same log.
+Scope is event-sourced. New workspaces default to quiet machine-local storage:
+the append-only event log and `scope.db` cache live under
+`~/.scope/workspaces/<id>/`, while the repo carries `.scope/workspace.json` and
+optional `.scope/remote.json`. Use `scope auth login` and `scope connect` to
+sync through Scope Cloud; `scope remote show` explains the cloud target,
+credential state, and local event path.
 
-`scope init` writes a `.scope/.gitignore` that keeps `events/` while ignoring
-`scope.db*`. **Watch for a parent `.gitignore` that ignores all of `.scope/`** —
-a blanket `.scope/` rule in the repo root silently excludes the event log too,
-so the workspace history never gets committed. Ignore only the cache there:
-
-```gitignore
-.scope/scope.db
-.scope/scope.db-wal
-.scope/scope.db-shm
-```
-
-Verify with `git check-ignore -v .scope/events/ .scope/scope.db` — `events/`
-must be NOT ignored, `scope.db` must be ignored.
+Git-carried events are an explicit advanced mode (`scope init --git-events` or
+`scope events move-to-git`). Only in that mode should `.scope/events/` be
+committed; `scope.db*` is always a rebuildable cache and must never be
+committed. Use `scope events move-to-local` to migrate an older repo-event
+workspace back to quiet storage.
 
 ## Useful follow-ups
 

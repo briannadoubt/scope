@@ -34,7 +34,14 @@ import {
   readCredential,
   writeCredential,
   clearCredential,
+  DEFAULT_CLOUD_URL,
 } from './remote-config.js';
+import {
+  ensureWorkspaceStorageConfig,
+  migrateEventsToGit,
+  migrateEventsToLocal,
+  storageStatus,
+} from './workspace-storage.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -316,6 +323,7 @@ export function buildProgram() {
     .option('--key <key>', 'workspace key (2-10 uppercase letters/digits)')
     .option('--name <name>', 'workspace name')
     .option('--description <text>', 'short description')
+    .option('--git-events', 'store the event log in .scope/events for git-carried boards', false)
     .action(async (opts, cmd) => {
       const dir = defaultScopeDir();
       const isJson = cmd.optsWithGlobals().json;
@@ -324,6 +332,7 @@ export function buildProgram() {
         process.exit(0);
       }
       mkdirSync(dir, { recursive: true });
+      ensureWorkspaceStorageConfig(dir, { mode: opts.gitEvents ? 'git' : 'local' });
       ensureScopeGitignore(dir);
       const db = openDb(dir);
 
@@ -359,13 +368,15 @@ export function buildProgram() {
         catch (e) { db.close(); fail(e.message); }
       }
       const ws = getWorkspace(db);
+      const dbPath = db.name;
       db.close();
       out(
         cmd,
-        { scope_dir: dir, db: join(dir, DB_FILE_NAME), workspace: ws },
+        { scope_dir: dir, db: dbPath, storage: storageStatus(dir), workspace: ws },
         (d) =>
           chalk.green('✓') +
           ` Initialized scope at ${chalk.bold(d.scope_dir)}\n` +
+          chalk.gray(`  storage:   ${d.storage.mode}\n`) +
           chalk.gray(`  db:        ${d.db}\n`) +
           chalk.gray(`  key:       ${d.workspace.key}\n`) +
           chalk.gray(`  name:      ${d.workspace.name}\n`) +
@@ -1063,6 +1074,135 @@ export function buildProgram() {
       }
     });
 
+  /* ---------- connect: one-command cloud binding ---------- */
+
+  async function listRemoteProjects(url, token) {
+    const res = await fetch(`${remoteBase(url)}/api/projects`, {
+      headers: authHeaders(token),
+    });
+    if (res.status === 401) fail(`connect failed: not signed in for ${remoteBase(url)}. Run \`scope auth login --remote ${remoteBase(url)}\`.`);
+    if (!res.ok) fail(`connect failed: could not list projects (HTTP ${res.status})`);
+    return await res.json();
+  }
+
+  async function createRemoteProject(url, token, name) {
+    const res = await fetch(`${remoteBase(url)}/api/projects`, {
+      method: 'POST',
+      headers: authHeaders(token),
+      body: JSON.stringify({ name }),
+    });
+    if (res.status === 401) fail(`connect failed: not signed in for ${remoteBase(url)}. Run \`scope auth login --remote ${remoteBase(url)}\`.`);
+    if (!res.ok) fail(`connect failed: could not create project (HTTP ${res.status}) ${await res.text().catch(() => '')}`);
+    const body = await res.json();
+    return body.tenantId || body.tenant_id || body.id;
+  }
+
+  program
+    .command('connect')
+    .description('Connect this workspace to Scope Cloud, write the safe remote pointer, and run the first sync.')
+    .option('--remote <url>', 'remote hub base URL (defaults to Scope Cloud)')
+    .option('--project <tenantId>', 'join an existing hosted project')
+    .option('--new [name]', 'create a new hosted project from this workspace')
+    .option('--token <token>', 'API key / session (or use `scope auth login`)')
+    .option('--no-sync', 'write the binding without running the initial sync')
+    .action(async (opts, cmd) => {
+      const { db, scopeDir } = openOrDie();
+      const ws = getWorkspace(db);
+      const remoteUrl = remoteBase(opts.remote || process.env.SCOPE_REMOTE || readRemoteConfig(scopeDir)?.url || DEFAULT_CLOUD_URL);
+      const token = opts.token || readCredential(remoteUrl);
+      if (!token) fail(`Not signed in for ${remoteUrl}. Run \`scope auth login --remote ${remoteUrl}\`, then \`scope connect\`.`);
+
+      let project = opts.project || process.env.SCOPE_PROJECT || '';
+      let created = false;
+      try {
+        if (opts.new !== undefined) {
+          const name = typeof opts.new === 'string' ? opts.new : (opts.new || ws.name || ws.key);
+          project = await createRemoteProject(remoteUrl, token, name);
+          created = true;
+        } else if (!project) {
+          const projects = await listRemoteProjects(remoteUrl, token);
+          if (projects.length === 1) {
+            project = projects[0].tenant_id || projects[0].tenantId || projects[0].id;
+          } else {
+            const name = ws.name || ws.key;
+            project = await createRemoteProject(remoteUrl, token, name);
+            created = true;
+          }
+        }
+        if (!project) fail('connect failed: no remote project selected or created.');
+
+        const cfg = writeRemoteConfig(scopeDir, { url: remoteUrl, project });
+        writeCredential(remoteUrl, token);
+        let synced = null;
+        if (opts.sync !== false) {
+          synced = await syncWithRemote(db, scopeDir, {
+            remote: remoteUrl,
+            remoteWorkspace: project,
+            token,
+            model: actingModel(cmd) || '',
+          });
+        }
+        const storage = storageStatus(scopeDir);
+        out(cmd, { remote: cfg, created, synced, storage }, (r) =>
+          chalk.green('✓') + ` connected to ${chalk.bold(r.remote.url)} (${r.remote.project})\n` +
+          chalk.gray(`  storage: ${r.storage.mode} events at ${r.storage.events}\n`) +
+          chalk.gray(`  sync:    ${synced ? `pushed ${synced.pushed}, pulled ${synced.pulled}` : 'skipped'}`)
+        );
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  /* ---------- events: storage mode and migration ---------- */
+
+  const events = program
+    .command('events')
+    .description('Inspect or migrate the Scope event-log storage mode.');
+
+  events
+    .command('status')
+    .description('Show where this workspace stores events and cache data.')
+    .action((opts, cmd) => {
+      const { scopeDir } = openOrDie();
+      const s = storageStatus(scopeDir);
+      out(cmd, s, (s) =>
+        `  mode:    ${chalk.bold(s.mode)}\n` +
+        `  marker:  ${s.marker}\n` +
+        `  events:  ${s.events}\n` +
+        `  db:      ${s.db}\n` +
+        `  count:   ${s.eventCount}`
+      );
+    });
+
+  events
+    .command('move-to-local')
+    .description('Move repo .scope/events into machine-local Scope storage.')
+    .option('--dry-run', 'describe the migration without writing', false)
+    .action((opts, cmd) => {
+      const { scopeDir } = openOrDie();
+      const r = migrateEventsToLocal(scopeDir, { dryRun: opts.dryRun });
+      out(cmd, r, (r) =>
+        chalk.green(opts.dryRun ? '•' : '✓') + ` ${opts.dryRun ? 'would move' : 'moved'} ${r.copied} events to local storage\n` +
+        chalk.gray(`  from:   ${r.source}\n`) +
+        chalk.gray(`  to:     ${r.target}\n`) +
+        (r.backup ? chalk.gray(`  backup: ${r.backup}`) : '')
+      );
+    });
+
+  events
+    .command('move-to-git')
+    .description('Copy machine-local events back to .scope/events for git-carried boards.')
+    .option('--dry-run', 'describe the migration without writing', false)
+    .action((opts, cmd) => {
+      const { scopeDir } = openOrDie();
+      const r = migrateEventsToGit(scopeDir, { dryRun: opts.dryRun });
+      out(cmd, r, (r) =>
+        chalk.green(opts.dryRun ? '•' : '✓') + ` ${opts.dryRun ? 'would copy' : 'copied'} ${r.copied} events to git storage\n` +
+        chalk.gray(`  from: ${r.source}\n`) +
+        chalk.gray(`  to:   ${r.target}`)
+      );
+    });
+
   /* ---------- apikey: per-user API keys (SCP-173) ---------- */
 
   const key = program
@@ -1160,9 +1300,13 @@ export function buildProgram() {
       const { scopeDir } = openOrDie();
       try {
         const r = resolveRemote(scopeDir);
-        out(cmd, r, (r) =>
+        const storage = storageStatus(scopeDir);
+        const cred = r.url ? !!readCredential(r.url) : false;
+        out(cmd, { ...r, credential: cred, storage }, (r) =>
           `  url:      ${r.url ? chalk.bold(r.url) : chalk.gray('(none)')}  ${chalk.gray(`[${r.source.url}]`)}\n` +
-          `  project:  ${r.project ? chalk.bold(r.project) : chalk.gray('(none)')}  ${chalk.gray(`[${r.source.project}]`)}`
+          `  project:  ${r.project ? chalk.bold(r.project) : chalk.gray('(none)')}  ${chalk.gray(`[${r.source.project}]`)}\n` +
+          `  auth:     ${r.credential ? chalk.green('credential found') : chalk.yellow('missing')}\n` +
+          `  storage:  ${chalk.bold(r.storage.mode)} events at ${r.storage.events}`
         );
       } catch (e) { fail(e.message); }
     });

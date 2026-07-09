@@ -53,6 +53,8 @@ brew install briannadoubt/tap/scope
 ```bash
 scope init --key MA --name "My App"
 scope workspace set --description "Short description"
+scope auth login
+scope connect
 
 scope ticket create "Auth refactor" -t epic -p high
 scope ticket create "OAuth login"  -t story --parent MA-1
@@ -69,14 +71,17 @@ scope link add MA-2 blocked_by MA-7
 
 ## Version control
 
-Scope is event-sourced. Commit the append-only log in `.scope/events/` (the
-source of truth that hydrates the local DB); never commit `.scope/scope.db*`
-(a rebuildable SQLite cache). `scope init` writes a `.scope/.gitignore` that
-already does this. **Watch for a parent `.gitignore` that ignores all of
-`.scope/`** — a blanket `.scope/` rule in the repo root silently excludes the
-event log too. Ignore only `.scope/scope.db`, `.scope/scope.db-wal`,
-`.scope/scope.db-shm` there, and verify with
-`git check-ignore -v .scope/events/ .scope/scope.db`.
+Scope is event-sourced. New workspaces default to quiet machine-local storage:
+the append-only event log and `scope.db` cache live under
+`~/.scope/workspaces/<id>/`, while the repo carries a small
+`.scope/workspace.json` marker and optional `.scope/remote.json` pointer.
+Commit those marker/config files, never credentials.
+
+Git-carried events are an advanced opt-in mode (`scope init --git-events` or
+`scope events move-to-git`). Only in that mode should `.scope/events/` be
+committed; `scope.db*` is always a rebuildable cache and must never be committed.
+Use `scope events status` and `scope remote show` when storage or cloud sync is
+unclear.
 
 ## Guardrails
 

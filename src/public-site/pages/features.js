@@ -59,12 +59,12 @@ const SECTIONS = [
   {
     id: 'storage',
     kicker: 'Storage',
-    title: 'Event-sourced storage: git-mergeable, deploy-free',
+    title: 'Event-sourced storage: local by default',
     paras: [
-      `The source of truth is an append-only log under <code>.scope/events/</code>
-       &mdash; one JSON file per change, named by a time-sortable ULID. The SQLite
-       database is a <em>cache</em> rebuilt from that log on demand; it is gitignored
-       and never committed. There is no binary database to merge and nothing to corrupt.`,
+      `The source of truth is an append-only log &mdash; one JSON file per change,
+       named by a time-sortable ULID. New workspaces keep that log and the SQLite
+       cache in machine-local Scope storage so your repo stays quiet; git-carried
+       events remain an explicit advanced mode.`,
       `Because every filename is globally unique, two people or agents working in
        parallel never write the same file. Merging is the union of each side's event
        files &mdash; exactly what <code>git pull</code> does for a directory of new files.

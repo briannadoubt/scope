@@ -1237,28 +1237,28 @@ async function openMembersModal() {
  * Step 2 — choose between:
  *   • CREATE a new project from this workspace (name input → connect with createName), or
  *   • JOIN an existing project (pick from the list → connect with project).
- * A checkbox controls whether the event log stays committed: the decided default
- * is hub-as-source-of-truth, so "Stop committing the event log" starts CHECKED
- * (gitignoreEvents: true).
+ * A checkbox controls whether event files stay out of git. New workspaces
+ * already default to quiet local storage; for legacy repo-event workspaces this
+ * asks the server to migrate into local storage.
  *
  * `prefill` (SCP-242) seeds the "linked, connect to load" onboarding: pass
  * { url, project } from meta.remoteLink to lock the modal into join-mode for the
  * already-linked project, leaving only the key to fill in.
  */
 function openConnectRemoteModal(prefill = null) {
-  const linkedUrl = prefill?.url ? String(prefill.url).replace(/\/$/, '') : '';
+  const linkedUrl = prefill?.url ? String(prefill.url).replace(/\/$/, '') : 'https://scope-hub.fly.dev';
   const linkedProject = prefill?.project ? String(prefill.project) : '';
   const modal = openModal(`
-    <div class="modal-head"><h2>Connect to a hub</h2></div>
-    <p class="modal-sub">Bind this local board to a hosted Scope project. Members,
-      invites and presence then sync with the hub; your tickets mirror up.</p>
+    <div class="modal-head"><h2>Connect to Scope Cloud</h2></div>
+    <p class="modal-sub">Bind this local workspace to a hosted project. Events stay
+      editable on this machine and sync through the cloud for other devices.</p>
     <form id="remote-form" class="remote-form">
       <label>Hub URL
         <input id="remote-url" type="url" placeholder="https://scope.example.com"
           value="${escapeHtml(linkedUrl)}" autocomplete="off" required />
       </label>
       <label>API key
-        <input id="remote-key" type="password" placeholder="scope_…" autocomplete="off" required />
+        <input id="remote-key" type="password" placeholder="optional if scope auth login already ran" autocomplete="off" />
       </label>
       <div id="remote-err" class="modal-error" role="alert"></div>
       <div class="modal-actions">
@@ -1283,7 +1283,8 @@ function openConnectRemoteModal(prefill = null) {
 
   // Map the server's machine codes onto inline, human messages (SCP-236).
   const explain = (e) =>
-    e.code === 'BAD_KEY' ? 'The hub rejected that key.'
+    e.code === 'AUTH_REQUIRED' ? 'Sign in first with scope auth login or paste an API key.'
+    : e.code === 'BAD_KEY' ? 'The hub rejected that key.'
     : e.code === 'REMOTE_DOWN' ? 'The hub is unreachable — check the URL.'
     : e.message;
 
@@ -1292,11 +1293,11 @@ function openConnectRemoteModal(prefill = null) {
     errEl.textContent = '';
     const url = urlInput.value.trim().replace(/\/$/, '');
     const key = keyInput.value.trim();
-    if (!url || !key) { errEl.textContent = 'Both fields are required.'; return; }
+    if (!url) { errEl.textContent = 'Hub URL is required.'; return; }
     nextBtn.disabled = true;
     let projects;
     try {
-      projects = await api('/api/remote/projects', { method: 'POST', body: { url, key } });
+      projects = await api('/api/remote/projects', { method: 'POST', body: key ? { url, key } : { url } });
     } catch (e2) {
       nextBtn.disabled = false;
       errEl.textContent = explain(e2);
@@ -1308,8 +1309,8 @@ function openConnectRemoteModal(prefill = null) {
 
   /**
    * Step 2: create-vs-join chooser. SCP-241. The two modes share a single
-   * "Stop committing the event log" checkbox (default checked → gitignoreEvents)
-   * and a single submit handler that branches on the active mode.
+   * quiet-storage checkbox (default checked → gitignoreEvents) and one submit
+   * handler that branches on the active mode.
    */
   function renderStep2(url, key, projects) {
     // SCP-242: a prefilled link locks into join-mode for that one project.
@@ -1345,7 +1346,7 @@ function openConnectRemoteModal(prefill = null) {
         <label>New project name
           <input id="remote-createname" type="text" placeholder="e.g. ${escapeHtml(suggestProjectName())}" autocomplete="off" />
         </label>
-        <p class="remote-mode-hint">Creates a fresh project on the hub from this workspace. You become its owner.</p>
+        <p class="remote-mode-hint">Creates a fresh cloud project from this workspace. You become its owner.</p>
       </div>
 
       <div class="remote-mode-pane" data-pane="join"${defaultMode === 'join' ? '' : ' hidden'}>
@@ -1359,7 +1360,7 @@ function openConnectRemoteModal(prefill = null) {
 
       <label class="remote-gitignore">
         <input id="remote-gitignore" type="checkbox" checked />
-        <span>Stop committing the event log (the hub keeps the board)</span>
+        <span>Keep event files out of git for this workspace</span>
       </label>
 
       <div id="remote-err2" class="modal-error" role="alert"></div>
@@ -1404,7 +1405,7 @@ function openConnectRemoteModal(prefill = null) {
     goBtn.addEventListener('click', async () => {
       err2.textContent = '';
       const gitignoreEvents = step2.querySelector('#remote-gitignore').checked;
-      const body = { url, key, gitignoreEvents };
+      const body = key ? { url, key, gitignoreEvents } : { url, gitignoreEvents };
       if (mode === 'create') {
         const createName = step2.querySelector('#remote-createname').value.trim();
         if (!createName) { err2.textContent = 'A project name is required.'; return; }

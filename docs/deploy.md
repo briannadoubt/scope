@@ -231,7 +231,8 @@ remote operations pick it up automatically:
 
 ```bash
 scope auth login --remote https://<app>.fly.dev
-scope sync --remote https://<app>.fly.dev --remote-workspace <id> --model "Opus 4.8"
+scope connect --remote https://<app>.fly.dev
+scope sync --model "Opus 4.8"
 ```
 
 `scope apikey create/list/revoke` still exists for explicit key management, and

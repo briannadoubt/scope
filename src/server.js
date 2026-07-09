@@ -66,7 +66,8 @@ import { ensureReplica, refreshReplica, flushReplica, closeAllReplicas, evictRep
 import { uploadEvents, pullEvents, existingEventIds } from './pg/store.js';
 import { serverError } from './http-errors.js';
 import { resolveBinding, probeRemote, collabProxyRouter } from './remote-client.js';
-import { readRemoteConfig, writeRemoteConfig, writeCredential, clearRemoteConfig, clearCredential, ignoreEventLog } from './remote-config.js';
+import { DEFAULT_CLOUD_URL, readCredential, readRemoteConfig, writeRemoteConfig, writeCredential, clearRemoteConfig, clearCredential } from './remote-config.js';
+import { migrateEventsToLocal } from './workspace-storage.js';
 import { startRemoteSync } from './remote-sync.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -649,19 +650,22 @@ export async function startServer({
       // List the projects a (url, key) can see — lets the connect UI show a
       // picker after the user enters their hub + key, before binding (SCP-236).
       app.post('/api/remote/projects', loopbackOnly, async (req, res) => {
-        const { url, key } = req.body || {};
-        if (!url || !key) return res.status(400).json({ error: 'url and key are required' });
+        let { url, key } = req.body || {};
+        url = String(url || DEFAULT_CLOUD_URL).replace(/\/$/, '');
+        key = key || readCredential(url);
+        if (!key) return res.status(401).json({ error: 'sign in first with scope auth login or scope connect', code: 'AUTH_REQUIRED' });
         try {
-          const r = await fetch(`${String(url).replace(/\/$/, '')}/api/projects`, { headers: { Authorization: `Bearer ${key}` } });
+          const r = await fetch(`${url}/api/projects`, { headers: { Authorization: `Bearer ${key}` } });
           if (!r.ok) return res.status(r.status === 401 ? 401 : 502).json({ error: r.status === 401 ? 'the hub rejected that key' : 'the hub is unreachable', code: r.status === 401 ? 'BAD_KEY' : 'REMOTE_DOWN' });
           res.json(await r.json());
         } catch { res.status(502).json({ error: 'the hub is unreachable', code: 'REMOTE_DOWN' }); }
       });
       app.post('/api/remote/connect', loopbackOnly, async (req, res) => {
         let { url, project, key, createName, gitignoreEvents } = req.body || {};
-        if (!url || !key) return res.status(400).json({ error: 'url and key are required' });
+        url = String(url || DEFAULT_CLOUD_URL).replace(/\/$/, '');
+        key = key || readCredential(url);
+        if (!key) return res.status(401).json({ error: 'sign in first with scope auth login or scope connect', code: 'AUTH_REQUIRED' });
         if (!primaryScopeDir) return res.status(400).json({ error: 'no local workspace to bind' });
-        url = String(url).replace(/\/$/, '');
         try {
           // Born from a local repo (SCP-241): create a NEW project on the hub and
           // bind this workspace to it (the sync agent then pushes the board up).
@@ -677,9 +681,11 @@ export async function startServer({
 
           writeRemoteConfig(primaryScopeDir, { url, project });
           writeCredential(url, key);
-          // SCP-242: optionally stop committing the event log — the hub becomes
-          // the source of truth and the repo carries only the remote.json pointer.
-          if (gitignoreEvents) ignoreEventLog(primaryScopeDir);
+          // SCP-242/271: optionally migrate legacy repo events into quiet local
+          // storage so the repo carries only marker/config files.
+          if (gitignoreEvents) {
+            migrateEventsToLocal(primaryScopeDir);
+          }
           binding = resolveBinding(primaryScopeDir);
           stopBoundSync(); startBoundSync();
           await refreshProbe();

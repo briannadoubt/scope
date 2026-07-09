@@ -70,16 +70,16 @@ export function renderDocsIndex(ctx) {
           workspace, create tickets, and run the hub.</li>
         <li><a href="/docs/cli">CLI reference</a> &mdash; the commands you'll use day to
           day, all with <code>--json</code> for agents.</li>
-        <li><a href="/docs/sync">Sync</a> &mdash; how the event log syncs through git or
-          any dumb file sync, and how <code>scope sync --remote</code> works.</li>
+        <li><a href="/docs/sync">Sync</a> &mdash; how local event storage, Scope Cloud,
+          and optional git-events mode fit together.</li>
         <li><a href="/docs/self-hosting">Self-hosting</a> &mdash; deploy the hosted hub to
           Fly with Postgres, secrets, and a volume.</li>
       </ul>
       <h2>Mental model</h2>
-      <p>The source of truth is an append-only event log under
-        <code>.scope/events/</code>. The SQLite database (<code>scope.db</code>) is a
-        cache rebuilt from that log and is gitignored. Everything else &mdash; the web UI,
-        the realtime hub, the hosted cloud &mdash; is layered on top of that log.</p>`;
+      <p>The source of truth is an append-only event log. New workspaces store that
+        log and the SQLite cache in machine-local Scope storage by default, while the
+        repo carries only a small marker. Scope Cloud and the realtime hub layer on top
+        of that log; git-carried events are an explicit advanced mode.</p>`;
   return docPage(ctx, {
     slug: '',
     title: 'Docs',
@@ -104,6 +104,9 @@ npx scope-kanban --help                 # one-shot, no install</code></pre>
 scope init                               # prompts for key + name
 # or non-interactively:
 scope init --key MA --name "My App"</code></pre>
+      <p>New workspaces keep event files out of the repo by default. Use
+        <code>scope init --git-events</code> only when you intentionally want
+        <code>.scope/events/</code> carried through git.</p>
 
       <h2>Create some tickets</h2>
       <pre><code>scope ticket create "Auth refactor" -t epic -p high
@@ -140,7 +143,7 @@ scope skills install --tool claude       # target one tool</code></pre>
 export function renderCliReference(ctx) {
   // Distilled from the README command table. Every command accepts --json.
   const rows = [
-    ['scope init [--key KEY --name NAME]', 'Create <code>.scope/</code> in the current directory. Prompts on a TTY if flags are omitted.'],
+    ['scope init [--key KEY --name NAME] [--git-events]', 'Create <code>.scope/</code> in the current directory. Defaults to machine-local event storage; <code>--git-events</code> opts into <code>.scope/events</code>.'],
     ['scope workspace show', 'Print the current workspace (key, name, description, overview).'],
     ['scope workspace set [--key] [--name] [--description] [--overview]', 'Edit workspace metadata. <code>--key</code> only affects future tickets.'],
     ['scope workspace rekey &lt;KEY&gt;', 'Change the key and reprefix every existing ticket (<code>MA-1</code> → <code>APP-1</code>).'],
@@ -206,19 +209,29 @@ scope --json status MA-7 in_progress --by claude</code></pre>
 export function renderSync(ctx) {
   const html = `
       <h1>Sync</h1>
-      <p>Scope is event-sourced. The source of truth is an append-only log under
-        <code>.scope/events/</code> &mdash; one JSON file per change, named by a
-        time-sortable ULID. <code>scope.db</code> is a cache rebuilt from that log on
-        demand; it is gitignored (via <code>.scope/.gitignore</code>, written by
-        <code>scope init</code>) and must never be committed.</p>
+      <p>Scope is event-sourced. The source of truth is an append-only log &mdash; one
+        JSON file per change, named by a time-sortable ULID. New workspaces store the
+        log and rebuildable <code>scope.db</code> cache under
+        <code>~/.scope/workspaces/&lt;id&gt;/</code> so the repo stays quiet. The repo
+        carries a small <code>.scope/workspace.json</code> marker and, when connected,
+        a safe <code>.scope/remote.json</code> pointer.</p>
 
-      <h2>Sync through git</h2>
+      <h2>Scope Cloud</h2>
+      <p>The normal sharing path is Scope Cloud. <code>scope connect</code> defaults to
+        the deployed cloud endpoint, writes the safe remote pointer, and runs the first
+        push/pull sync.</p>
+      <pre><code>scope auth login
+scope connect
+scope remote show</code></pre>
+
+      <h2>Git-events mode</h2>
       <p>Because the log is append-only and every filename is globally unique, two
         people or agents working in parallel never write the same file. Merging is just
         the union of each side's event files &mdash; exactly what <code>git pull</code>
         does for a directory of new files. There is no binary SQLite merge, so there is
         nothing to corrupt.</p>
       <pre><code># commit the log (NOT the cache)
+scope init --git-events
 git add .scope/events && git commit -m "scope: plan auth work"
 git pull          # brings in teammates' event files
 # next \`scope\` command rebuilds scope.db from the merged log — automatically
@@ -235,16 +248,16 @@ scope board</code></pre>
           de-collided at replay &mdash; the earliest creator keeps the number; a colliding
           offline create is bumped.</li>
       </ul>
-      <p>This works over any dumb file sync &mdash; git, iCloud Drive, Dropbox, Syncthing
-        &mdash; because all any of them has to do is deliver new files. No server to deploy.</p>
+      <p>This advanced mode works over any dumb file sync &mdash; git, iCloud Drive,
+        Dropbox, Syncthing &mdash; because all any of them has to do is deliver new
+        files. Move between modes with <code>scope events move-to-local</code> and
+        <code>scope events move-to-git</code>.</p>
 
       <h2>Syncing to a remote hub</h2>
-      <p>When you want sub-second live updates instead of file-sync latency, point your
-        local log at a remote hub. <code>scope sync --remote</code> walks a sync cursor
-        over the append-only stream: it pushes local events the remote hasn't acknowledged
-        and pulls remote events past your last-seen cursor, then the next command rebuilds
-        the cache from the merged log.</p>
-      <pre><code>scope sync --remote https://scope.example.com   # push + pull via the sync cursor</code></pre>
+      <p><code>scope sync</code> remains the low-level one-shot command. It walks a sync
+        cursor over the append-only stream: it pushes local events the remote hasn't
+        acknowledged and pulls remote events past your last-seen cursor.</p>
+      <pre><code>scope sync   # after scope connect has written .scope/remote.json</code></pre>
       <p>Because reconciliation is an idempotent union of immutable files, an interrupted
         sync resumes from the last acknowledged cursor &mdash; replaying twice is a no-op.
         Going offline and syncing later loses nothing; the log remains the source of truth
@@ -252,7 +265,7 @@ scope board</code></pre>
   return docPage(ctx, {
     slug: 'sync',
     title: 'Sync',
-    description: 'How the Scope event log syncs through git or any file sync, and how scope sync --remote reconciles with a hub.',
+    description: 'How Scope syncs local event storage through Scope Cloud, with optional git-events mode.',
     html,
   });
 }

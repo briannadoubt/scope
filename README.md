@@ -20,6 +20,8 @@ npx scope-kanban --help                 # one-shot, no install
 cd ~/my-app
 scope init                               # prompts for workspace key + name on a TTY
 scope workspace set --key MA --name "My App" --description "Short blurb"
+scope auth login                         # browser-approved login for Scope Cloud
+scope connect                            # creates/joins a hosted project and syncs
 scope ticket create "Auth refactor" -t epic -p high
 scope ticket create "OAuth login"   -t story --parent MA-1
 scope serve                              # → https://localhost:4321 (also https://scope.local:4321)
@@ -27,7 +29,11 @@ scope ca trust                           # one-time: trust the local CA so brows
 ```
 
 `scope init` accepts `--key MA --name "My App"` if you want to skip the prompts
-(e.g. from another agent or a non-interactive shell).
+(e.g. from another agent or a non-interactive shell). New workspaces keep their
+event log and SQLite cache in machine-local Scope storage by default, with a
+small committed `.scope/workspace.json` marker in the repo. Use
+`scope init --git-events` only when you intentionally want the event log carried
+through git.
 
 ## LAN security
 
@@ -184,26 +190,35 @@ Ticket IDs are immutable — once a ticket is created, its prefix is baked into
 its ID. Changing the workspace key after the fact leaves old tickets with the
 old prefix.
 
-## Collaboration — deploy nothing, just `git pull`
+## Collaboration and storage
 
-Scope is event-sourced. The source of truth is an **append-only log** under
-`.scope/events/` — one JSON file per change, named by a time-sortable ULID.
-`scope.db` is a **cache** rebuilt from that log on demand; it is gitignored (via
-`.scope/.gitignore`, written by `scope init`) and must never be committed.
+Scope is event-sourced. The source of truth is an **append-only log** — one JSON
+file per change, named by a time-sortable ULID. By default, new workspaces store
+that log and the rebuildable `scope.db` cache under `~/.scope/workspaces/<id>/`
+so Scope does not flood your codebase with event files. The repo carries a tiny
+`.scope/workspace.json` marker plus optional `.scope/remote.json`; secrets never
+go there.
 
-Because the log is append-only and every file name is globally unique, two
-people (or agents) working in parallel **never write the same file**. Merging is
-just the *union* of each side's event files — exactly what `git pull` does for a
-directory of new files. There is no binary SQLite merge, so there is nothing to
-corrupt:
+The normal sharing path is Scope Cloud:
 
 ```bash
-# commit the log (NOT the cache)
-git add .scope/events && git commit -m "scope: plan auth work"
-git pull          # brings in teammates' event files
-# next `scope` command rebuilds scope.db from the merged log — automatically
-scope board
+scope auth login          # stores a machine-local credential
+scope connect             # defaults to https://scope-hub.fly.dev
+scope remote show         # explains cloud target, auth, and local storage
 ```
+
+Git-carried events remain available as an advanced mode:
+
+```bash
+scope init --git-events
+scope events move-to-git
+scope events move-to-local
+scope events status
+```
+
+In git-events mode, the log lives at `.scope/events/` and `scope.db` remains a
+cache that must never be committed. Because the log is append-only and every
+file name is globally unique, merging is just the *union* of new event files.
 
 Conflicts resolve deterministically without coordination:
 
@@ -212,8 +227,8 @@ Conflicts resolve deterministically without coordination:
 - **Ticket numbers** (`SCP-42`) are display values de-collided at replay — the
   earliest creator keeps the number; a colliding offline create is bumped.
 
-This works over **any** dumb file sync — git, iCloud Drive, Dropbox, Syncthing —
-because all any of them has to do is deliver new files. No server to deploy.
+Git-events mode works over **any** dumb file sync — git, iCloud Drive, Dropbox,
+Syncthing — because all any of them has to do is deliver new files.
 
 When you *do* want sub-second live updates, run `scope serve`: the hub brokers
 changes over SSE/mTLS on a machine or LAN. That's an optimization on top of the
@@ -230,7 +245,7 @@ for the format and conflict semantics.
 
 | Command | What it does |
 |---|---|
-| `scope init [--key KEY --name NAME]` | Create `.scope/` in the current directory. Prompts on a TTY if flags are omitted. |
+| `scope init [--key KEY --name NAME] [--git-events]` | Create `.scope/` in the current directory. Defaults to machine-local event storage; `--git-events` opts into `.scope/events`. |
 | `scope workspace show` | Print the current workspace (key, name, description, overview). |
 | `scope workspace set [--key KEY] [--name NAME] [--description ...] [--overview ...]` | Edit workspace metadata. `--key` only affects future tickets. |
 | `scope workspace rekey <KEY>` | Change the key **and reprefix every existing ticket** (`MA-1` → `APP-1`). The correct way to rename a key. |
@@ -248,7 +263,9 @@ for the format and conflict semantics.
 | `scope board [--epic <id>]` | Terminal kanban view. |
 | `scope serve [-p <port>]` | Run the hub (auto-attaches to a running hub if one exists). |
 | `scope preview --port <N>` | Run a per-pane proxy to the hub. For Claude Code's `.claude/launch.json` — each pane uses a unique port so `preview_start` doesn't make panes stop each other. |
-| `scope auth login --remote <url>` | Browser-approved hosted login for this machine. Stores the key outside the repo so future syncs just work. |
+| `scope auth login [--remote <url>]` | Browser-approved hosted login for this machine. Stores the key outside the repo so future syncs just work. |
+| `scope connect [--new NAME\|--project ID]` | Connect the workspace to Scope Cloud by default, write safe `.scope/remote.json`, and run the first sync. |
+| `scope events status / move-to-local / move-to-git` | Inspect or migrate event storage between quiet local mode and git-events mode. |
 | `scope ca fingerprint / trust / untrust / path` | Manage the local certificate authority. |
 | `scope pair` | Pair a new native client (prints a one-time 6-digit code). |
 | `scope devices list / rename` | Inspect or rename paired native clients. |

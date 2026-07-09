@@ -107,7 +107,7 @@ function normUrl(url) {
  * Start the gossip engine for one workspace (SCP-114).
  *
  * @param {object} opts
- * @param {string} opts.scopeDir - the local .scope dir (event log lives here)
+ * @param {string} opts.scopeDir - the local .scope dir (event log path resolves from here)
  * @param {import('better-sqlite3').Database} opts.db - open handle on the same workspace
  * @param {() => Array<{url: string, clientCert?: object}>|Promise<Array>} opts.getPeers
  *   Returns the current peer set as https base URLs (e.g. from

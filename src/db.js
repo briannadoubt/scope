@@ -1,37 +1,24 @@
 import Database from 'better-sqlite3';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { homedir } from 'node:os';
 
 import { ulid } from './ulid.js';
 import { formatActor } from './event-schema.js';
+import { storageMode, updateScopeGitignore, workspaceDbPath } from './workspace-storage.js';
 
 export const SCOPE_DIR_NAME = '.scope';
 export const DB_FILE_NAME = 'scope.db';
 
 /**
- * Contents of `.scope/.gitignore`. The event log (`events/`) is the source of
- * truth and is meant to be committed/synced; `scope.db` (+ WAL/SHM) is a
- * rebuildable cache that must never be committed — merging a binary SQLite file
- * is what corrupts it (SCP-111).
- */
-const SCOPE_GITIGNORE = `# Scope: commit the event log (events/), never the cache.
-# scope.db is rebuilt from events/ on demand — see docs/event-log-format.md.
-scope.db
-scope.db-wal
-scope.db-shm
-`;
-
-/**
- * Ensure `.scope/.gitignore` exists so the SQLite cache can't be committed
- * while the event log stays tracked. Idempotent; only writes when missing.
+ * Ensure `.scope/.gitignore` exists for the workspace's storage mode.
+ * Idempotent; only writes when missing.
  */
 export function ensureScopeGitignore(scopeDir) {
   const path = join(scopeDir, '.gitignore');
   if (!existsSync(path)) {
     try {
       mkdirSync(scopeDir, { recursive: true });
-      writeFileSync(path, SCOPE_GITIGNORE);
+      updateScopeGitignore(scopeDir, storageMode(scopeDir));
     } catch {
       /* best-effort */
     }
@@ -100,7 +87,8 @@ export function openDb(scopeDir) {
     );
   }
   if (!existsSync(scopeDir)) mkdirSync(scopeDir, { recursive: true });
-  const dbPath = join(scopeDir, DB_FILE_NAME);
+  const dbPath = workspaceDbPath(scopeDir);
+  mkdirSync(dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   // foreign_keys is enabled AFTER migration; migrations run with FK off so

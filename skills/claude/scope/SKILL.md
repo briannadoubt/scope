@@ -67,6 +67,8 @@ Branches and PR URLs can be attached to any ticket and are surfaced in the UI.
 # one-time setup in a repo
 scope init --key MA --name "My App"
 scope workspace set --description "Short description"
+scope auth login
+scope connect
 
 # inspect
 scope workspace show
@@ -123,35 +125,24 @@ Batch ops: `create` (optional `ref`), `update {id,fields}`, `status {id,status}`
 {fields}`. If a command for what you need seems missing, ask for it to be added —
 never fall back to SQL.
 
-## Version control — commit the event log, never the cache
+## Version control and storage
 
-A `.scope/` workspace has two kinds of files:
+Scope is event-sourced. New workspaces default to quiet machine-local storage:
+the append-only event log and `scope.db` cache live under
+`~/.scope/workspaces/<id>/`, while the repo carries `.scope/workspace.json` and
+optional `.scope/remote.json`. Commit those marker/config files; credentials
+stay machine-local.
 
-- **`.scope/events/`** — the append-only event log (one JSON file per event).
-  This is the **source of truth** and **must be committed**. It's what
-  hydrates the local database, merges cleanly across branches/agents, and lets
-  any clone rebuild state.
-- **`.scope/scope.db`, `scope.db-wal`, `scope.db-shm`** — a rebuildable
-  **SQLite cache** of the event log. **Never commit these.** They're
-  machine-local, churn constantly, and corrupt merges.
+Git-carried events are an explicit advanced mode (`scope init --git-events` or
+`scope events move-to-git`). Only in that mode should `.scope/events/` be
+committed. `scope.db*` is always a rebuildable cache and must never be
+committed. Use `scope events status`, `scope events move-to-local`, and
+`scope remote show` when storage or cloud sync is unclear.
 
-`scope init` writes a `.scope/.gitignore` that already excludes the SQLite
-cache while keeping `events/`. Leave it in place and commit it.
-
-**Watch for a parent `.gitignore` that ignores all of `.scope/`.** A blanket
-`.scope/` rule in the repo-root `.gitignore` silently excludes the event log
-too — the nested `.scope/.gitignore` never runs, and the workspace's history
-never gets committed. The root rule should ignore only the cache:
-
-```gitignore
-# Scope: commit the event log (.scope/events/), never the SQLite cache.
-.scope/scope.db
-.scope/scope.db-wal
-.scope/scope.db-shm
-```
-
-Verify with `git check-ignore -v .scope/events/ .scope/scope.db` — `events/`
-should be NOT ignored, `scope.db` should be ignored.
+In git-events mode, verify with
+`git check-ignore -v .scope/events/ .scope/scope.db` — `events/` should be NOT
+ignored and `scope.db` should be ignored. In quiet local mode, `events/` is
+intentionally ignored because the authoritative log is under `~/.scope/`.
 
 ## Guardrails
 

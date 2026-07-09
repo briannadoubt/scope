@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 
 export const REMOTE_CONFIG_FILE = 'remote.json';
+export const DEFAULT_CLOUD_URL = 'https://scope-hub.fly.dev';
 
 // Credentials live OUTSIDE the repo (machine-local, per-user), keyed by hub URL —
 // NEVER in .scope/remote.json, which is committed (SCP-232/236). Same dir the
@@ -57,9 +58,9 @@ export function clearRemoteConfig(scopeDir) {
 }
 
 /**
- * Stop committing the event log: add `events/` to .scope/.gitignore so the board
- * lives on the hub (SCP-242) and the repo carries only the committed remote.json
- * pointer. Idempotent — returns true if it added the rule, false if already set.
+ * Legacy helper: add `events/` to .scope/.gitignore. New quiet workspaces use
+ * explicit storage metadata via `scope events move-to-local`; this remains as a
+ * compatibility fallback for older connect flows.
  */
 export function ignoreEventLog(scopeDir) {
   if (!scopeDir) return false;

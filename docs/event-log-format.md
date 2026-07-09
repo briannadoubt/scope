@@ -82,15 +82,28 @@ order after `ts`, nothing more is needed.
 
 ## On-disk layout
 
+New workspaces resolve their event log through storage metadata in
+`.scope/workspace.json`. The default is quiet machine-local storage:
+
 ```
-.scope/
-  scope.db            # cache — gitignored, rebuildable, never shared
-  scope.db-wal        # gitignored
-  scope.db-shm        # gitignored
-  events/             # SOURCE OF TRUTH — tracked / synced
+~/.scope/workspaces/<workspace-id>/
+  scope.db            # cache — rebuildable, never committed
+  scope.db-wal
+  scope.db-shm
+  events/             # SOURCE OF TRUTH
     01JZ9F2K7Q....json   # one event per file, named <id>.json
     01JZ9F2M3R....json
     ...
+```
+
+Git-carried events remain available with `scope init --git-events` or
+`scope events move-to-git`:
+
+```
+.scope/
+  workspace.json      # storage marker
+  scope.db            # cache — gitignored, rebuildable, never shared
+  events/             # SOURCE OF TRUTH — tracked / synced in git-events mode
 ```
 
 **One event per file** is the load-bearing decision. Because each filename is a

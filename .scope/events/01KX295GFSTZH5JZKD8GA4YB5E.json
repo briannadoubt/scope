@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KX295GFSTZH5JZKD8GA4YB5E",
+  "ts": "2026-07-09T01:51:36.441Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KWQFXBA4TNFM4K3VYCTG8MFV",
+    "commentId": "01KX295GFSTZH5JZKD8GA4YB5D",
+    "author": "codex",
+    "body": "Implemented quiet machine-local storage mode, scope connect, storage migration commands, local/web connect consolidation, docs/skills cleanup, and regression coverage. npm test passes (303 pass, 70 Postgres-gated skipped)."
+  }
+}
