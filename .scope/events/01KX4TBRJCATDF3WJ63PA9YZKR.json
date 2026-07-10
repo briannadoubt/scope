@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KX4TBRJCATDF3WJ63PA9YZKR",
+  "ts": "2026-07-10T01:30:35.980Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KWP34W7FRQ7MC3P0GSSB2BP8",
+    "commentId": "01KX4TBRJCATDF3WJ63PA9YZKQ",
+    "author": "codex",
+    "body": "Decision recorded in docs/adr/0005-mobile-sync-mode.md: iOS is a snapshot client over /api/board with authenticated live events as refresh signals; SyncEngine/SyncStore stay dormant until deliberate offline-replica work."
+  }
+}

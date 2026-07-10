@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KX4TBRTQ86MMMM8CMFZ808R8",
+  "ts": "2026-07-10T01:30:36.247Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KWP404C3WT0D7MQ9971F7RGC",
+    "commentId": "01KX4TBRTQ86MMMM8CMFZ808R7",
+    "author": "codex",
+    "body": "Remote binding path is implemented and verified: scope connect defaults to Scope Cloud, writes safe .scope/remote.json, and runs initial push/pull; connect-cli tests cover create/join behavior. This checkout remains unbound until a human runs scope auth login + scope connect with their cloud identity."
+  }
+}

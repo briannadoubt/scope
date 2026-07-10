@@ -223,6 +223,11 @@ export function renderSync(ctx) {
       <pre><code>scope auth login
 scope connect
 scope remote show</code></pre>
+      <p>If two boards have the same name, use the switcher subtitle to tell them
+        apart. A local workspace is the editable repo marker on this machine; a
+        cloud project is the hosted copy that remote clients and the iOS app read.
+        <code>scope remote show</code> reports whether the local workspace is bound
+        to that cloud project.</p>
 
       <h2>Git-events mode</h2>
       <p>Because the log is append-only and every filename is globally unique, two

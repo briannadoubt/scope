@@ -2,7 +2,9 @@ import Foundation
 
 // MARK: - SyncStore (SCP-135)
 //
-// File-based local event log + persisted ULID cursor for one workspace.
+// Dormant file-based local event log + persisted ULID cursor for one workspace.
+// The shipping app currently renders hub snapshots; see ADR 0005 for why this
+// store is not wired into `AppStore` yet.
 //
 // Layout (under the app container's Application Support dir):
 //

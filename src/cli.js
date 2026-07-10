@@ -530,7 +530,6 @@ export function buildProgram() {
     .option('-e, --edit', 'edit description in $EDITOR', false)
     .addOption(
       new Option('-s, --status <status>', 'initial status')
-        .choices(SCHEMA_STATUSES)
         .default('backlog')
     )
     .addOption(
@@ -588,7 +587,7 @@ export function buildProgram() {
     .description('List tickets, optionally filtered.')
     .option('-p, --project <key>', '(deprecated) validated against workspace key')
     .addOption(new Option('-t, --type <type>').choices(['epic', 'story', 'bug']))
-    .addOption(new Option('-s, --status <status>').choices(SCHEMA_STATUSES))
+    .addOption(new Option('-s, --status <status>', 'filter by status id'))
     .option('--parent <epicId>', 'filter by parent epic ("none" for top-level)')
     .option('--assignee <name>')
     .action((opts, cmd) => {
@@ -679,7 +678,7 @@ export function buildProgram() {
     .option('-d, --description <text>')
     .option('--description-file <path>')
     .option('-e, --edit', 'open description in $EDITOR', false)
-    .addOption(new Option('-s, --status <status>').choices(SCHEMA_STATUSES))
+    .addOption(new Option('-s, --status <status>', 'set status id'))
     .addOption(new Option('-p, --priority <priority>').choices(SCHEMA_PRIORITIES))
     .option('--parent <epicId>', 'set parent epic ("none" to clear)')
     .option('--branch <name>', 'git branch ("none" to clear)')
@@ -742,7 +741,7 @@ export function buildProgram() {
   program
     .command('status <ids> <status>')
     .description(
-      `Set a ticket's status. (${SCHEMA_STATUSES.join('|')}) ` +
+      "Set a ticket's status to any id configured in the workspace columns. " +
         'Pass a comma-separated list of ids to move several atomically.'
     )
     .option('--by <author>')

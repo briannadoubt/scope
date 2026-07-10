@@ -208,6 +208,12 @@ scope connect             # defaults to https://scope-hub.fly.dev
 scope remote show         # explains cloud target, auth, and local storage
 ```
 
+If you see two boards with the same name, check the subtitle in the board
+switcher. A **local workspace** is the editable repo marker on this machine; a
+**cloud project** is the hosted copy that remote clients and the iOS app read.
+`scope remote show` tells you whether the local workspace is bound to that cloud
+project.
+
 Git-carried events remain available as an advanced mode:
 
 ```bash

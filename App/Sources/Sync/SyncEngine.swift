@@ -2,7 +2,8 @@ import Foundation
 
 // MARK: - SyncEngine (SCP-135)
 //
-// Drives offline-first sync for one workspace against the hub (ADR 0002):
+// Dormant offline-replica sync infrastructure for one workspace against the hub
+// (ADR 0002, ADR 0005):
 //
 //   * maintains a local event log + persisted ULID cursor (via `SyncStore`),
 //   * pulls events after the cursor on connect (paginating until `more==false`),
@@ -12,19 +13,17 @@ import Foundation
 //   * consumes `renumbered` notices to rewrite DISPLAY ids in place WITHOUT
 //     dropping ULID identity.
 //
-// The engine is deliberately decoupled from `AppStore`/`HubClient`: it speaks to
-// the network through the `SyncTransport` protocol and reports applied changes
-// through the `SyncDelegate` protocol. `AppStore` adopts `SyncDelegate` to fold
-// events into its `tickets` array and to rewrite display ids on renumber. See
-// the integration notes in the PR/return message for the concrete wiring.
-//
-// UNVERIFIED: written to compile by inspection; not built against Xcode here.
+// The shipping app currently renders `/api/board` snapshots and uses the live
+// event stream as a coarse refresh signal. This engine is intentionally not
+// wired into `AppStore` until mobile needs offline-originated writes and local
+// event replay. It stays decoupled from `HubClient` through `SyncTransport` so a
+// future replica mode can be tested with a fake transport.
 
 // MARK: - Transport
 
 /// The network surface the engine needs. `HubClient` can satisfy this with a
-/// thin extension (see integration notes) so the engine never imports URLSession
-/// details and stays unit-testable with a fake transport.
+/// thin extension so the engine never imports URLSession details and stays
+/// unit-testable with a fake transport.
 protocol SyncTransport: Sendable {
     /// `GET /api/sync/pull?since=<cursor>&limit=<limit>`
     func pull(since cursor: String?, limit: Int) async throws -> PullResponse
@@ -38,9 +37,8 @@ protocol SyncTransport: Sendable {
 ///
 /// Modeled as `@MainActor`-isolated closures rather than a delegate protocol so
 /// the callbacks are `Sendable` across the engine's actor boundary and run on
-/// the main actor — exactly where `AppStore` (an `@MainActor @Observable`) wants
-/// to mutate its published state. `AppStore` supplies these when it constructs
-/// the engine (see integration notes).
+/// the main actor — exactly where `AppStore` (an `@MainActor @Observable`) would
+/// mutate its published state if replica mode is enabled.
 struct SyncHandlers: Sendable {
     /// Newly-applied events (from a pull, or a local enqueue) that the app
     /// should fold into its projections. Already deduped by ULID.

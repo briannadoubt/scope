@@ -81,6 +81,10 @@ function statusOptions() {
   return allColumns();
 }
 
+function shortId(id) {
+  return String(id || '').slice(0, 8);
+}
+
 function columnById(id) {
   return allColumns().find((c) => c.id === id) || normalizeColumn(id);
 }
@@ -581,10 +585,12 @@ function openBreadcrumbPopover() {
       item.type = 'button';
       item.className = 'pane-item';
       if (w.id === state.currentWorkspace) item.classList.add('active');
-      // Hosted entries have no scope_dir; show the caller's role instead.
+      const subtitle = hosted
+        ? ['cloud project', w.role, shortId(w.id)].filter(Boolean).join(' · ')
+        : ['local workspace', w.scope_dir].filter(Boolean).join(' · ');
       item.innerHTML = `
         <span class="pane-item-label">${w.key ? `<span class="pkey">${escapeHtml(w.key)}</span> ` : ''}${escapeHtml(w.name || w.label)}</span>
-        <span class="pane-item-sub">${hosted ? escapeHtml(w.role || '') : escapeHtml(w.scope_dir)}</span>
+        <span class="pane-item-sub">${escapeHtml(subtitle)}</span>
       `;
       item.addEventListener('click', async () => {
         if (w.id !== state.currentWorkspace) {
