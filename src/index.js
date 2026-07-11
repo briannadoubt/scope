@@ -28,7 +28,29 @@ import {
 } from './db.js';
 import { ensureEventLog } from './backfill.js';
 import { syncFromLog } from './replay.js';
-import * as repo from './repo.js';
+// Named imports (not `import * as repo` + string lookup): these are resolved at
+// link time, so renaming any of them in repo.js fails loudly at module load
+// instead of silently at first call, and IDE "rename symbol" tracks them.
+import {
+  applyBatch,
+  getWorkspace,
+  updateWorkspace,
+  rekeyWorkspace,
+  createTicket,
+  getTicket,
+  listTickets,
+  searchTickets,
+  updateTicket,
+  deleteTicket,
+  addRelation,
+  removeRelation,
+  listRelations,
+  addComment,
+  listComments,
+  listHistory,
+  listEpicChildren,
+  epicProgress,
+} from './repo.js';
 
 /* ---------------- domain vocabulary ---------------- */
 
@@ -44,28 +66,6 @@ export {
 export { DEFAULT_COLUMNS } from './columns.js';
 
 /* ---------------- stateful facade ---------------- */
-
-// Repo functions surfaced as workspace methods with `db` bound.
-const REPO_METHODS = [
-  'applyBatch',
-  'getWorkspace',
-  'updateWorkspace',
-  'rekeyWorkspace',
-  'createTicket',
-  'getTicket',
-  'listTickets',
-  'searchTickets',
-  'updateTicket',
-  'deleteTicket',
-  'addRelation',
-  'removeRelation',
-  'listRelations',
-  'addComment',
-  'listComments',
-  'listHistory',
-  'listEpicChildren',
-  'epicProgress',
-];
 
 /**
  * Open (or create) a scope workspace and return a handle with the data-layer
@@ -87,15 +87,31 @@ export function openWorkspace(scopeDir) {
   // Rebuild the cache if the on-disk log is ahead (e.g. after a git pull).
   syncFromLog(db, dir);
 
-  const handle = {
+  // Each method forwards to the data-layer function with this workspace's `db`
+  // bound as the first argument. Direct references (not string lookups) so a
+  // rename in repo.js is a real, tool-visible break, not a stale string.
+  const bind = (fn) => (...args) => fn(db, ...args);
+  return {
     db,
     scopeDir: dir,
-    close() {
-      db.close();
-    },
+    close: () => db.close(),
+    applyBatch: bind(applyBatch),
+    getWorkspace: bind(getWorkspace),
+    updateWorkspace: bind(updateWorkspace),
+    rekeyWorkspace: bind(rekeyWorkspace),
+    createTicket: bind(createTicket),
+    getTicket: bind(getTicket),
+    listTickets: bind(listTickets),
+    searchTickets: bind(searchTickets),
+    updateTicket: bind(updateTicket),
+    deleteTicket: bind(deleteTicket),
+    addRelation: bind(addRelation),
+    removeRelation: bind(removeRelation),
+    listRelations: bind(listRelations),
+    addComment: bind(addComment),
+    listComments: bind(listComments),
+    listHistory: bind(listHistory),
+    listEpicChildren: bind(listEpicChildren),
+    epicProgress: bind(epicProgress),
   };
-  for (const name of REPO_METHODS) {
-    handle[name] = (...args) => repo[name](db, ...args);
-  }
-  return handle;
 }
