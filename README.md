@@ -105,6 +105,46 @@ The little dot next to the refresh button is your live indicator:
 Clicking refresh during a red indicator triggers an active hub re-probe
 and rebuilds the SSE connection.
 
+## Programmatic API
+
+Beyond the CLI, `scope-kanban` publishes its data layer as an importable
+library. Install it as a dependency and drive a workspace from Node directly —
+no shelling out to the `scope` binary:
+
+```js
+import { openWorkspace, TICKET_TYPES } from 'scope-kanban';
+
+const ws = openWorkspace();          // finds the nearest .scope/ (like the CLI)
+const epic  = ws.createTicket({ type: 'epic',  title: 'Auth refactor', priority: 'high' });
+const story = ws.createTicket({ type: 'story', title: 'OAuth login', parent: epic.id });
+ws.updateTicket(story.id, { status: 'in_progress' }, 'claude');
+
+ws.listTickets({ status: 'in_progress' });   // → [{ id: 'MA-2', ... }]
+ws.epicProgress(epic.id);                     // → { total, counts, done, percent }
+ws.close();
+```
+
+`openWorkspace(dir)` mirrors exactly what the CLI does on each command (open the
+SQLite cache, ensure the append-only event log, replay the log if it's ahead),
+so writes persist to **both** the cache and the log — identical to
+`scope ticket create`. The handle binds the underlying `db` into every
+data-layer method (`createTicket`, `updateTicket`, `listTickets`, `applyBatch`,
+`addComment`, `epicProgress`, …).
+
+Prefer to own the database handle yourself? The same functions are exported in
+their raw `(db, ...)` form:
+
+```js
+import { openDb, createTicket } from 'scope-kanban';
+const db = openDb('/path/to/.scope');
+createTicket(db, { type: 'bug', title: 'CSRF on /signup' });
+```
+
+Two entry points are published: `scope-kanban` (the library above) and
+`scope-kanban/cli` (`run` / `buildProgram`, for embedding the commander program).
+Everything else under `src/` is private — import only through these two entries
+so internals can move without a breaking change.
+
 ## Agent integration
 
 Agents call scope via the CLI — every command supports `--json` for
@@ -339,6 +379,7 @@ npm run release 1.0.0      # explicit
 .
 ├── bin/scope.js              # CLI entrypoint
 ├── src/
+│   ├── index.js             # public library API (openWorkspace + data layer)
 │   ├── cli.js                # commander wiring
 │   ├── db.js                 # SQLite schema, migrations, id generation
 │   ├── repo.js               # data layer (emits change events)
