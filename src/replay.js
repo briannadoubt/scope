@@ -419,6 +419,8 @@ function inverse(type) {
 /**
  * Convenience: open (and migrate) the db in `scopeDir` and rebuild it from the
  * on-disk event log. Returns the open db handle.
+ * @param {string} [scopeDir]
+ * @returns {import('./types.js').Database}
  */
 export function rebuildScopeDb(scopeDir = findScopeDir() || defaultScopeDir()) {
   const db = openDb(scopeDir);

@@ -1,4 +1,8 @@
 node_modules/
+# Generated TypeScript declarations (built by `npm run build:types` /
+# `prepack`). Shipped in the npm tarball via the `files` whitelist, never
+# committed — like scope.db, it's a pure derivative of source.
+types/
 # Scope: commit the event log (.scope/events/), never the SQLite cache.
 # scope.db* is rebuilt from the event log — see .scope/.gitignore.
 .scope/scope.db

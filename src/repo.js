@@ -251,6 +251,13 @@ export function rekeyWorkspace(db, newKey, { actor = null, model = null } = {}) 
 
 /* ---------------- tickets ---------------- */
 
+/**
+ * Create a ticket in the workspace. Persists to the SQLite cache and appends a
+ * `ticket.create` event to the log.
+ * @param {import('./types.js').Database} db
+ * @param {import('./types.js').CreateTicketInput} input
+ * @returns {import('./types.js').Ticket} The created ticket.
+ */
 export function createTicket(
   db,
   {
@@ -345,6 +352,12 @@ export function createTicket(
   return created;
 }
 
+/**
+ * Fetch a single ticket by its display id (e.g. `"MA-3"`).
+ * @param {import('./types.js').Database} db
+ * @param {string} id
+ * @returns {import('./types.js').Ticket|null} The ticket, or null if absent.
+ */
 export function getTicket(db, id) {
   const row = db.prepare('SELECT * FROM tickets WHERE id = ?').get(id);
   if (!row) return null;
@@ -366,6 +379,12 @@ function safeParseJson(s, fallback) {
   }
 }
 
+/**
+ * List tickets, optionally filtered, ordered by manual rank then number.
+ * @param {import('./types.js').Database} db
+ * @param {import('./types.js').ListTicketsFilter} [filter]
+ * @returns {import('./types.js').Ticket[]}
+ */
 export function listTickets(db, { type, status, parentId, assignee } = {}) {
   const where = [];
   const params = [];
@@ -458,6 +477,10 @@ function exactTicketRef(db, raw) {
  * by relevance (FTS5 bm25, best match first). An exact key/number match is
  * floated to the top. Returns hydrated ticket rows in the same shape as
  * listTickets(). An empty / token-less query returns [].
+ * @param {import('./types.js').Database} db
+ * @param {string} query
+ * @param {{ limit?: number }} [opts]
+ * @returns {import('./types.js').Ticket[]}
  */
 export function searchTickets(db, query, { limit } = {}) {
   const match = buildFtsMatch(query);
@@ -485,6 +508,15 @@ export function searchTickets(db, query, { limit } = {}) {
   return results;
 }
 
+/**
+ * Update mutable fields on a ticket. Field names are DB column names.
+ * @param {import('./types.js').Database} db
+ * @param {string} id
+ * @param {import('./types.js').UpdateTicketFields} fields
+ * @param {string|null} [who]    Who is making the change (for the event log).
+ * @param {string|null} [model]  Optional model attribution.
+ * @returns {import('./types.js').Ticket} The updated ticket.
+ */
 export function updateTicket(db, id, fields, who = null, model = null) {
   const ticket = getTicket(db, id);
   if (!ticket) throw new Error(`Ticket not found: ${id}`);
@@ -665,6 +697,12 @@ export function removeRelation(db, fromId, toId, type, who = null, model = null)
   emitChange({ type: 'relation.removed', from: fromId, to: toId, relType: type });
 }
 
+/**
+ * List a ticket's outbound relations.
+ * @param {import('./types.js').Database} db
+ * @param {string} ticketId
+ * @returns {import('./types.js').Relation[]}
+ */
 export function listRelations(db, ticketId) {
   return db
     .prepare(
@@ -679,6 +717,15 @@ export function listRelations(db, ticketId) {
 
 /* ---------------- comments & history ---------------- */
 
+/**
+ * Add a comment to a ticket.
+ * @param {import('./types.js').Database} db
+ * @param {string} ticketId
+ * @param {string} body
+ * @param {string|null} [author]
+ * @param {string|null} [model]
+ * @returns {import('./types.js').Comment} The created comment.
+ */
 export function addComment(db, ticketId, body, author = null, model = null) {
   const t = getTicket(db, ticketId);
   if (!t) throw new Error(`Ticket not found: ${ticketId}`);
@@ -704,6 +751,12 @@ export function addComment(db, ticketId, body, author = null, model = null) {
   return { id: commentId, ticket_id: t.id, author: displayAuthor, body };
 }
 
+/**
+ * List a ticket's comments, oldest first.
+ * @param {import('./types.js').Database} db
+ * @param {string} ticketId
+ * @returns {import('./types.js').Comment[]}
+ */
 export function listComments(db, ticketId) {
   return db
     .prepare(
@@ -713,6 +766,12 @@ export function listComments(db, ticketId) {
     .all(ticketId);
 }
 
+/**
+ * List a ticket's change history, oldest first.
+ * @param {import('./types.js').Database} db
+ * @param {string} ticketId
+ * @returns {import('./types.js').HistoryEntry[]}
+ */
 export function listHistory(db, ticketId) {
   return db
     .prepare(
@@ -807,6 +866,12 @@ export function listEpicDescendants(db, epicId) {
     .map(hydrateTicket);
 }
 
+/**
+ * Roll up completion for an epic across its whole subtree.
+ * @param {import('./types.js').Database} db
+ * @param {string} epicId
+ * @returns {import('./types.js').EpicProgress}
+ */
 export function epicProgress(db, epicId) {
   // Count the work items (stories/bugs) across the whole subtree so a parent
   // epic's progress reflects everything nested beneath it, not just its direct

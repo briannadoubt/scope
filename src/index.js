@@ -39,6 +39,29 @@ import { ensureEventLog } from './backfill.js';
 import { syncFromLog } from './replay.js';
 import * as repo from './repo.js';
 
+/* ---------------- domain types ---------------- */
+
+// Re-export the JSDoc type definitions so TypeScript consumers can
+// `import type { Ticket, Workspace, WorkspaceHandle } from 'scope-kanban'`.
+/**
+ * @typedef {import('./types.js').Database} Database
+ * @typedef {import('./types.js').TicketType} TicketType
+ * @typedef {import('./types.js').Priority} Priority
+ * @typedef {import('./types.js').Status} Status
+ * @typedef {import('./types.js').RelationType} RelationType
+ * @typedef {import('./types.js').Ticket} Ticket
+ * @typedef {import('./types.js').Column} Column
+ * @typedef {import('./types.js').Workspace} Workspace
+ * @typedef {import('./types.js').CreateTicketInput} CreateTicketInput
+ * @typedef {import('./types.js').UpdateTicketFields} UpdateTicketFields
+ * @typedef {import('./types.js').ListTicketsFilter} ListTicketsFilter
+ * @typedef {import('./types.js').EpicProgress} EpicProgress
+ * @typedef {import('./types.js').Comment} Comment
+ * @typedef {import('./types.js').Relation} Relation
+ * @typedef {import('./types.js').HistoryEntry} HistoryEntry
+ * @typedef {import('./types.js').WorkspaceHandle} WorkspaceHandle
+ */
+
 /* ---------------- raw functional API ---------------- */
 
 // Data layer — every function takes a `db` handle (from `openDb`) as its first
@@ -145,10 +168,10 @@ const REPO_METHODS = [
  *
  * @param {string} [scopeDir] Path to the `.scope/` directory. Defaults to the
  *   nearest one at or above `process.cwd()`, then to `<cwd>/.scope`.
- * @returns {object} A handle exposing `db`, `scopeDir`, `close()`, and every
- *   data-layer method (`createTicket`, `updateTicket`, `listTickets`, …) with
- *   the underlying `db` pre-bound, so you call `ws.createTicket({...})` instead
- *   of `createTicket(db, {...})`.
+ * @returns {import('./types.js').WorkspaceHandle} A handle exposing `db`,
+ *   `scopeDir`, `close()`, and every data-layer method (`createTicket`,
+ *   `updateTicket`, `listTickets`, …) with the underlying `db` pre-bound, so
+ *   you call `ws.createTicket({...})` instead of `createTicket(db, {...})`.
  */
 export function openWorkspace(scopeDir) {
   const dir = scopeDir ?? findScopeDir() ?? defaultScopeDir();

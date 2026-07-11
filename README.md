@@ -145,6 +145,12 @@ Two entry points are published: `scope-kanban` (the library above) and
 Everything else under `src/` is private — import only through these two entries
 so internals can move without a breaking change.
 
+**TypeScript types ship with the package.** Scope is authored in JS + JSDoc;
+`npm run build:types` emits `types/*.d.ts` (wired into `prepack`, so every
+publish includes them). Consumers get real autocomplete and checking — ticket
+fields, the `epic|story|bug` / priority / status unions, and the
+`WorkspaceHandle` shape are all typed, no `@types/scope-kanban` needed.
+
 ## Agent integration
 
 Agents call scope via the CLI — every command supports `--json` for
@@ -357,7 +363,8 @@ Every command accepts `--json` for machine-readable output.
 [`.github/workflows/release.yml`](.github/workflows/release.yml) takes over:
 
 1. Verifies tag matches `package.json`.
-2. `npm publish --provenance --access public` to the npm registry.
+2. Builds the TypeScript declarations (`npm run build:types`; also runs via
+   `prepack` on publish) and `npm publish --provenance --access public` to npm.
 3. Fetches the GitHub source tarball and computes its sha256.
 4. Patches [`Formula/scope.rb`](Formula/scope.rb) and pushes it into
    [`briannadoubt/homebrew-tap`](https://github.com/briannadoubt/homebrew-tap)
@@ -380,6 +387,7 @@ npm run release 1.0.0      # explicit
 ├── bin/scope.js              # CLI entrypoint
 ├── src/
 │   ├── index.js             # public library API (openWorkspace + data layer)
+│   ├── types.js             # JSDoc typedefs → shipped .d.ts (build:types)
 │   ├── cli.js                # commander wiring
 │   ├── db.js                 # SQLite schema, migrations, id generation
 │   ├── repo.js               # data layer (emits change events)
