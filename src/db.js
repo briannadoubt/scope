@@ -80,8 +80,6 @@ function deriveDefaultKey(scopeDir) {
 /**
  * Open (or create) the SQLite database in the given .scope dir.
  * Runs migrations on open.
- * @param {string} scopeDir  Path to the `.scope/` directory.
- * @returns {import('./types.js').Database}
  */
 export function openDb(scopeDir) {
   if (!scopeDir) {
@@ -741,8 +739,6 @@ export function nowIso() {
 
 /**
  * Return the singleton workspace row. Throws if missing.
- * @param {import('./types.js').Database} db
- * @returns {import('./types.js').Workspace}
  */
 export function getWorkspace(db) {
   const row = db.prepare('SELECT * FROM workspace WHERE id = 1').get();

@@ -134,26 +134,19 @@ data-layer method (`createTicket`, `updateTicket`, `listTickets`, `applyBatch`,
 `addComment`, `epicProgress`, …).
 
 Alongside the handle, the root also exports the domain **vocabulary**
-(`TICKET_TYPES`, `STATUSES`, `PRIORITIES`, `RELATION_TYPES`, `DEFAULT_COLUMNS`)
-and all the **types** — enough to build UIs and validate input without reaching
-into internals.
+(`TICKET_TYPES`, `STATUSES`, `PRIORITIES`, `RELATION_TYPES`, `DEFAULT_COLUMNS`) —
+enough to build UIs and validate input without reaching into internals.
 
 ### Published entry points
 
 | Entry | For |
 |---|---|
-| `scope-kanban` | The stable library above — `openWorkspace`, vocabulary, types. Semver-guarded. |
+| `scope-kanban` | The library above — `openWorkspace` plus the domain vocabulary. |
 | `scope-kanban/cli` | `run` / `buildProgram`, for embedding the commander program. |
 
 The surface is intentionally small: one runtime entry, not a function per table.
 Everything else under `src/` is private, so internals can move without a
 breaking change.
-
-**TypeScript types ship with the package.** Scope is authored in JS + JSDoc;
-`npm run build:types` emits `types/*.d.ts` (wired into `prepack`, so every
-publish includes them). Consumers get real autocomplete and checking — ticket
-fields, the `epic|story|bug` / priority / status unions, and the
-`WorkspaceHandle` shape are all typed, no `@types/scope-kanban` needed.
 
 ## Agent integration
 
@@ -367,8 +360,7 @@ Every command accepts `--json` for machine-readable output.
 [`.github/workflows/release.yml`](.github/workflows/release.yml) takes over:
 
 1. Verifies tag matches `package.json`.
-2. Builds the TypeScript declarations (`npm run build:types`; also runs via
-   `prepack` on publish) and `npm publish --provenance --access public` to npm.
+2. `npm publish --provenance --access public` to the npm registry.
 3. Fetches the GitHub source tarball and computes its sha256.
 4. Patches [`Formula/scope.rb`](Formula/scope.rb) and pushes it into
    [`briannadoubt/homebrew-tap`](https://github.com/briannadoubt/homebrew-tap)
@@ -390,8 +382,7 @@ npm run release 1.0.0      # explicit
 .
 ├── bin/scope.js              # CLI entrypoint
 ├── src/
-│   ├── index.js             # public library API (openWorkspace + vocab + types)
-│   ├── types.js             # JSDoc typedefs → shipped .d.ts (build:types)
+│   ├── index.js             # public library API (openWorkspace + vocab)
 │   ├── cli.js                # commander wiring
 │   ├── db.js                 # SQLite schema, migrations, id generation
 │   ├── repo.js               # data layer (emits change events)

@@ -6,9 +6,7 @@
  * therefore never drift apart.
  */
 
-/** @type {readonly ['epic', 'story', 'bug']} */
 export const TICKET_TYPES = Object.freeze(['epic', 'story', 'bug']);
-/** @type {readonly ['backlog', 'todo', 'in_progress', 'in_review', 'done', 'cancelled']} */
 export const STATUSES = Object.freeze([
   'backlog',
   'todo',
@@ -17,9 +15,7 @@ export const STATUSES = Object.freeze([
   'done',
   'cancelled',
 ]);
-/** @type {readonly ['low', 'medium', 'high', 'urgent']} */
 export const PRIORITIES = Object.freeze(['low', 'medium', 'high', 'urgent']);
-/** @type {readonly ['blocks', 'blocked_by', 'relates_to', 'duplicates', 'duplicate_of']} */
 export const RELATION_TYPES = Object.freeze([
   'blocks',
   'blocked_by',

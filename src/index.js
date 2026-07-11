@@ -3,10 +3,9 @@
  *
  * This module is the package's `.` entry point (see `exports` in package.json).
  * The supported surface is deliberately small: one runtime entry
- * ({@link openWorkspace}), the domain vocabulary as values, and the domain
- * types. Everything is reached through the workspace handle — there is one
- * obvious way to do things, and the SQLite/event-log machinery underneath
- * stays private.
+ * ({@link openWorkspace}) plus the domain vocabulary as values. Everything is
+ * reached through the workspace handle — there is one obvious way to do things,
+ * and the SQLite/event-log machinery underneath stays private.
  *
  *     import { openWorkspace } from 'scope-kanban';
  *     const ws = openWorkspace();               // finds the nearest .scope/
@@ -31,28 +30,6 @@ import { ensureEventLog } from './backfill.js';
 import { syncFromLog } from './replay.js';
 import * as repo from './repo.js';
 
-/* ---------------- domain types ---------------- */
-
-// Re-export the JSDoc type definitions so TypeScript consumers can
-// `import type { Ticket, Workspace, WorkspaceHandle } from 'scope-kanban'`.
-/**
- * @typedef {import('./types.js').TicketType} TicketType
- * @typedef {import('./types.js').Priority} Priority
- * @typedef {import('./types.js').Status} Status
- * @typedef {import('./types.js').RelationType} RelationType
- * @typedef {import('./types.js').Ticket} Ticket
- * @typedef {import('./types.js').Column} Column
- * @typedef {import('./types.js').Workspace} Workspace
- * @typedef {import('./types.js').CreateTicketInput} CreateTicketInput
- * @typedef {import('./types.js').UpdateTicketFields} UpdateTicketFields
- * @typedef {import('./types.js').ListTicketsFilter} ListTicketsFilter
- * @typedef {import('./types.js').EpicProgress} EpicProgress
- * @typedef {import('./types.js').Comment} Comment
- * @typedef {import('./types.js').Relation} Relation
- * @typedef {import('./types.js').HistoryEntry} HistoryEntry
- * @typedef {import('./types.js').WorkspaceHandle} WorkspaceHandle
- */
-
 /* ---------------- domain vocabulary ---------------- */
 
 // The frozen enums the data model validates against, plus the default board
@@ -68,9 +45,7 @@ export { DEFAULT_COLUMNS } from './columns.js';
 
 /* ---------------- stateful facade ---------------- */
 
-// Repo functions surfaced as workspace methods with `db` bound. Kept as a name
-// list so the facade stays in lockstep with the WorkspaceHandle typedef in
-// types.js — both must list the same methods.
+// Repo functions surfaced as workspace methods with `db` bound.
 const REPO_METHODS = [
   'applyBatch',
   'getWorkspace',
@@ -99,10 +74,10 @@ const REPO_METHODS = [
  *
  * @param {string} [scopeDir] Path to the `.scope/` directory. Defaults to the
  *   nearest one at or above `process.cwd()`, then to `<cwd>/.scope`.
- * @returns {import('./types.js').WorkspaceHandle} A handle exposing `db`,
- *   `scopeDir`, `close()`, and the data-layer methods (`createTicket`,
- *   `updateTicket`, `listTickets`, …) with the underlying `db` pre-bound, so
- *   you call `ws.createTicket({...})` instead of `createTicket(db, {...})`.
+ * @returns A handle exposing `db`, `scopeDir`, `close()`, and the data-layer
+ *   methods (`createTicket`, `updateTicket`, `listTickets`, …) with the
+ *   underlying `db` pre-bound, so you call `ws.createTicket({...})` instead of
+ *   `createTicket(db, {...})`.
  */
 export function openWorkspace(scopeDir) {
   const dir = scopeDir ?? findScopeDir() ?? defaultScopeDir();

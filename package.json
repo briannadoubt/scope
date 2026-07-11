@@ -7,16 +7,9 @@
     "scope": "./bin/scope.js"
   },
   "main": "./src/index.js",
-  "types": "./types/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./types/index.d.ts",
-      "default": "./src/index.js"
-    },
-    "./cli": {
-      "types": "./types/cli.d.ts",
-      "default": "./src/cli.js"
-    },
+    ".": "./src/index.js",
+    "./cli": "./src/cli.js",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -24,15 +17,12 @@
     "serve": "node ./bin/scope.js serve",
     "test": "node --test --import=./test/setup.js test/*.test.js",
     "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude='test/**' --test-coverage-exclude='src/web/**' --import=./test/setup.js test/*.test.js",
-    "build:types": "tsc -p tsconfig.types.json",
-    "prepack": "npm run build:types",
     "release": "bash ./scripts/release.sh"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "better-sqlite3": "^12.10.0",
     "bonjour-service": "^1.4.0",
     "chalk": "^5.3.0",
@@ -42,13 +32,9 @@
     "open": "^10.1.0",
     "pg": "^8.21.0"
   },
-  "devDependencies": {
-    "typescript": "^5.9.3"
-  },
   "files": [
     "bin",
     "src",
-    "types",
     "plugins",
     "skills",
     "LICENSE"

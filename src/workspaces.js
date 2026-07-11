@@ -110,9 +110,6 @@ export class WorkspaceManager {
   /**
    * Attach a workspace. Idempotent — re-attaching a known scope_dir updates
    * the label (if provided) and returns the existing entry.
-   * @param {string} scopeDir
-   * @param {{ label?: string, persist?: boolean, broadcast?: boolean }} [opts]
-   * @returns {object} The workspace registry entry (holds the open db handle).
    */
   attach(scopeDir, { label, persist = true, broadcast = true } = {}) {
     const abs = resolve(scopeDir);

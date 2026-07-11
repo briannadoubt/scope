@@ -56,13 +56,6 @@ jobs:
           node bin/scope.js --version
           node bin/scope.js --help | head -5
 
-      - name: Build type declarations
-        # Generates types/*.d.ts from the JS + JSDoc sources. `npm publish`
-        # would also run this via the `prepack` hook, but doing it explicitly
-        # here fails the release loudly on a type regression instead of burying
-        # the error inside pack. The `files` whitelist ships the `types/` dir.
-        run: npm run build:types
-
       - name: Publish to npm
         # Provenance still works (uses OIDC) — we just need NODE_AUTH_TOKEN
         # for auth because Trusted Publishing wasn't available for this
