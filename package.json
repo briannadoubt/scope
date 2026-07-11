@@ -17,6 +17,10 @@
       "types": "./types/cli.d.ts",
       "default": "./src/cli.js"
     },
+    "./unstable": {
+      "types": "./types/unstable.d.ts",
+      "default": "./src/unstable.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

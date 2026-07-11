@@ -163,12 +163,10 @@
  * @property {Database} db          The underlying better-sqlite3 handle.
  * @property {string} scopeDir      Absolute path to the `.scope/` directory.
  * @property {() => void} close     Close the database handle.
- * @property {(ops: object[], meta?: { actor?: string, model?: string|null }) => object} applyBatch
+ * @property {(ops: object[], meta?: { actor?: string, model?: string|null }) => { applied: number, results: any[], refs: object }} applyBatch
  * @property {() => Workspace} getWorkspace
- * @property {(fields?: Partial<Workspace>) => Workspace} setWorkspace
- * @property {() => Workspace[]} listWorkspaces
  * @property {(fields?: Partial<Workspace>, who?: string|null, model?: string|null) => Workspace} updateWorkspace
- * @property {(newKey: string, meta?: { actor?: string, model?: string|null }) => Workspace} rekeyWorkspace
+ * @property {(newKey: string, meta?: { actor?: string, model?: string|null }) => { key: string, reprefixed: number }} rekeyWorkspace
  * @property {(input: CreateTicketInput) => Ticket} createTicket
  * @property {(id: string) => Ticket|null} getTicket
  * @property {(filter?: ListTicketsFilter) => Ticket[]} listTickets
@@ -181,10 +179,7 @@
  * @property {(ticketId: string, body: string, author?: string|null, model?: string|null) => Comment} addComment
  * @property {(ticketId: string) => Comment[]} listComments
  * @property {(ticketId: string) => HistoryEntry[]} listHistory
- * @property {(opts?: { limit?: number, before?: string, beforeId?: number }) => object[]} listWorkspaceHistory
  * @property {(epicId: string) => Ticket[]} listEpicChildren
- * @property {(epicId: string) => string[]} epicSubtreeIds
- * @property {(epicId: string) => Ticket[]} listEpicDescendants
  * @property {(epicId: string) => EpicProgress} epicProgress
  */
 

@@ -124,26 +124,43 @@ ws.epicProgress(epic.id);                     // → { total, counts, done, perc
 ws.close();
 ```
 
-`openWorkspace(dir)` mirrors exactly what the CLI does on each command (open the
-SQLite cache, ensure the append-only event log, replay the log if it's ahead),
-so writes persist to **both** the cache and the log — identical to
+`openWorkspace()` is the **one** entry point — every operation hangs off the
+returned handle, so there's a single obvious way to do things and the storage
+engine stays hidden. It mirrors exactly what the CLI does on each command (open
+the SQLite cache, ensure the append-only event log, replay the log if it's
+ahead), so writes persist to **both** the cache and the log — identical to
 `scope ticket create`. The handle binds the underlying `db` into every
 data-layer method (`createTicket`, `updateTicket`, `listTickets`, `applyBatch`,
 `addComment`, `epicProgress`, …).
 
-Prefer to own the database handle yourself? The same functions are exported in
-their raw `(db, ...)` form:
+Alongside the handle, the root also exports the domain **vocabulary**
+(`TICKET_TYPES`, `STATUSES`, `PRIORITIES`, `RELATION_TYPES`, `DEFAULT_COLUMNS`)
+and all the **types** — enough to build UIs and validate input without reaching
+into internals.
+
+### Published entry points
+
+| Entry | For |
+|---|---|
+| `scope-kanban` | The stable library above — `openWorkspace`, vocabulary, types. Semver-guarded. |
+| `scope-kanban/cli` | `run` / `buildProgram`, for embedding the commander program. |
+| `scope-kanban/unstable` | ⚠️ **Unversioned.** Raw `(db, …)` data-layer functions and `openDb` for advanced embedders who want to own the `better-sqlite3` handle. May change in any release. |
+
+The surface is intentionally small: one runtime entry, not a function per table.
+The raw functional API lives behind `scope-kanban/unstable` because `openDb`
+alone opens the SQLite cache *without* the event-log wiring `openWorkspace` does
+for you — take that subpath only if you accept replaying the log yourself.
+Everything else under `src/` is private, so internals can move without a
+breaking change.
 
 ```js
-import { openDb, createTicket } from 'scope-kanban';
+// advanced: bring your own db handle (unversioned surface)
+import { openDb, ensureEventLog, syncFromLog, createTicket } from 'scope-kanban/unstable';
 const db = openDb('/path/to/.scope');
+ensureEventLog(db, '/path/to/.scope');
+syncFromLog(db, '/path/to/.scope');
 createTicket(db, { type: 'bug', title: 'CSRF on /signup' });
 ```
-
-Two entry points are published: `scope-kanban` (the library above) and
-`scope-kanban/cli` (`run` / `buildProgram`, for embedding the commander program).
-Everything else under `src/` is private — import only through these two entries
-so internals can move without a breaking change.
 
 **TypeScript types ship with the package.** Scope is authored in JS + JSDoc;
 `npm run build:types` emits `types/*.d.ts` (wired into `prepack`, so every
@@ -386,7 +403,8 @@ npm run release 1.0.0      # explicit
 .
 ├── bin/scope.js              # CLI entrypoint
 ├── src/
-│   ├── index.js             # public library API (openWorkspace + data layer)
+│   ├── index.js             # public library API (openWorkspace + vocab + types)
+│   ├── unstable.js          # unversioned raw (db,…) escape hatch
 │   ├── types.js             # JSDoc typedefs → shipped .d.ts (build:types)
 │   ├── cli.js                # commander wiring
 │   ├── db.js                 # SQLite schema, migrations, id generation
