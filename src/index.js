@@ -21,14 +21,8 @@
  */
 
 import { existsSync } from 'node:fs';
-import {
-  openDb,
-  findScopeDir,
-  defaultScopeDir,
-  ensureScopeGitignore,
-} from './db.js';
-import { ensureEventLog } from './backfill.js';
-import { syncFromLog } from './replay.js';
+import { findScopeDir, defaultScopeDir } from './db.js';
+import { openWorkspaceDb } from './workspace-open.js';
 // Named imports (not `import * as repo` + string lookup): these are resolved at
 // link time, so renaming any of them in repo.js fails loudly at module load
 // instead of silently at first call, and IDE "rename symbol" tracks them.
@@ -112,11 +106,8 @@ export function openWorkspace(scopeDir, { create = false } = {}) {
  * log the same way the CLI does on every command, and return the bound handle.
  */
 function openAt(dir) {
-  const db = openDb(dir);
-  ensureScopeGitignore(dir);
-  ensureEventLog(db, dir);
-  // Rebuild the cache if the on-disk log is ahead (e.g. after a git pull).
-  syncFromLog(db, dir);
+  // Shared with the CLI and the hub registry — see workspace-open.js.
+  const { db } = openWorkspaceDb(dir);
 
   // Each method forwards to the data-layer function with this workspace's `db`
   // bound as the first argument. Direct references (not string lookups) so a

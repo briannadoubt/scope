@@ -22,8 +22,7 @@ import {
   SCOPE_DIR_NAME,
   DB_FILE_NAME,
 } from './db.js';
-import { ensureEventLog } from './backfill.js';
-import { syncFromLog } from './replay.js';
+import { openWorkspaceDb } from './workspace-open.js';
 import { syncWithRemote } from './sync-client.js';
 import { startRemoteSync } from './remote-sync.js';
 import {
@@ -95,11 +94,9 @@ function openOrDie() {
     );
     process.exit(1);
   }
-  const db = openDb(dir);
-  ensureScopeGitignore(dir); // existing workspaces get the ignore rules on first use
-  ensureEventLog(db, dir);
-  syncFromLog(db, dir); // rebuild the cache if the log is ahead (e.g. after a pull)
-  return { db, scopeDir: dir };
+  // Shared "open a workspace" sequence — see workspace-open.js. Same path the
+  // hub registry and the library facade use, so the three can't drift.
+  return openWorkspaceDb(dir);
 }
 
 function out(cmd, data, formatter) {
