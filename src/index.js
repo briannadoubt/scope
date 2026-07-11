@@ -20,6 +20,7 @@
  * like `scope ticket create` would.
  */
 
+import { existsSync } from 'node:fs';
 import {
   openDb,
   findScopeDir,
@@ -68,19 +69,49 @@ export { DEFAULT_COLUMNS } from './columns.js';
 /* ---------------- stateful facade ---------------- */
 
 /**
- * Open (or create) a scope workspace and return a handle with the data-layer
- * API bound to it. This is the one entry point — every operation hangs off the
- * returned handle.
+ * Open a scope workspace and return a handle with the data-layer API bound to
+ * it. This is the one entry point — every operation hangs off the returned
+ * handle.
+ *
+ * Opening never creates a workspace implicitly: if none is found the call
+ * throws, mirroring the CLI (which requires `scope init`). This keeps library
+ * writes from landing in an accidental board — e.g. when run from the wrong
+ * directory, or when `SCOPE_DIR` is missing or typoed. Pass `{ create: true }`
+ * to opt into creating the workspace when it doesn't exist yet.
  *
  * @param {string} [scopeDir] Path to the `.scope/` directory. Defaults to the
- *   nearest one at or above `process.cwd()`, then to `<cwd>/.scope`.
- * @returns A handle exposing `db`, `scopeDir`, `close()`, and the data-layer
- *   methods (`createTicket`, `updateTicket`, `listTickets`, …) with the
- *   underlying `db` pre-bound, so you call `ws.createTicket({...})` instead of
- *   `createTicket(db, {...})`.
+ *   nearest existing one at or above `process.cwd()` (honoring `SCOPE_DIR`).
+ * @param {{ create?: boolean }} [opts]
+ * @param {boolean} [opts.create=false] Create the workspace if it doesn't
+ *   exist. When set with no `scopeDir`, creates at `SCOPE_DIR` or `<cwd>/.scope`.
+ * @returns A handle exposing `scopeDir`, `close()`, and the data-layer methods
+ *   (`createTicket`, `updateTicket`, `listTickets`, …) with the underlying `db`
+ *   pre-bound, so you call `ws.createTicket({...})` instead of
+ *   `createTicket(db, {...})`. The raw `db` handle is intentionally not exposed
+ *   — writing to it directly would bypass the event log and be lost on the next
+ *   cache rebuild.
+ * @throws {Error} If no workspace is found and `create` is not set.
  */
-export function openWorkspace(scopeDir) {
-  const dir = scopeDir ?? findScopeDir() ?? defaultScopeDir();
+export function openWorkspace(scopeDir, { create = false } = {}) {
+  const dir = scopeDir ?? findScopeDir();
+  if (dir && existsSync(dir)) return openAt(dir);
+  if (!create) {
+    const where = scopeDir
+      ? `at "${scopeDir}"`
+      : 'at or above the current directory';
+    throw new Error(
+      `No .scope/ workspace found ${where}. Run \`scope init\`, pass the path ` +
+        `to an existing workspace, or call openWorkspace(dir, { create: true }).`
+    );
+  }
+  return openAt(scopeDir ?? defaultScopeDir());
+}
+
+/**
+ * Open (and, if absent, materialize) the workspace at `dir`, wiring the event
+ * log the same way the CLI does on every command, and return the bound handle.
+ */
+function openAt(dir) {
   const db = openDb(dir);
   ensureScopeGitignore(dir);
   ensureEventLog(db, dir);
@@ -89,10 +120,10 @@ export function openWorkspace(scopeDir) {
 
   // Each method forwards to the data-layer function with this workspace's `db`
   // bound as the first argument. Direct references (not string lookups) so a
-  // rename in repo.js is a real, tool-visible break, not a stale string.
+  // rename in repo.js is a real, tool-visible break, not a stale string. `db`
+  // is kept in this closure and deliberately not exposed on the handle.
   const bind = (fn) => (...args) => fn(db, ...args);
   return {
-    db,
     scopeDir: dir,
     close: () => db.close(),
     applyBatch: bind(applyBatch),

@@ -114,7 +114,7 @@ no shelling out to the `scope` binary:
 ```js
 import { openWorkspace, TICKET_TYPES } from 'scope-kanban';
 
-const ws = openWorkspace();          // finds the nearest .scope/ (like the CLI)
+const ws = openWorkspace();          // opens the nearest existing .scope/ (like the CLI)
 const epic  = ws.createTicket({ type: 'epic',  title: 'Auth refactor', priority: 'high' });
 const story = ws.createTicket({ type: 'story', title: 'OAuth login', parent: epic.id });
 ws.updateTicket(story.id, { status: 'in_progress' }, 'claude');
@@ -129,9 +129,18 @@ returned handle, so there's a single obvious way to do things and the storage
 engine stays hidden. It mirrors exactly what the CLI does on each command (open
 the SQLite cache, ensure the append-only event log, replay the log if it's
 ahead), so writes persist to **both** the cache and the log — identical to
-`scope ticket create`. The handle binds the underlying `db` into every
-data-layer method (`createTicket`, `updateTicket`, `listTickets`, `applyBatch`,
-`addComment`, `epicProgress`, …).
+`scope ticket create`. Each handle method forwards to the data layer with the
+workspace's `db` pre-bound; the raw `db` is **not** exposed, since writing to it
+directly would bypass the event log and be lost on the next cache rebuild.
+
+Like the CLI, opening never creates a workspace implicitly — it throws if none
+is found, so library writes can't land in an accidental board. Pass
+`{ create: true }` to bootstrap one:
+
+```js
+const ws = openWorkspace('./.scope', { create: true });
+ws.updateWorkspace({ key: 'MA', name: 'My App' });
+```
 
 Alongside the handle, the root also exports the domain **vocabulary**
 (`TICKET_TYPES`, `STATUSES`, `PRIORITIES`, `RELATION_TYPES`, `DEFAULT_COLUMNS`) —
