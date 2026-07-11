@@ -19,11 +19,6 @@
  * the SQLite cache, ensure the append-only event log, replay the log if it's
  * ahead of the cache), so writes persist to both the cache and the log just
  * like `scope ticket create` would.
- *
- * Need to bring your own `better-sqlite3` handle or call the raw `(db, …)`
- * data-layer functions directly? Those live behind the explicitly *unversioned*
- * `scope-kanban/unstable` subpath — they skip the event-log wiring above, so
- * they're for advanced embedders who accept that responsibility.
  */
 
 import {

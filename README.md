@@ -144,23 +144,10 @@ into internals.
 |---|---|
 | `scope-kanban` | The stable library above — `openWorkspace`, vocabulary, types. Semver-guarded. |
 | `scope-kanban/cli` | `run` / `buildProgram`, for embedding the commander program. |
-| `scope-kanban/unstable` | ⚠️ **Unversioned.** Raw `(db, …)` data-layer functions and `openDb` for advanced embedders who want to own the `better-sqlite3` handle. May change in any release. |
 
 The surface is intentionally small: one runtime entry, not a function per table.
-The raw functional API lives behind `scope-kanban/unstable` because `openDb`
-alone opens the SQLite cache *without* the event-log wiring `openWorkspace` does
-for you — take that subpath only if you accept replaying the log yourself.
 Everything else under `src/` is private, so internals can move without a
 breaking change.
-
-```js
-// advanced: bring your own db handle (unversioned surface)
-import { openDb, ensureEventLog, syncFromLog, createTicket } from 'scope-kanban/unstable';
-const db = openDb('/path/to/.scope');
-ensureEventLog(db, '/path/to/.scope');
-syncFromLog(db, '/path/to/.scope');
-createTicket(db, { type: 'bug', title: 'CSRF on /signup' });
-```
 
 **TypeScript types ship with the package.** Scope is authored in JS + JSDoc;
 `npm run build:types` emits `types/*.d.ts` (wired into `prepack`, so every
@@ -404,7 +391,6 @@ npm run release 1.0.0      # explicit
 ├── bin/scope.js              # CLI entrypoint
 ├── src/
 │   ├── index.js             # public library API (openWorkspace + vocab + types)
-│   ├── unstable.js          # unversioned raw (db,…) escape hatch
 │   ├── types.js             # JSDoc typedefs → shipped .d.ts (build:types)
 │   ├── cli.js                # commander wiring
 │   ├── db.js                 # SQLite schema, migrations, id generation
