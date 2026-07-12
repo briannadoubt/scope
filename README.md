@@ -105,6 +105,58 @@ The little dot next to the refresh button is your live indicator:
 Clicking refresh during a red indicator triggers an active hub re-probe
 and rebuilds the SSE connection.
 
+## Programmatic API
+
+Beyond the CLI, `scope-kanban` publishes its data layer as an importable
+library. Install it as a dependency and drive a workspace from Node directly —
+no shelling out to the `scope` binary:
+
+```js
+import { openWorkspace, TICKET_TYPES } from 'scope-kanban';
+
+const ws = openWorkspace();          // opens the nearest existing .scope/ (like the CLI)
+const epic  = ws.createTicket({ type: 'epic',  title: 'Auth refactor', priority: 'high' });
+const story = ws.createTicket({ type: 'story', title: 'OAuth login', parent: epic.id });
+ws.updateTicket(story.id, { status: 'in_progress' }, 'claude');
+
+ws.listTickets({ status: 'in_progress' });   // → [{ id: 'MA-2', ... }]
+ws.epicProgress(epic.id);                     // → { total, counts, done, percent }
+ws.close();
+```
+
+`openWorkspace()` is the **one** entry point — every operation hangs off the
+returned handle, so there's a single obvious way to do things and the storage
+engine stays hidden. It mirrors exactly what the CLI does on each command (open
+the SQLite cache, ensure the append-only event log, replay the log if it's
+ahead), so writes persist to **both** the cache and the log — identical to
+`scope ticket create`. Each handle method forwards to the data layer with the
+workspace's `db` pre-bound; the raw `db` is **not** exposed, since writing to it
+directly would bypass the event log and be lost on the next cache rebuild.
+
+Like the CLI, opening never creates a workspace implicitly — it throws if none
+is found, so library writes can't land in an accidental board. Pass
+`{ create: true }` to bootstrap one:
+
+```js
+const ws = openWorkspace('./.scope', { create: true });
+ws.updateWorkspace({ key: 'MA', name: 'My App' });
+```
+
+Alongside the handle, the root also exports the domain **vocabulary**
+(`TICKET_TYPES`, `STATUSES`, `PRIORITIES`, `RELATION_TYPES`, `DEFAULT_COLUMNS`) —
+enough to build UIs and validate input without reaching into internals.
+
+### Published entry points
+
+| Entry | For |
+|---|---|
+| `scope-kanban` | The library above — `openWorkspace` plus the domain vocabulary. |
+| `scope-kanban/cli` | `run` / `buildProgram`, for embedding the commander program. |
+
+The surface is intentionally small: one runtime entry, not a function per table.
+Everything else under `src/` is private, so internals can move without a
+breaking change.
+
 ## Agent integration
 
 Agents call scope via the CLI — every command supports `--json` for
@@ -339,6 +391,7 @@ npm run release 1.0.0      # explicit
 .
 ├── bin/scope.js              # CLI entrypoint
 ├── src/
+│   ├── index.js             # public library API (openWorkspace + vocab)
 │   ├── cli.js                # commander wiring
 │   ├── db.js                 # SQLite schema, migrations, id generation
 │   ├── repo.js               # data layer (emits change events)
