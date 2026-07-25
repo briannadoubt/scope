@@ -17,6 +17,7 @@ const state = {
   drawerTicketId: null,
   groupBy: localStorage.getItem('scope.groupBy') || 'none',
   showDoneEpics: localStorage.getItem('scope.showDoneEpics') === 'true',
+  hideDoneTickets: localStorage.getItem('scope.hideDoneTickets') === 'true',
   autoScroll: localStorage.getItem('scope.autoScroll') !== 'false',
   allEpics: [],
   collapsedLanes: new Set(
@@ -315,8 +316,20 @@ function updateViewTrigger() {
     bits.push(state.groupBy.charAt(0).toUpperCase() + state.groupBy.slice(1));
   }
   if (state.epicFilter) bits.push(state.epicFilter);
+  if (state.hideDoneTickets) bits.push('Done hidden');
   label.textContent = bits.length ? bits.join(' · ') : 'View';
   document.getElementById('view-trigger').classList.toggle('active', bits.length > 0);
+}
+
+function setHideDoneTickets(on) {
+  state.hideDoneTickets = on;
+  localStorage.setItem('scope.hideDoneTickets', String(on));
+  // Re-sync the view popover's checkbox if it's currently open (the "N hidden"
+  // placeholder can flip this while the popover is up).
+  const cb = document.getElementById('vp-hidedone');
+  if (cb) cb.checked = on;
+  updateViewTrigger();
+  renderBoard();
 }
 
 async function refresh() {
@@ -663,6 +676,12 @@ function openViewPopover() {
       </label>
     </div>
     <div class="popover-section">
+      <label class="check">
+        <input id="vp-hidedone" type="checkbox"${state.hideDoneTickets ? ' checked' : ''} />
+        <span>Hide done tickets</span>
+      </label>
+    </div>
+    <div class="popover-section">
       <button type="button" class="pane-foot" id="vp-columns">Manage columns</button>
     </div>
   `;
@@ -686,6 +705,9 @@ function openViewPopover() {
     state.showDoneEpics = e.target.checked;
     localStorage.setItem('scope.showDoneEpics', String(state.showDoneEpics));
     renderBoard();
+  });
+  pop.querySelector('#vp-hidedone').addEventListener('change', (e) => {
+    setHideDoneTickets(e.target.checked);
   });
   pop.querySelector('#vp-columns').addEventListener('click', () => {
     closePopover();
@@ -2572,7 +2594,20 @@ function renderColumnRow(parent, buckets, { showHeader, lane = null }) {
       <div class="column-body"></div>
     `;
     const body = col.querySelector('.column-body');
-    for (const t of tickets) body.appendChild(renderCard(t));
+    // "Hide done tickets": keep the column (it stays a drop target and its
+    // header count still shows the work happened), but swap the cards for a
+    // one-line placeholder that click-reveals them.
+    if (state.hideDoneTickets && column.kind === 'done' && tickets.length) {
+      const note = document.createElement('button');
+      note.type = 'button';
+      note.className = 'column-hidden-note';
+      note.textContent = `${tickets.length} hidden`;
+      note.title = 'Show done tickets';
+      note.addEventListener('click', () => setHideDoneTickets(false));
+      body.appendChild(note);
+    } else {
+      for (const t of tickets) body.appendChild(renderCard(t));
+    }
     col.querySelector('.column-add').addEventListener('click', () =>
       openTicketModal({ status })
     );
