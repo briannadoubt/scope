@@ -17,6 +17,7 @@ const state = {
   drawerTicketId: null,
   groupBy: localStorage.getItem('scope.groupBy') || 'none',
   showDoneEpics: localStorage.getItem('scope.showDoneEpics') === 'true',
+  hideDoneTickets: localStorage.getItem('scope.hideDoneTickets') === 'true',
   autoScroll: localStorage.getItem('scope.autoScroll') !== 'false',
   allEpics: [],
   collapsedLanes: new Set(
@@ -315,8 +316,29 @@ function updateViewTrigger() {
     bits.push(state.groupBy.charAt(0).toUpperCase() + state.groupBy.slice(1));
   }
   if (state.epicFilter) bits.push(state.epicFilter);
+  if (state.hideDoneTickets) bits.push('Done hidden');
   label.textContent = bits.length ? bits.join(' · ') : 'View';
   document.getElementById('view-trigger').classList.toggle('active', bits.length > 0);
+}
+
+function setHideDoneTickets(on) {
+  state.hideDoneTickets = on;
+  localStorage.setItem('scope.hideDoneTickets', String(on));
+  // Re-sync the view popover's checkbox if it's currently open (the "N hidden"
+  // placeholder can flip this while the popover is up).
+  const cb = document.getElementById('vp-hidedone');
+  if (cb) cb.checked = on;
+  updateViewTrigger();
+  rerenderBoardIfActive();
+}
+
+// View-popover toggles change how the board draws, not which view is on screen.
+// Overview / history / graph all render into #board, so re-rendering it
+// unconditionally would replace whatever is showing while state.view still
+// claims the old view — leaving the two desynced. The setting is already
+// persisted, so it simply takes effect the next time the board renders.
+function rerenderBoardIfActive() {
+  if (state.view === 'board') renderBoard();
 }
 
 async function refresh() {
@@ -663,6 +685,12 @@ function openViewPopover() {
       </label>
     </div>
     <div class="popover-section">
+      <label class="check">
+        <input id="vp-hidedone" type="checkbox"${state.hideDoneTickets ? ' checked' : ''} />
+        <span>Hide done tickets</span>
+      </label>
+    </div>
+    <div class="popover-section">
       <button type="button" class="pane-foot" id="vp-columns">Manage columns</button>
     </div>
   `;
@@ -679,13 +707,16 @@ function openViewPopover() {
       pop.querySelectorAll('#vp-group button').forEach((x) => x.classList.toggle('active', x === b));
       pop.querySelector('#vp-showdone-wrap').hidden = state.groupBy !== 'epic';
       updateViewTrigger();
-      renderBoard();
+      rerenderBoardIfActive();
     });
   });
   pop.querySelector('#vp-showdone').addEventListener('change', (e) => {
     state.showDoneEpics = e.target.checked;
     localStorage.setItem('scope.showDoneEpics', String(state.showDoneEpics));
-    renderBoard();
+    rerenderBoardIfActive();
+  });
+  pop.querySelector('#vp-hidedone').addEventListener('change', (e) => {
+    setHideDoneTickets(e.target.checked);
   });
   pop.querySelector('#vp-columns').addEventListener('click', () => {
     closePopover();
@@ -2572,7 +2603,29 @@ function renderColumnRow(parent, buckets, { showHeader, lane = null }) {
       <div class="column-body"></div>
     `;
     const body = col.querySelector('.column-body');
-    for (const t of tickets) body.appendChild(renderCard(t));
+    // "Hide done tickets": keep the column (it stays a drop target and its
+    // header count still shows the work happened), but swap the cards for a
+    // one-line placeholder that click-reveals them.
+    if (state.hideDoneTickets && column.kind === 'done' && tickets.length) {
+      const note = document.createElement('button');
+      note.type = 'button';
+      note.className = 'column-hidden-note';
+      note.textContent = `${tickets.length} hidden`;
+      note.title = 'Show done tickets';
+      note.addEventListener('click', () => setHideDoneTickets(false));
+      // The placeholder is the drop neighbour a card lands next to, so it has to
+      // rank like the cards it stands in for — otherwise cardRank() finds no
+      // rank/number on it, rankBetween() yields NaN, and the drop PATCHes a null
+      // rank that wipes the ticket's position. Carrying the highest rank it hides
+      // makes a drop land after them, exactly as it would in a visible column.
+      const lastRank = Math.max(
+        ...tickets.map((t) => (t.rank == null ? Number(t.number) : Number(t.rank)))
+      );
+      if (Number.isFinite(lastRank)) note.dataset.rank = String(lastRank);
+      body.appendChild(note);
+    } else {
+      for (const t of tickets) body.appendChild(renderCard(t));
+    }
     col.querySelector('.column-add').addEventListener('click', () =>
       openTicketModal({ status })
     );
@@ -2809,7 +2862,7 @@ function epicSortPath(epicId, epicById) {
     parts.unshift(`${cur.id} · ${cur.title}`);
     cur = cur.parent_id ? epicById[cur.parent_id] : null;
   }
-  return parts.join(' ');
+  return parts.join('\u0000');
 }
 
 function laneSorter(groupBy) {
