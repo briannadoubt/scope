@@ -2844,7 +2844,7 @@ function epicSortPath(epicId, epicById) {
     parts.unshift(`${cur.id} · ${cur.title}`);
     cur = cur.parent_id ? epicById[cur.parent_id] : null;
   }
-  return parts.join(' ');
+  return parts.join('\u0000');
 }
 
 function laneSorter(groupBy) {
