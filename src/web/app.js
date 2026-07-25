@@ -329,7 +329,16 @@ function setHideDoneTickets(on) {
   const cb = document.getElementById('vp-hidedone');
   if (cb) cb.checked = on;
   updateViewTrigger();
-  renderBoard();
+  rerenderBoardIfActive();
+}
+
+// View-popover toggles change how the board draws, not which view is on screen.
+// Overview / history / graph all render into #board, so re-rendering it
+// unconditionally would replace whatever is showing while state.view still
+// claims the old view — leaving the two desynced. The setting is already
+// persisted, so it simply takes effect the next time the board renders.
+function rerenderBoardIfActive() {
+  if (state.view === 'board') renderBoard();
 }
 
 async function refresh() {
@@ -698,13 +707,13 @@ function openViewPopover() {
       pop.querySelectorAll('#vp-group button').forEach((x) => x.classList.toggle('active', x === b));
       pop.querySelector('#vp-showdone-wrap').hidden = state.groupBy !== 'epic';
       updateViewTrigger();
-      renderBoard();
+      rerenderBoardIfActive();
     });
   });
   pop.querySelector('#vp-showdone').addEventListener('change', (e) => {
     state.showDoneEpics = e.target.checked;
     localStorage.setItem('scope.showDoneEpics', String(state.showDoneEpics));
-    renderBoard();
+    rerenderBoardIfActive();
   });
   pop.querySelector('#vp-hidedone').addEventListener('change', (e) => {
     setHideDoneTickets(e.target.checked);
