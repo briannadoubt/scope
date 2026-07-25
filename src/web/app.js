@@ -2604,6 +2604,15 @@ function renderColumnRow(parent, buckets, { showHeader, lane = null }) {
       note.textContent = `${tickets.length} hidden`;
       note.title = 'Show done tickets';
       note.addEventListener('click', () => setHideDoneTickets(false));
+      // The placeholder is the drop neighbour a card lands next to, so it has to
+      // rank like the cards it stands in for — otherwise cardRank() finds no
+      // rank/number on it, rankBetween() yields NaN, and the drop PATCHes a null
+      // rank that wipes the ticket's position. Carrying the highest rank it hides
+      // makes a drop land after them, exactly as it would in a visible column.
+      const lastRank = Math.max(
+        ...tickets.map((t) => (t.rank == null ? Number(t.number) : Number(t.rank)))
+      );
+      if (Number.isFinite(lastRank)) note.dataset.rank = String(lastRank);
       body.appendChild(note);
     } else {
       for (const t of tickets) body.appendChild(renderCard(t));
