@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KYNSAYP7Q6Z39ZX2SGTZ2EFQ",
+  "ts": "2026-07-29T01:55:28.071Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KYNS4Y4ZQTB2Z2MP3Z7ZE0K9",
+    "commentId": "01KYNSAYP7Q6Z39ZX2SGTZ2EFP",
+    "author": "codex",
+    "body": "Prepared the v0.9.0 changelog and release payload. SemVer rationale: backward-compatible features since v0.8.3 require a minor bump (0.8.3 -> 0.9.0)."
+  }
+}

@@ -5,7 +5,7 @@ import pg from 'pg';
 import { createTempScope } from './helpers.js';
 import {
   updateWorkspace, createTicket, updateTicket, deleteTicket,
-  addRelation, addComment,
+  addRelation, addComment, putArtifact,
 } from '../src/repo.js';
 import { replayInto } from '../src/replay.js';
 import { readAllEvents, eventsDir } from '../src/event-store.js';
@@ -41,6 +41,7 @@ function buildLog() {
   updateTicket(s.db, b.id, { status: 'in_review', labels: ['x', 'y'] }, 'bri');
   addRelation(s.db, a.id, b.id, 'blocks', 'bri');
   addComment(s.db, a.id, 'a note', 'bri', 'Opus 4.8');
+  putArtifact(s.db, a.id, { name: 'status.html', content: '<h1>Status</h1>' }, 'bri', 'Opus 4.8');
   const c = createTicket(s.db, { type: 'story', title: 'Doomed', actor: 'bri' });
   deleteTicket(s.db, c.id, 'bri'); // tombstone: its rows must be cleaned up
   const events = readAllEvents(eventsDir(s.scopeDir));
@@ -60,6 +61,7 @@ const norm = {
   history: (rows) => rows.map((r) => ({ field: r.field, old_value: r.old_value, new_value: r.new_value, changed_by: r.changed_by })),
   comments: (rows) => rows.map((r) => ({ author: r.author, body: r.body })),
   relations: (rows) => rows.map((r) => ({ from: r.from_ticket_id, to: r.to_ticket_id, type: r.type })),
+  artifacts: (rows) => rows.map((r) => ({ id: r.id, ticket_id: r.ticket_id, name: r.name, mime_type: r.mime_type, content: r.content, size_bytes: r.size_bytes })),
 };
 
 test('SQLite replay and Postgres replay project identical board state', { skip }, async () => {
@@ -73,6 +75,7 @@ test('SQLite replay and Postgres replay project identical board state', { skip }
     history: norm.history(sq.db.prepare('SELECT * FROM ticket_history ORDER BY ticket_id, field, id').all()),
     comments: norm.comments(sq.db.prepare('SELECT * FROM ticket_comments ORDER BY ticket_id, id').all()),
     relations: norm.relations(sq.db.prepare('SELECT * FROM ticket_relations ORDER BY from_ticket_id, to_ticket_id, type').all()),
+    artifacts: norm.artifacts(sq.db.prepare('SELECT * FROM ticket_artifacts ORDER BY ticket_id, id').all()),
     wsKey: sq.db.prepare('SELECT key FROM workspace WHERE id=1').get().key,
   };
   sq.db.close();
@@ -88,6 +91,7 @@ test('SQLite replay and Postgres replay project identical board state', { skip }
     history: norm.history(await q('SELECT * FROM ticket_history WHERE tenant_id=$1 ORDER BY ticket_id, field, id')),
     comments: norm.comments(await q('SELECT * FROM ticket_comments WHERE tenant_id=$1 ORDER BY ticket_id, id')),
     relations: norm.relations(await q('SELECT * FROM ticket_relations WHERE tenant_id=$1 ORDER BY from_ticket_id, to_ticket_id, type')),
+    artifacts: norm.artifacts(await q('SELECT * FROM ticket_artifacts WHERE tenant_id=$1 ORDER BY ticket_id, id')),
     wsKey: (await q('SELECT key FROM workspace WHERE tenant_id=$1'))[0].key,
   };
 
@@ -95,6 +99,7 @@ test('SQLite replay and Postgres replay project identical board state', { skip }
   assert.deepEqual(postgres.history, sqlite.history, 'attributed history matches');
   assert.deepEqual(postgres.comments, sqlite.comments, 'comments match');
   assert.deepEqual(postgres.relations, sqlite.relations, 'relations match');
+  assert.deepEqual(postgres.artifacts, sqlite.artifacts, 'HTML artifacts match');
   assert.equal(postgres.wsKey, sqlite.wsKey, 'workspace key matches');
   // Sanity: the tombstoned ticket and its rows are gone on both sides.
   assert.ok(!postgres.tickets.some((t) => t.title === 'Doomed'));

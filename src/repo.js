@@ -1,7 +1,7 @@
 import { nowIso, nextTicketId, recordHistory, getWorkspace, bumpMeta, setMeta } from './db.js';
 import { emitChange } from './events.js';
 import { ulid } from './ulid.js';
-import { makeEvent, formatActor } from './event-schema.js';
+import { makeEvent, formatActor, ARTIFACT_MAX_BYTES } from './event-schema.js';
 import { appendEvent, eventsDirForDb, readAllEvents } from './event-store.js';
 import { replayInto } from './replay.js';
 import {
@@ -711,6 +711,86 @@ export function listComments(db, ticketId) {
        WHERE ticket_id = ? ORDER BY created_at ASC`
     )
     .all(ticketId);
+}
+
+/* ---------------- HTML artifacts ---------------- */
+
+function artifactSize(content) {
+  return new TextEncoder().encode(content).length;
+}
+
+function assertArtifactInput(name, content, mimeType) {
+  if (typeof name !== 'string' || !name.trim() || name.length > 160)
+    throw new Error('Artifact name must be 1-160 characters.');
+  if (mimeType !== 'text/html') throw new Error('Only text/html artifacts are supported.');
+  if (typeof content !== 'string') throw new Error('Artifact content must be a string.');
+  const size = artifactSize(content);
+  if (size > ARTIFACT_MAX_BYTES)
+    throw new Error(`Artifact exceeds the ${ARTIFACT_MAX_BYTES}-byte limit.`);
+  return size;
+}
+
+/** Create or replace a ticket HTML artifact. Reusing a name updates its stable id. */
+export function putArtifact(
+  db,
+  ticketId,
+  { name, content, mimeType = 'text/html' },
+  who = null,
+  model = null
+) {
+  const ticket = getTicket(db, ticketId);
+  if (!ticket) throw new Error(`Ticket not found: ${ticketId}`);
+  const cleanName = String(name ?? '').trim();
+  const size = assertArtifactInput(cleanName, content, mimeType);
+  const existing = db.prepare(
+    `SELECT id, created_at FROM ticket_artifacts
+     WHERE ticket_id = ? AND name = ? ORDER BY updated_at DESC, id DESC LIMIT 1`
+  ).get(ticket.id, cleanName);
+  const id = existing?.id ?? ulid();
+  const now = nowIso();
+  db.prepare(
+    `INSERT INTO ticket_artifacts
+       (id, ticket_id, name, mime_type, content, size_bytes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       name=excluded.name, mime_type=excluded.mime_type, content=excluded.content,
+       size_bytes=excluded.size_bytes, updated_at=excluded.updated_at`
+  ).run(id, ticket.id, cleanName, mimeType, content, size, existing?.created_at ?? now, now);
+  emit(db, 'artifact.put', {
+    ticketId: ticket.uid,
+    artifactId: id,
+    name: cleanName,
+    mimeType,
+    content,
+  }, who, model);
+  emitChange({ type: 'artifact.updated', id: ticket.id, artifactId: id, name: cleanName });
+  return getArtifact(db, ticket.id, id);
+}
+
+export function listArtifacts(db, ticketId) {
+  return db.prepare(
+    `SELECT id, ticket_id, name, mime_type, size_bytes, created_at, updated_at
+     FROM ticket_artifacts WHERE ticket_id = ? ORDER BY updated_at DESC, id DESC`
+  ).all(ticketId);
+}
+
+export function getArtifact(db, ticketId, artifactId) {
+  return db.prepare(
+    `SELECT id, ticket_id, name, mime_type, content, size_bytes, created_at, updated_at
+     FROM ticket_artifacts WHERE ticket_id = ? AND id = ?`
+  ).get(ticketId, artifactId) ?? null;
+}
+
+export function removeArtifact(db, ticketId, artifactId, who = null, model = null) {
+  const ticket = getTicket(db, ticketId);
+  if (!ticket) throw new Error(`Ticket not found: ${ticketId}`);
+  const artifact = getArtifact(db, ticket.id, artifactId);
+  if (!artifact) return false;
+  db.prepare('DELETE FROM ticket_artifacts WHERE ticket_id = ? AND id = ?')
+    .run(ticket.id, artifactId);
+  emit(db, 'artifact.remove', { ticketId: ticket.uid, artifactId }, who, model);
+  emitChange({ type: 'artifact.removed', id: ticket.id, artifactId, name: artifact.name });
+  return true;
 }
 
 export function listHistory(db, ticketId) {

@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01KXJBQ80T0K59AJW3RDDW9J7X",
+  "ts": "2026-07-15T07:44:05.658Z",
+  "actor": "codex",
+  "kind": "artifact.put",
+  "payload": {
+    "ticketId": "01KXJB6NZGHTHH8S2TETK62K27",
+    "artifactId": "01KXJBQ80T0K59AJW3RDDW9J7W",
+    "name": "Artifact smoke test.html",
+    "mimeType": "text/html",
+    "content": "<!doctype html>\n<html lang=\"en\">\n<meta charset=\"utf-8\">\n<title>Artifact smoke test</title>\n<style>\n  body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 16px system-ui; background: #0b1020; color: #eef2ff; }\n  button { border: 0; border-radius: 12px; padding: 14px 20px; background: #7c3aed; color: white; font: inherit; cursor: pointer; }\n</style>\n<button id=\"demo\">Interactive artifact ready</button>\n<script>document.querySelector('#demo').onclick = (event) => { event.currentTarget.textContent = 'Interaction works'; };</script>\n</html>\n"
+  }
+}

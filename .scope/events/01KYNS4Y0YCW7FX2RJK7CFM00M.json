@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KYNS4Y0YCW7FX2RJK7CFM00M",
+  "ts": "2026-07-29T01:52:10.782Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KYNS4Y0X120PKAYM076KXJ4W",
+    "number": 282,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Validate v0.9.0 release candidate",
+    "description": "Review the pending release payload, run the full test suite, and inspect the distributable package.",
+    "status": "in_progress",
+    "priority": "high",
+    "parentId": "01KYNS4XWT1TY4634Z616684YR",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -47,7 +47,7 @@ export async function replayWithinTx(client, tenantId, events) {
   const now = new Date().toISOString();
 
   // Wipe this tenant's derived rows (workspace row is upserted, not deleted).
-  for (const t of ['ticket_history', 'ticket_comments', 'ticket_relations', 'tickets'])
+  for (const t of ['ticket_artifacts', 'ticket_history', 'ticket_comments', 'ticket_relations', 'tickets'])
     await client.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [T]);
   await ensureWorkspaceRow(client, T, now);
 
@@ -156,6 +156,9 @@ async function applyEventLoop(client, T, ordered, human, assignments) {
 
 /** Orphan cleanup mirroring the SQLite FK CASCADE for a tenant. */
 async function cleanupOrphans(client, T) {
+  await client.query(
+    `DELETE FROM ticket_artifacts WHERE tenant_id=$1
+       AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
   await client.query(
     `DELETE FROM ticket_comments WHERE tenant_id=$1
        AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
@@ -273,6 +276,27 @@ async function applyEvent(db, T, e, human, assignments) {
       );
       return 1;
     }
+
+    case 'artifact.put': {
+      const id = human.get(p.ticketId);
+      if (!id) return 0;
+      await db.query(
+        `INSERT INTO ticket_artifacts
+           (tenant_id, id, ticket_id, name, mime_type, content, size_bytes, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)
+         ON CONFLICT (tenant_id, id) DO UPDATE SET
+           ticket_id=excluded.ticket_id, name=excluded.name,
+           mime_type=excluded.mime_type, content=excluded.content,
+           size_bytes=excluded.size_bytes, updated_at=excluded.updated_at`,
+        [T, p.artifactId, id, p.name, p.mimeType, p.content,
+          new TextEncoder().encode(p.content).length, e.ts]
+      );
+      return 1;
+    }
+
+    case 'artifact.remove':
+      await db.query('DELETE FROM ticket_artifacts WHERE tenant_id=$1 AND id=$2', [T, p.artifactId]);
+      return 1;
 
     case 'relation.add': {
       const from = human.get(p.fromId);

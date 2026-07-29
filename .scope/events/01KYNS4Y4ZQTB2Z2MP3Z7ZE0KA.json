@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KYNS4Y4ZQTB2Z2MP3Z7ZE0KA",
+  "ts": "2026-07-29T01:52:10.911Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KYNS4Y4ZQTB2Z2MP3Z7ZE0K9",
+    "number": 283,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Document and commit v0.9.0 release payload",
+    "description": "Add release notes, ensure tracked Scope events and implementation changes are committed, and leave a clean main branch.",
+    "status": "todo",
+    "priority": "high",
+    "parentId": "01KYNS4XWT1TY4634Z616684YR",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

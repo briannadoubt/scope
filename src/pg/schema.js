@@ -109,6 +109,21 @@ CREATE TABLE IF NOT EXISTS ticket_history (
   changed_at text NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_history_ticket ON ticket_history (tenant_id, ticket_id);
+
+-- replayed cache: agent-authored HTML artifacts ---------------------------
+CREATE TABLE IF NOT EXISTS ticket_artifacts (
+  tenant_id  text NOT NULL,
+  id         text NOT NULL,
+  ticket_id  text NOT NULL,
+  name       text NOT NULL,
+  mime_type  text NOT NULL,
+  content    text NOT NULL,
+  size_bytes integer NOT NULL,
+  created_at text NOT NULL,
+  updated_at text NOT NULL,
+  PRIMARY KEY (tenant_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_artifacts_ticket ON ticket_artifacts (tenant_id, ticket_id, updated_at);
 `;
 
 /**
@@ -137,6 +152,7 @@ export async function ensureSchema(clientOrPool) {
          AND to_regclass('public.ticket_relations') IS NOT NULL
          AND to_regclass('public.ticket_comments')  IS NOT NULL
          AND to_regclass('public.ticket_history')   IS NOT NULL
+         AND to_regclass('public.ticket_artifacts') IS NOT NULL
          AND to_regclass('public.idx_history_ticket') IS NOT NULL
          AND to_regclass('public.idx_events_seq')   IS NOT NULL
          AND EXISTS (
@@ -178,7 +194,7 @@ export async function ensureSchema(clientOrPool) {
 /** Drop everything (tests only). */
 export async function dropSchema(clientOrPool) {
   await clientOrPool.query(`
-    DROP TABLE IF EXISTS ticket_history, ticket_comments, ticket_relations,
+    DROP TABLE IF EXISTS ticket_artifacts, ticket_history, ticket_comments, ticket_relations,
                          tickets, workspace, events CASCADE;
   `);
 }

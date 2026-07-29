@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KXJB6NQJARRCHRCTSPW3VWNQ",
+  "ts": "2026-07-15T07:35:02.642Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KXJB6NQJARRCHRCTSPW3VWNP",
+    "number": 278,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Add artifact event model and replay persistence",
+    "description": "Define synced HTML artifact events, validate payloads and size limits, persist artifacts in SQLite/Postgres projections, and cover replay/sync convergence.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KXJB6NKKCDD2WWHD2FA3JV4M",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

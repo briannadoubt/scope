@@ -1,7 +1,7 @@
 import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir, hostname } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -59,6 +59,10 @@ import {
   listRelations,
   addComment,
   listComments,
+  putArtifact,
+  listArtifacts,
+  getArtifact,
+  removeArtifact,
   listHistory,
   listEpicChildren,
   epicProgress,
@@ -653,16 +657,18 @@ export function buildProgram() {
       if (!t) fail(`Ticket not found: ${id}`);
       const relations = listRelations(db, t.id);
       const comments = listComments(db, t.id);
+      const artifacts = listArtifacts(db, t.id);
       const children = t.type === 'epic' ? listEpicChildren(db, t.id) : [];
       const progress = t.type === 'epic' ? epicProgress(db, t.id) : undefined;
       out(
         cmd,
-        { ...t, relations, comments, children, progress },
+        { ...t, relations, comments, artifacts, children, progress },
         (data) =>
           ticketDetail(t, {
             children: data.children,
             relations: data.relations,
             comments: data.comments,
+            artifacts: data.artifacts,
             progress: data.progress,
           })
       );
@@ -731,6 +737,71 @@ export function buildProgram() {
       }
       deleteTicket(db, t.id);
       out(cmd, { deleted: t.id }, (d) => chalk.green('✓') + ` Deleted ${d.deleted}`);
+    });
+
+  /* ---------- HTML artifacts ---------- */
+
+  const artifact = program.command('artifact').description('Manage synced agent-authored HTML artifacts.');
+
+  artifact
+    .command('add <ticketId> <file>')
+    .description('Attach or replace a self-contained HTML file on a ticket.')
+    .option('--name <name>', 'display name (defaults to the file name)')
+    .option('--by <author>', 'attribute the artifact update')
+    .action((ticketId, file, opts, cmd) => {
+      const { db } = openOrDie();
+      const path = resolve(file);
+      if (!existsSync(path)) fail(`HTML file not found: ${path}`);
+      try {
+        const item = putArtifact(db, ticketId, {
+          name: opts.name || basename(path),
+          content: readFileSync(path, 'utf8'),
+          mimeType: 'text/html',
+        }, opts.by, actingModel(cmd));
+        out(cmd, item, (a) =>
+          chalk.green('✓') + ` Attached ${chalk.bold(a.name)} to ${ticketId} (${a.size_bytes} bytes)`
+        );
+      } catch (e) {
+        fail(e.message);
+      }
+    });
+
+  artifact
+    .command('list <ticketId>')
+    .alias('ls')
+    .description('List HTML artifacts attached to a ticket.')
+    .action((ticketId, _opts, cmd) => {
+      const { db } = openOrDie();
+      if (!getTicket(db, ticketId)) fail(`Ticket not found: ${ticketId}`);
+      const items = listArtifacts(db, ticketId);
+      out(cmd, items, (rows) => rows.length ? table(rows, [
+        { key: 'id', header: 'ID', width: 26 },
+        { key: 'name', header: 'NAME', width: 42 },
+        { key: 'size_bytes', header: 'BYTES' },
+        { key: 'updated_at', header: 'UPDATED', width: 24 },
+      ]) : chalk.dim('(no artifacts)'));
+    });
+
+  artifact
+    .command('show <ticketId> <artifactId>')
+    .description('Print an HTML artifact (JSON with --json).')
+    .action((ticketId, artifactId, _opts, cmd) => {
+      const { db } = openOrDie();
+      const item = getArtifact(db, ticketId, artifactId);
+      if (!item) fail(`Artifact not found: ${artifactId}`);
+      out(cmd, item, (a) => a.content);
+    });
+
+  artifact
+    .command('remove <ticketId> <artifactId>')
+    .alias('rm')
+    .description('Remove an HTML artifact from a ticket.')
+    .option('--by <author>', 'attribute the artifact removal')
+    .action((ticketId, artifactId, opts, cmd) => {
+      const { db } = openOrDie();
+      const ok = removeArtifact(db, ticketId, artifactId, opts.by, actingModel(cmd));
+      if (!ok) fail(`Artifact not found: ${artifactId}`);
+      out(cmd, { deleted: artifactId }, () => chalk.green('✓') + ` Removed ${artifactId}`);
     });
 
   /* ---------- status / branch / pr shortcuts ---------- */

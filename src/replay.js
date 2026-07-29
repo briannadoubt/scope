@@ -129,6 +129,7 @@ export function replayInto(db, events) {
       DELETE FROM ticket_history;
       DELETE FROM ticket_comments;
       DELETE FROM ticket_relations;
+      DELETE FROM ticket_artifacts;
       DELETE FROM tickets;
     `);
 
@@ -143,6 +144,7 @@ export function replayInto(db, events) {
         WHERE from_ticket_id NOT IN (SELECT id FROM tickets)
            OR to_ticket_id   NOT IN (SELECT id FROM tickets);
       DELETE FROM ticket_history WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM ticket_artifacts WHERE ticket_id NOT IN (SELECT id FROM tickets);
     `);
 
     // Advance the local allocator past every assigned number.
@@ -258,6 +260,7 @@ export function applyEvents(db, allEvents, newEvents) {
         WHERE from_ticket_id NOT IN (SELECT id FROM tickets)
            OR to_ticket_id   NOT IN (SELECT id FROM tickets);
       DELETE FROM ticket_history WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM ticket_artifacts WHERE ticket_id NOT IN (SELECT id FROM tickets);
     `);
 
     // Advance the allocator past every assigned number (resolved over the full
@@ -380,6 +383,28 @@ function applyEvent(db, e, human, assignments) {
       ).run(id, p.author == null ? null : formatActor(p.author, e.model), p.body, e.ts);
       return 1;
     }
+
+    case 'artifact.put': {
+      const id = human.get(p.ticketId);
+      if (!id) return 0;
+      db.prepare(
+        `INSERT INTO ticket_artifacts
+           (id, ticket_id, name, mime_type, content, size_bytes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           ticket_id=excluded.ticket_id, name=excluded.name,
+           mime_type=excluded.mime_type, content=excluded.content,
+           size_bytes=excluded.size_bytes, updated_at=excluded.updated_at`
+      ).run(
+        p.artifactId, id, p.name, p.mimeType, p.content,
+        new TextEncoder().encode(p.content).length, e.ts, e.ts
+      );
+      return 1;
+    }
+
+    case 'artifact.remove':
+      db.prepare('DELETE FROM ticket_artifacts WHERE id = ?').run(p.artifactId);
+      return 1;
 
     case 'relation.add': {
       const from = human.get(p.fromId);

@@ -67,6 +67,8 @@ test('validateEvent accepts each well-formed kind', () => {
     ['ticket.set_field', { ticketId: 'SCP-1', field: 'status', value: 'done' }],
     ['ticket.delete', { ticketId: 'SCP-1' }],
     ['comment.add', { ticketId: 'SCP-1', commentId: ulid(), author: 'bri', body: 'hi' }],
+    ['artifact.put', { ticketId: 'SCP-1', artifactId: ulid(), name: 'chart.html', mimeType: 'text/html', content: '<h1>Chart</h1>' }],
+    ['artifact.remove', { ticketId: 'SCP-1', artifactId: ulid() }],
     ['relation.add', { fromId: 'SCP-1', toId: 'SCP-2', type: 'blocks' }],
     ['relation.remove', { fromId: 'SCP-1', toId: 'SCP-2', type: 'blocks' }],
   ];
@@ -115,7 +117,9 @@ test('compareEvents is a deterministic total order: ts, then ulid id', () => {
 });
 
 test('EVENT_KINDS is the closed set the validator switches on', () => {
-  assert.equal(EVENT_KINDS.length, 9);
+  assert.equal(EVENT_KINDS.length, 11);
   assert.ok(EVENT_KINDS.includes('ticket.set_field'));
   assert.ok(EVENT_KINDS.includes('workspace.rekey'));
+  assert.ok(EVENT_KINDS.includes('artifact.put'));
+  assert.ok(EVENT_KINDS.includes('artifact.remove'));
 });

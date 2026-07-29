@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KXJBP3X6AVZXFZEAA3DNPTEQ",
+  "ts": "2026-07-15T07:43:28.678Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KXJB6NVHVJC1DR4SNHMKACVZ",
+    "commentId": "01KXJBP3X6AVZXFZEAA3DNPTEP",
+    "author": "codex",
+    "body": "Added scope artifact add/list/show/remove plus workspace-scoped REST endpoints and isolated HTML content serving."
+  }
+}

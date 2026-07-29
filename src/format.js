@@ -102,7 +102,7 @@ function short(url) {
   return url.replace(/^https?:\/\//, '').replace(/^github\.com\//, '');
 }
 
-export function ticketDetail(t, { children, relations, comments, progress } = {}) {
+export function ticketDetail(t, { children, relations, comments, artifacts, progress } = {}) {
   const lines = [];
   lines.push(
     `${chalk.bold(t.id)}  ${typeBadge(t.type)}  ${chalk.bold(t.title)}`
@@ -161,6 +161,14 @@ export function ticketDetail(t, { children, relations, comments, progress } = {}
           r.title ?? ''
         }  ${r.status ? colorStatus(r.status) : ''}`
       );
+    }
+  }
+
+  if (artifacts?.length) {
+    lines.push('');
+    lines.push(chalk.bold.underline('Visual artifacts'));
+    for (const a of artifacts) {
+      lines.push(`  ${chalk.bold(a.name)}  ${chalk.gray(a.id)}  ${a.size_bytes} bytes`);
     }
   }
 

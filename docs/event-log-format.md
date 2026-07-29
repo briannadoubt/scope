@@ -207,6 +207,31 @@ Comments are purely additive — two peers adding comments can never conflict, t
 union just contains both. `commentId` is a ULID so the union is also
 order-stable.
 
+### `artifact.put`
+Creates or replaces a self-contained HTML visualization attached to a ticket.
+Artifact content is stored inline so ordinary event-log union and remote sync
+remain complete. Payload:
+```jsonc
+{
+  "ticketId": "01JZ9F2K7QABCD3EFGH4JKMN5",
+  "artifactId": "01JZ9F9P1QABCD3EFGH4JKMN5",
+  "name": "latency-dashboard.html",
+  "mimeType": "text/html",
+  "content": "<!doctype html>..."
+}
+```
+Only `text/html` is accepted and UTF-8 content is capped at 512 KiB. Reusing an
+artifact id is last-write-wins in canonical event order.
+
+### `artifact.remove`
+Removes an attached artifact by stable id. Payload:
+```jsonc
+{
+  "ticketId": "01JZ9F2K7QABCD3EFGH4JKMN5",
+  "artifactId": "01JZ9F9P1QABCD3EFGH4JKMN5"
+}
+```
+
 ### `relation.add`
 Mirrors `addRelation()` — records the **single user intent**; replay
 materializes both the relation and its inverse (the way `addRelation` writes

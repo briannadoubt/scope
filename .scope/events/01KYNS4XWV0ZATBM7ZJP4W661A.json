@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KYNS4XWV0ZATBM7ZJP4W661A",
+  "ts": "2026-07-29T01:52:10.651Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KYNS4XWT1TY4634Z616684YR",
+    "number": 281,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Release v0.9.0",
+    "description": "Prepare, validate, tag, push, and verify the next backward-compatible feature release using Semantic Versioning.",
+    "status": "in_progress",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

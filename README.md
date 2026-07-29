@@ -65,10 +65,10 @@ trusted by the keychain.
 
 ## What ships today
 
-- **CLI** — `workspace / ticket / epic / link / status / branch / pr / board`
+- **CLI** — `workspace / ticket / epic / artifact / link / status / branch / pr / board`
   with `--json` output on every command for agent consumption.
 - **Web UI** — configurable kanban columns, drag-and-drop, ticket drawer with
-  inline edit, workspace overview, epic filter, **swimlanes** (group by epic /
+  inline edit and sandboxed agent-authored HTML visualizations, workspace overview, epic filter, **swimlanes** (group by epic /
   assignee / priority / type), live updates via SSE.
 - **`scope serve` hub** — one long-lived process that serves the UI, the REST
   API, and the SSE event stream on `https://localhost:4321` (loopback HTTP
@@ -168,6 +168,7 @@ machine-readable output. No extra config; if `scope` is on
 scope --json ticket list --status todo
 scope --json ticket create "Fix CSRF on /signup" -t bug --priority high
 scope --json status MA-7 in_progress --by claude
+scope artifact add MA-7 ./latency-dashboard.html --by claude
 ```
 
 Ship the "how to use scope" skill into Claude Code, Codex, or Cursor:

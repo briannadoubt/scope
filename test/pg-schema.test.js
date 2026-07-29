@@ -37,7 +37,7 @@ test('ensureSchema creates the canonical log + cache tables (idempotent)', { ski
      WHERE table_schema='public' ORDER BY table_name`
   );
   const names = rows.map((r) => r.table_name);
-  for (const t of ['events', 'workspace', 'tickets', 'ticket_relations', 'ticket_comments', 'ticket_history'])
+  for (const t of ['events', 'workspace', 'tickets', 'ticket_relations', 'ticket_comments', 'ticket_history', 'ticket_artifacts'])
     assert.ok(names.includes(t), `table ${t} exists`);
 });
 

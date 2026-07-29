@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "id": "01KXJBTPQTB4N9MMVY6GZCGNHG",
+  "ts": "2026-07-15T07:45:59.034Z",
+  "actor": "codex",
+  "kind": "artifact.remove",
+  "payload": {
+    "ticketId": "01KXJB6NZGHTHH8S2TETK62K27",
+    "artifactId": "01KXJBQ80T0K59AJW3RDDW9J7W"
+  }
+}

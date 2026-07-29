@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KXJB6NZGHTHH8S2TETK62K28",
+  "ts": "2026-07-15T07:35:02.896Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KXJB6NZGHTHH8S2TETK62K27",
+    "number": 280,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Render HTML artifacts in a sandboxed Scope viewer",
+    "description": "Surface attached visualizations in ticket detail and render them through a sandboxed iframe with restrictive capabilities and clear fallback/error states.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KXJB6NKKCDD2WWHD2FA3JV4M",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

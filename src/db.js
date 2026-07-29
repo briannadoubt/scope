@@ -148,6 +148,20 @@ const CREATE_TICKETS = `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_uid ON tickets(uid);
 `;
 
+const CREATE_ARTIFACTS = `
+  CREATE TABLE IF NOT EXISTS ticket_artifacts (
+    id TEXT PRIMARY KEY,
+    ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    mime_type TEXT NOT NULL CHECK(mime_type = 'text/html'),
+    content TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_artifacts_ticket ON ticket_artifacts(ticket_id, updated_at);
+`;
+
 const CREATE_AUX_TABLES = `
   CREATE TABLE IF NOT EXISTS ticket_relations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -180,6 +194,8 @@ const CREATE_AUX_TABLES = `
     changed_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_history_ticket ON ticket_history(ticket_id);
+
+  ${CREATE_ARTIFACTS}
 `;
 
 /* ---------- Full-text search (FTS5) ---------- */
@@ -314,7 +330,7 @@ export function ensureSearchIndex(db) {
   }
 }
 
-const CURRENT_SCHEMA_VERSION = '6';
+const CURRENT_SCHEMA_VERSION = '7';
 
 function tableExists(db, name) {
   const row = db
@@ -660,6 +676,7 @@ function migrate(db, scopeDir) {
       ensureRankColumn(db);
       ensureWorkspaceColumnsColumn(db);
       ensureDynamicStatusColumn(db);
+      db.exec(CREATE_ARTIFACTS);
 
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
@@ -692,6 +709,7 @@ function migrate(db, scopeDir) {
       ensureRankColumn(db);
       ensureWorkspaceColumnsColumn(db);
       ensureDynamicStatusColumn(db);
+      db.exec(CREATE_ARTIFACTS);
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
@@ -717,6 +735,7 @@ function migrate(db, scopeDir) {
   ensureRankColumn(db);
   ensureWorkspaceColumnsColumn(db);
   ensureDynamicStatusColumn(db);
+  db.exec(CREATE_ARTIFACTS);
   const existing = db.prepare('SELECT id FROM workspace WHERE id = 1').get();
   if (!existing) {
     const now = nowIso();

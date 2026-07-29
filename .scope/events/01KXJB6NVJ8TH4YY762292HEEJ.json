@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KXJB6NVJ8TH4YY762292HEEJ",
+  "ts": "2026-07-15T07:35:02.770Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KXJB6NVHVJC1DR4SNHMKACVZ",
+    "number": 279,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Expose artifact CLI and HTTP APIs",
+    "description": "Let agents attach HTML files to tickets via the Scope CLI and let clients list/read/delete ticket artifacts through authenticated workspace-scoped APIs.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01KXJB6NKKCDD2WWHD2FA3JV4M",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

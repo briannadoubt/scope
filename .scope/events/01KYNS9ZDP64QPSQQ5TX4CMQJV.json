@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KYNS9ZDP64QPSQQ5TX4CMQJV",
+  "ts": "2026-07-29T01:54:56.054Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KYNS4Y0X120PKAYM076KXJ4W",
+    "commentId": "01KYNS9ZDN7EWNZ3VRHVRC77G2",
+    "author": "codex",
+    "body": "Validated v0.9.0: git diff --check clean; non-PG run 312 passed/70 skipped; serialized Postgres run 382 passed/0 failed/0 skipped; npm pack dry-run produced the expected package including plugin and skills. A parallel PG run hit one shared-schema deadlock, then passed serialized."
+  }
+}

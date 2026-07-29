@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import pg from 'pg';
 
 import { createTempScope } from './helpers.js';
-import { updateWorkspace, createTicket, updateTicket } from '../src/repo.js';
+import { updateWorkspace, createTicket, updateTicket, putArtifact } from '../src/repo.js';
 import { readAllEvents, eventsDir } from '../src/event-store.js';
 import { uploadEvents, pullEvents, snapshotState } from '../src/pg/store.js';
 import { ensureSchema } from '../src/pg/schema.js';
@@ -31,6 +31,7 @@ function buildLog() {
   const e = createTicket(s.db, { type: 'epic', title: 'Epic', actor: 'bri' });
   const a = createTicket(s.db, { type: 'story', title: 'Story', parent: e.id, actor: 'bri' });
   updateTicket(s.db, a.id, { status: 'in_progress' }, 'bri', 'Opus 4.8');
+  putArtifact(s.db, a.id, { name: 'chart.html', content: '<div>chart</div>' }, 'bri');
   const events = readAllEvents(eventsDir(s.scopeDir));
   s.db.close();
   return events;
@@ -49,6 +50,7 @@ test('snapshot returns the materialized board + tail cursor; pull after cursor i
   assert.equal(snap.count, events.length);
   assert.equal(snap.state.workspace.key, 'TST');
   assert.equal(snap.state.tickets.length, 2, 'board materialized in the snapshot');
+  assert.equal(snap.state.artifacts.length, 1, 'HTML artifacts are present in the snapshot');
   assert.ok(snap.state.history.some((h) => h.changed_by === 'Opus 4.8 on behalf of bri'),
     'attribution present in snapshot history');
 

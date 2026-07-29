@@ -196,10 +196,11 @@ export async function snapshotState(pool, tenantId) {
     const relations = await q('SELECT from_ticket_id, to_ticket_id, type, created_at FROM ticket_relations WHERE tenant_id=$1');
     const comments = await q('SELECT ticket_id, author, body, created_at FROM ticket_comments WHERE tenant_id=$1 ORDER BY id');
     const history = await q('SELECT ticket_id, field, old_value, new_value, changed_by, changed_at FROM ticket_history WHERE tenant_id=$1 ORDER BY id');
+    const artifacts = await q('SELECT id, ticket_id, name, mime_type, content, size_bytes, created_at, updated_at FROM ticket_artifacts WHERE tenant_id=$1 ORDER BY updated_at, id');
     return {
       cursor: agg.rows[0].cursor != null ? String(agg.rows[0].cursor) : null,
       count: agg.rows[0].count,
-      state: { workspace: workspace[0] ?? null, tickets, relations, comments, history },
+      state: { workspace: workspace[0] ?? null, tickets, relations, comments, history, artifacts },
     };
   });
 }

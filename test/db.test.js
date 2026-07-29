@@ -12,11 +12,11 @@ test('openDb is idempotent — re-opening the same dir reuses the schema', () =>
   const { scopeDir, db, cleanup } = createTempScope();
   try {
     const v1 = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-    assert.equal(v1.value, '6');
+    assert.equal(v1.value, '7');
     db.close();
     const db2 = openDb(scopeDir);
     const v2 = db2.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-    assert.equal(v2.value, '6');
+    assert.equal(v2.value, '7');
     db2.close();
   } finally {
     cleanup();
@@ -109,7 +109,7 @@ test('v1 → v3 migration renumbers globally when multiple projects collide', ()
 
     // Schema is now current.
     const version = db.prepare("SELECT value FROM meta WHERE key='schema_version'").get();
-    assert.equal(version.value, '6');
+    assert.equal(version.value, '7');
 
     // All three tickets survived, IDs are preserved verbatim.
     const ids = db.prepare('SELECT id FROM tickets ORDER BY number').all().map(r => r.id);

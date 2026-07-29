@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KXJBP3FEVWQADJ9DMP6BY11Z",
+  "ts": "2026-07-15T07:43:28.238Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KXJB6NQJARRCHRCTSPW3VWNP",
+    "commentId": "01KXJBP3FEVWQADJ9DMP6BY11Y",
+    "author": "codex",
+    "body": "Added artifact.put/remove events, SQLite v7 + Postgres projections, RLS coverage, snapshot inclusion, replay/size-limit tests."
+  }
+}

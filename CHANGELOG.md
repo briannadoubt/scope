@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.9.0
+
+### Added
+
+- **Synced HTML artifacts.** Agents can attach self-contained HTML
+  visualizations to tickets with `scope artifact add`, then list, inspect, or
+  remove them through the CLI and REST API. Artifacts are first-class
+  event-log data, replay consistently in SQLite and Postgres, and sync with the
+  rest of a workspace.
+- **Sandboxed artifact viewer.** The ticket drawer lists attached
+  visualizations and opens them in a script-capable sandbox with a restrictive
+  content-security policy, no network access, and no same-origin privileges.
+  HTML payloads are limited to 512 KiB.
+- **Workspace-defined board columns.** Workspaces can customize column names,
+  colors, order, and terminal semantics. CLI, web, iOS, event replay, and
+  hosted replicas all use the synced workspace configuration.
+- **Quiet workspace storage and `scope connect`.** New workspaces keep event
+  logs in machine-local storage by default while a small committed marker
+  identifies the workspace. Git-carried event logs remain available as an
+  explicit mode, with safe migration commands in both directions.
+- **Published library API.** The package root now exposes a supported facade
+  for opening workspaces and working with Scope data programmatically, while
+  `scope-kanban/cli` remains available for CLI integrations.
+- **Hide-done board view.** The web UI can temporarily hide tickets in
+  completed columns without changing their stored status.
+
+### Changed
+
+- Native sync behavior is documented and aligned around the board's
+  snapshot-client model, with clearer connection and storage status in the CLI
+  and web UI.
+- SQLite schema version 7 and the Postgres projection add durable
+  `ticket_artifacts` storage.
+
 ## 0.8.0
 
 ### Added

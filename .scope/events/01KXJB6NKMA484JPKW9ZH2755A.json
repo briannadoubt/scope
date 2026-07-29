@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KXJB6NKMA484JPKW9ZH2755A",
+  "ts": "2026-07-15T07:35:02.516Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KXJB6NKKCDD2WWHD2FA3JV4M",
+    "number": 277,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Synced agent-authored HTML artifacts",
+    "description": "Allow agents to author self-contained HTML visualizations, persist them through Scope's event log and remote sync, and render them safely inside the Scope UI.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

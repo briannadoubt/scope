@@ -27,6 +27,9 @@ export { ulid, TICKET_FIELDS };
 /** Current event-envelope version. Bump only on a breaking format change. */
 export const EVENT_FORMAT_VERSION = 1;
 
+/** HTML artifacts are stored inline in events so normal sync remains complete. */
+export const ARTIFACT_MAX_BYTES = 512 * 1024;
+
 /** The closed set of legal `kind` values. */
 export const EVENT_KINDS = Object.freeze([
   'workspace.init',
@@ -36,6 +39,8 @@ export const EVENT_KINDS = Object.freeze([
   'ticket.set_field',
   'ticket.delete',
   'comment.add',
+  'artifact.put',
+  'artifact.remove',
   'relation.add',
   'relation.remove',
 ]);
@@ -195,6 +200,22 @@ function validatePayload(kind, p) {
       if (!isNonEmptyStr(p.commentId)) fail('comment.add.commentId required');
       if (!isStr(p.body)) fail('comment.add.body must be a string');
       if (!isNullableStr(p.author)) fail('comment.add.author must be string|null');
+      break;
+
+    case 'artifact.put':
+      if (!isNonEmptyStr(p.ticketId)) fail('artifact.put.ticketId required');
+      if (!isUlid(p.artifactId)) fail('artifact.put.artifactId must be a canonical ULID');
+      if (!isNonEmptyStr(p.name) || p.name.length > 160)
+        fail('artifact.put.name must be 1-160 characters');
+      if (p.mimeType !== 'text/html') fail('artifact.put.mimeType must be text/html');
+      if (!isStr(p.content)) fail('artifact.put.content must be a string');
+      if (new TextEncoder().encode(p.content).length > ARTIFACT_MAX_BYTES)
+        fail(`artifact.put.content exceeds ${ARTIFACT_MAX_BYTES} bytes`);
+      break;
+
+    case 'artifact.remove':
+      if (!isNonEmptyStr(p.ticketId)) fail('artifact.remove.ticketId required');
+      if (!isUlid(p.artifactId)) fail('artifact.remove.artifactId must be a canonical ULID');
       break;
 
     case 'relation.add':

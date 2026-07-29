@@ -3170,6 +3170,26 @@ function renderDrawer(t) {
       <textarea class="description-edit" data-field="description" hidden placeholder="Markdown supported (#, **bold**, *italic*, \`code\`, lists, [links](https://...))">${escapeHtml(t.description ?? '')}</textarea>
     </div>
 
+    <div class="section artifact-section">
+      <div class="artifact-head">
+        <h3>Visual artifacts</h3>
+        <span>${(t.artifacts || []).length}</span>
+      </div>
+      <div class="artifact-list">
+        ${(t.artifacts || []).length
+          ? t.artifacts.map((a) => `
+              <div class="artifact-row">
+                <button type="button" class="artifact-open" data-artifact="${escapeHtml(a.id)}">
+                  <span class="artifact-icon" aria-hidden="true">◇</span>
+                  <span class="artifact-name">${escapeHtml(a.name)}</span>
+                  <span class="artifact-size">${formatArtifactSize(a.size_bytes)}</span>
+                </button>
+                <button type="button" class="artifact-remove" data-artifact-remove="${escapeHtml(a.id)}" title="Remove ${escapeHtml(a.name)}">×</button>
+              </div>`).join('')
+          : '<div class="artifact-empty">No HTML visualizations attached.</div>'}
+      </div>
+    </div>
+
     <div class="actions">
       <button class="btn primary" id="save-ticket">Save</button>
       <button class="btn danger" id="delete-ticket">Delete</button>
@@ -3287,6 +3307,24 @@ function renderDrawer(t) {
   });
   hydrateMermaid(preview);
 
+  el.querySelectorAll('.artifact-open').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const artifact = (t.artifacts || []).find((a) => a.id === btn.dataset.artifact);
+      if (artifact) openArtifactViewer(t, artifact);
+    });
+  });
+  el.querySelectorAll('[data-artifact-remove]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const artifactId = btn.dataset.artifactRemove;
+      const artifact = (t.artifacts || []).find((a) => a.id === artifactId);
+      if (!artifact || !confirm(`Remove ${artifact.name}?`)) return;
+      await api(`/api/tickets/${encodeURIComponent(t.id)}/artifacts/${encodeURIComponent(artifactId)}`, {
+        method: 'DELETE',
+      });
+      openDrawer(t.id);
+    });
+  });
+
   el.querySelectorAll('.child').forEach((c) =>
     c.addEventListener('click', () => openDrawer(c.dataset.id))
   );
@@ -3332,6 +3370,30 @@ function renderDrawer(t) {
     });
     openDrawer(t.id);
   });
+}
+
+function formatArtifactSize(bytes) {
+  const n = Number(bytes) || 0;
+  return n < 1024 ? `${n} B` : `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KiB`;
+}
+
+function openArtifactViewer(ticket, artifact) {
+  const params = new URLSearchParams();
+  if (state.currentWorkspace) params.set('workspace', state.currentWorkspace);
+  const url = `/api/tickets/${encodeURIComponent(ticket.id)}/artifacts/${encodeURIComponent(artifact.id)}/content${params.size ? `?${params}` : ''}`;
+  const modal = openModal(`
+    <div class="artifact-viewer-head">
+      <div>
+        <h2>${escapeHtml(artifact.name)}</h2>
+        <p>${escapeHtml(ticket.id)} · sandboxed HTML visualization</p>
+      </div>
+      <button type="button" class="btn ghost" id="artifact-viewer-close">Close</button>
+    </div>
+    <iframe class="artifact-frame" title="${escapeHtml(artifact.name)}"
+      sandbox="allow-scripts" referrerpolicy="no-referrer" src="${escapeHtml(url)}"></iframe>
+  `);
+  modal.classList.add('artifact-viewer-modal');
+  modal.querySelector('#artifact-viewer-close').addEventListener('click', closeModal);
 }
 
 async function saveDrawer(t) {

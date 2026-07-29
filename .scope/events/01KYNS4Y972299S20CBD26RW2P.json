@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KYNS4Y972299S20CBD26RW2P",
+  "ts": "2026-07-29T01:52:11.047Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KYNS4Y96NSZ4G0C30NAGFP6J",
+    "number": 284,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Tag, push, and verify v0.9.0",
+    "description": "Create the SemVer version commit and tag, push to origin, and verify the GitHub release workflow.",
+    "status": "todo",
+    "priority": "high",
+    "parentId": "01KYNS4XWT1TY4634Z616684YR",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

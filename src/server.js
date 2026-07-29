@@ -36,6 +36,10 @@ import {
   listRelations,
   addComment,
   listComments,
+  putArtifact,
+  listArtifacts,
+  getArtifact,
+  removeArtifact,
   listHistory,
   listEpicChildren,
   epicProgress,
@@ -953,6 +957,7 @@ export async function startServer({
       ...t,
       relations: listRelations(w.db, t.id),
       comments: listComments(w.db, t.id),
+      artifacts: listArtifacts(w.db, t.id),
       history: listHistory(w.db, t.id),
       children: t.type === 'epic' ? listEpicChildren(w.db, t.id) : [],
       progress: t.type === 'epic' ? epicProgress(w.db, t.id) : null,
@@ -1013,6 +1018,57 @@ export async function startServer({
     const { model } = actorCtx(req);
     const c = addComment(w.db, req.params.id, req.body.body, req.body.author, model);
     res.status(201).json(c);
+  }));
+
+  /* ---------- agent-authored HTML artifacts ---------- */
+
+  app.get('/api/tickets/:id/artifacts', ws((req, res, w) => {
+    if (!getTicket(w.db, req.params.id)) return res.status(404).json({ error: 'ticket not found' });
+    res.json(listArtifacts(w.db, req.params.id));
+  }));
+
+  app.post('/api/tickets/:id/artifacts', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    const body = cleanBody(req.body);
+    const artifact = putArtifact(w.db, req.params.id, {
+      name: body.name,
+      content: body.content,
+      mimeType: body.mimeType ?? 'text/html',
+    }, by, model);
+    res.status(201).json(artifact);
+  }));
+
+  app.get('/api/tickets/:id/artifacts/:artifactId', ws((req, res, w) => {
+    const artifact = getArtifact(w.db, req.params.id, req.params.artifactId);
+    if (!artifact) return res.status(404).json({ error: 'artifact not found' });
+    res.json(artifact);
+  }));
+
+  app.get('/api/tickets/:id/artifacts/:artifactId/content', ws((req, res, w) => {
+    const artifact = getArtifact(w.db, req.params.id, req.params.artifactId);
+    if (!artifact) return res.status(404).type('text/plain').send('Artifact not found');
+    // The viewer is intentionally script-capable but isolated: no same-origin
+    // access, network, forms, top navigation, popups, or parent DOM access.
+    res.removeHeader('X-Frame-Options');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; " +
+      "img-src data: blob:; font-src data:; connect-src 'none'; media-src data: blob:; " +
+      "object-src 'none'; frame-src 'none'; child-src 'none'; form-action 'none'; " +
+      "base-uri 'none'; frame-ancestors 'self'"
+    );
+    res.send(artifact.content);
+  }));
+
+  app.delete('/api/tickets/:id/artifacts/:artifactId', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    const ok = removeArtifact(w.db, req.params.id, req.params.artifactId, by, model);
+    if (!ok) return res.status(404).json({ error: 'artifact not found' });
+    res.json({ deleted: req.params.artifactId });
   }));
 
   /* ---------- history ---------- */

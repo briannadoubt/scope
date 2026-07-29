@@ -37,6 +37,7 @@ export const RLS_TABLES = [
   'ticket_relations',
   'ticket_comments',
   'ticket_history',
+  'ticket_artifacts',
 ];
 
 /** The session GUC the policies key on. */
