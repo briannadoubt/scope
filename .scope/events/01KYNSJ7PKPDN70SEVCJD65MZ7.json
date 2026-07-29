@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KYNSJ7PKPDN70SEVCJD65MZ7",
+  "ts": "2026-07-29T01:59:26.675Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KYNS4Y96NSZ4G0C30NAGFP6J",
+    "commentId": "01KYNSJ7PKPDN70SEVCJD65MZ6",
+    "author": "codex",
+    "body": "Released v0.9.0 successfully. Tag and main pushed; GitHub Actions run 30415550620 passed; npm scope-kanban@0.9.0 published; GitHub release created; Homebrew formula updated to v0.9.0 with sha256 42c83947f26b230b45a6fc25579068ac20abbb99efa471a380b782d6efe539de."
+  }
+}
