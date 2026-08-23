@@ -1,0 +1,53 @@
+{
+  "v": 2,
+  "id": "01M0PV2MEW3PKXFE6F7MJY30CA",
+  "ts": "2026-08-23T08:16:30.684Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0PTZDT0P2TPJQAF3R8HBPP0",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T08:16:30.684Z",
+    "summary": "Started the dogfood hub as a persistent LaunchAgent, restored 13 workspaces, and verified durable mailbox delivery/ack through CLI and REST.",
+    "failure": null,
+    "evidence": [
+      {
+        "type": "service",
+        "value": "com.briannadoubt.scope-dogfood"
+      },
+      {
+        "type": "message",
+        "value": "01M0PV04SX7132101AF2W1H0G"
+      },
+      {
+        "type": "workspaces",
+        "value": 13
+      }
+    ],
+    "verification": [
+      {
+        "command": "launchctl service state",
+        "ok": true,
+        "state": "running"
+      },
+      {
+        "command": "HTTP /api/meta",
+        "ok": true
+      },
+      {
+        "command": "CLI send + inbox + REST fetch + ack",
+        "ok": true
+      },
+      {
+        "command": "dogfood report",
+        "ok": true,
+        "records": 55,
+        "errors": 0
+      }
+    ]
+  },
+  "hlc": "1787472990684-000000",
+  "baseRevision": "sha256:e6ec62b939e93b8d0b221267d63381203535026c5ce8b51cf71f9bde091d0315",
+  "transactionId": "01M0PV2MEXDPG98CSFBCMG8DR7",
+  "transactionIndex": 0
+}

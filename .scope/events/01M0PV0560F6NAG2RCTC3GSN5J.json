@@ -1,0 +1,14 @@
+{
+  "v": 2,
+  "id": "01M0PV0560F6NAG2RCTC3GSN5J",
+  "ts": "2026-08-23T08:15:09.504Z",
+  "actor": "sol",
+  "kind": "agent.message.ack",
+  "payload": {
+    "messageId": "01M0PV04SX7132101AF2W1H0G7",
+    "agent": "dogfood:opus",
+    "acknowledgedAt": "2026-08-23T08:15:09.491Z"
+  },
+  "hlc": "1787472909504-000000",
+  "baseRevision": "sha256:aa0cab1693ec311b69948646f1764ca2130693a89782de6cdb967e1988e1d130"
+}

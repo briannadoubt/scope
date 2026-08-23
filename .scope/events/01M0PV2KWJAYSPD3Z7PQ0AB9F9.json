@@ -1,0 +1,46 @@
+{
+  "v": 2,
+  "id": "01M0PV2KWJAYSPD3Z7PQ0AB9F9",
+  "ts": "2026-08-23T08:16:30.098Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0PTG7E7G3PWQK1S9C7QA0D2",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T08:16:30.098Z",
+    "summary": "Added default-on privacy-bounded CLI/hub dogfood telemetry, machine controls, reporting, and tests.",
+    "failure": null,
+    "evidence": [
+      {
+        "type": "commit",
+        "value": "e475d3a"
+      },
+      {
+        "type": "log",
+        "value": "~/.scope/dogfood/usage.ndjson"
+      }
+    ],
+    "verification": [
+      {
+        "command": "node --test test/dogfood-telemetry.test.js",
+        "ok": true
+      },
+      {
+        "command": "npm test",
+        "ok": true,
+        "passed": 347,
+        "skipped": 70
+      },
+      {
+        "command": "telemetry schema/privacy audit",
+        "ok": true,
+        "records": 55,
+        "unexpectedKeys": 0
+      }
+    ]
+  },
+  "hlc": "1787472990098-000000",
+  "baseRevision": "sha256:bff3ba110650a473be2082b14a150523a7e140e903e5283221e64a319e9575a1",
+  "transactionId": "01M0PV2KWJAYSPD3Z7PQ0AB9FC",
+  "transactionIndex": 0
+}

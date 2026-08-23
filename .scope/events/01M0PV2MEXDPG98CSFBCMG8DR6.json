@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M0PV2MEXDPG98CSFBCMG8DR6",
+  "ts": "2026-08-23T08:16:30.685Z",
+  "actor": "sol",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M0PT4NCMH79935V0TEJ8ANGW",
+    "field": "status",
+    "value": "done"
+  },
+  "hlc": "1787472990685-000001",
+  "baseRevision": "sha256:e6ec62b939e93b8d0b221267d63381203535026c5ce8b51cf71f9bde091d0315",
+  "transactionId": "01M0PV2MEXDPG98CSFBCMG8DR7",
+  "transactionIndex": 2
+}

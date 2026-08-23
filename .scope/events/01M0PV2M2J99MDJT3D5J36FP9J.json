@@ -1,0 +1,50 @@
+{
+  "v": 2,
+  "id": "01M0PV2M2J99MDJT3D5J36FP9J",
+  "ts": "2026-08-23T08:16:30.290Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0PTDX09W777R002SPCGJZQA",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T08:16:30.290Z",
+    "summary": "Committed and linked the 0.10.0-dogfood.1 build as the active global Scope executable.",
+    "failure": null,
+    "evidence": [
+      {
+        "type": "commit",
+        "value": "e475d3a"
+      },
+      {
+        "type": "version",
+        "value": "0.10.0-dogfood.1"
+      }
+    ],
+    "verification": [
+      {
+        "command": "npm test",
+        "ok": true,
+        "passed": 347,
+        "skipped": 70
+      },
+      {
+        "command": "npm pack --dry-run --json",
+        "ok": true,
+        "files": 114
+      },
+      {
+        "command": "scope --json capabilities",
+        "ok": true,
+        "writerVersion": 2,
+        "readerVersions": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  "hlc": "1787472990290-000000",
+  "baseRevision": "sha256:485a7500680c96effa299f21870643feaa5c6bc37df64d048e0653d113438d81",
+  "transactionId": "01M0PV2M2K4B9YBQ4QAM2M3FQD",
+  "transactionIndex": 0
+}

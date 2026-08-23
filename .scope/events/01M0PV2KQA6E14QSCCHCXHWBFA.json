@@ -1,0 +1,14 @@
+{
+  "v": 2,
+  "id": "01M0PV2KQA6E14QSCCHCXHWBFA",
+  "ts": "2026-08-23T08:16:29.930Z",
+  "actor": "sol",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M0PT4MQBPHPX0CB53Q37CMVM",
+    "field": "description",
+    "value": "Add default-on local NDJSON instrumentation for CLI and hub operations with latency/outcome metadata and strict content redaction, machine-wide controls, tests, and a summary workflow."
+  },
+  "hlc": "1787472989930-000000",
+  "baseRevision": "sha256:d87a9fdf71289b69aac428e6af5feb9b4136155081f63af82b9e02d7db249ae6"
+}

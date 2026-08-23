@@ -1,0 +1,20 @@
+{
+  "v": 2,
+  "id": "01M0PV04N0ZA25R2KA8M7DM5EA",
+  "ts": "2026-08-23T08:15:08.960Z",
+  "actor": "sol",
+  "kind": "agent.register",
+  "payload": {
+    "agentId": "dogfood:opus",
+    "displayName": "dogfood:opus",
+    "provider": "anthropic",
+    "capabilities": [],
+    "metadata": {},
+    "status": "online",
+    "registeredAt": "2026-08-23T08:15:08.949Z",
+    "seenAt": "2026-08-23T08:15:08.949Z",
+    "expiresAt": "2026-08-23T08:25:08.949Z"
+  },
+  "hlc": "1787472908960-000000",
+  "baseRevision": "sha256:9d75d458993e3512cfdf78bf17e9b08c79be8fdae78d6d3a8522b28d97c4dd1e"
+}

@@ -1,0 +1,23 @@
+{
+  "v": 2,
+  "id": "01M0PV04TCQXKJFGHAPKQWWAK2",
+  "ts": "2026-08-23T08:15:09.132Z",
+  "actor": "sol",
+  "kind": "agent.message.send",
+  "payload": {
+    "messageId": "01M0PV04SX7132101AF2W1H0G7",
+    "ticketId": "01M0PT4NCMH79935V0TEJ8ANGW",
+    "fromAgent": "dogfood:sol",
+    "toAgent": "dogfood:opus",
+    "kind": "review_request",
+    "body": "DOGFOOD-MAILBOX-SMOKE-8921",
+    "artifactRefs": [],
+    "threadId": "01M0PV04SX7132101AF2W1H0G7",
+    "replyTo": null,
+    "correlationId": null,
+    "createdAt": "2026-08-23T08:15:09.117Z",
+    "expiresAt": null
+  },
+  "hlc": "1787472909132-000000",
+  "baseRevision": "sha256:805aa5eec7bea5c3eb10c4c6a2b5b69a4de5071a0b9728fe63b4f57958a2caa7"
+}
