@@ -70,7 +70,8 @@ test('round-trip: delete the db, replay the log, get an identical board', () => 
 
     // Rebuild purely from events.
     const { applied } = replayInto(db, events);
-    assert.ok(applied >= events.length - 1);
+    const operationEvents = events.filter((event) => event.kind !== 'transaction.commit');
+    assert.ok(applied >= operationEvents.length - 1);
 
     const after = snapshot(db);
     assert.deepEqual(after, before, 'replayed board matches the original');

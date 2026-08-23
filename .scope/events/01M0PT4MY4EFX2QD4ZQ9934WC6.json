@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M0PT4MY4EFX2QD4ZQ9934WC6",
+  "ts": "2026-08-23T08:00:08.132Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0PT4MY3AR2R8QG70JDC6YP0",
+    "number": 315,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Commit and install the dogfood build",
+    "description": "Commit the complete unreleased coordination work, retain the local npm link to this checkout, and verify the active executable and event compatibility contract.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M0PT4BRYSRW7B9DR7RMH8C5D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787472008132-000000",
+  "baseRevision": "sha256:06b20ffbf9bd8ef001a92ab0cd0983b1347b135692501218ac95a088c56bfc2c"
+}

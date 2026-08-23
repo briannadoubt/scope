@@ -1,8 +1,8 @@
 import { nowIso, nextTicketId, recordHistory, getWorkspace, bumpMeta, setMeta } from './db.js';
-import { emitChange } from './events.js';
+import { emitChange as publishChange } from './events.js';
 import { ulid } from './ulid.js';
 import { makeEvent, formatActor, ARTIFACT_MAX_BYTES } from './event-schema.js';
-import { appendEvent, eventsDirForDb, readAllEvents } from './event-store.js';
+import { appendEvent, appendTransaction, eventsDirForDb, readAllEvents } from './event-store.js';
 import { replayInto } from './replay.js';
 import {
   TICKET_TYPES,
@@ -13,6 +13,7 @@ import {
   COLUMN_TO_FIELD,
 } from './enums.js';
 import { doneColumnIds, normalizeColumns, statusIds } from './columns.js';
+import { revisionForEvents, ScopeCliError } from './protocol.js';
 
 /* ---------------- event emission (SCP-108) ---------------- */
 
@@ -23,6 +24,68 @@ const actorOf = (a) => (a && String(a).trim()) || 'unknown';
 // flushed to disk only after the DB transaction commits — so a batch is atomic
 // across both the cache and the log (all events land, or none do).
 let pendingEvents = null;
+let pendingChanges = null;
+let pendingBaseRevision = null;
+let mutationContext = null;
+
+/** CLI bridge for atomic request identity and compare-and-swap preconditions. */
+export function setMutationContext(context = null) {
+  mutationContext = context;
+}
+
+function emitChange(change) {
+  if (pendingChanges) pendingChanges.push(change);
+  else publishChange(change);
+}
+
+/**
+ * Run one public mutation log-first and cache-second. SQLite stays inside a
+ * transaction while the event(s) are durably published. If event publication
+ * fails SQLite rolls back; if the process dies after publication but before
+ * SQLite commits, the next open rebuilds the disposable cache from the log.
+ */
+function atomicMutation(db, operation, { ifRevision = mutationContext?.ifRevision ?? null } = {}) {
+  if (pendingEvents) return operation();
+  pendingEvents = [];
+  pendingChanges = [];
+  pendingBaseRevision = null;
+  let changes = [];
+  try {
+    const result = db.transaction(() => {
+      // Acquire SQLite's writer lock before observing the event revision. This
+      // closes the check-then-write race between concurrent CLI processes.
+      if (ifRevision) {
+        db.prepare("UPDATE meta SET value=value WHERE key='schema_version'").run();
+      }
+      pendingBaseRevision = revisionForEvents(readAllEvents(eventsDirForDb(db)));
+      if (ifRevision && pendingBaseRevision !== ifRevision) {
+        throw new ScopeCliError('workspace revision is stale', {
+          code: 'STALE_REVISION', retryable: true,
+          details: { expected: ifRevision, actual: pendingBaseRevision },
+        });
+      }
+      const value = operation();
+      const dir = eventsDirForDb(db);
+      let written = 0;
+      if (pendingEvents.length === 1) {
+        appendEvent(dir, pendingEvents[0]);
+        written = 1;
+      } else if (pendingEvents.length > 1) {
+        const tx = appendTransaction(dir, pendingEvents);
+        written = tx.events.length + 1;
+      }
+      if (written) bumpMeta(db, 'applied_event_count', written);
+      return value;
+    })();
+    changes = pendingChanges.slice();
+    return result;
+  } finally {
+    pendingEvents = null;
+    pendingChanges = null;
+    pendingBaseRevision = null;
+    for (const change of changes) publishChange(change);
+  }
+}
 
 /**
  * Append one operation event to the on-disk log for this db's workspace. This
@@ -34,7 +97,11 @@ let pendingEvents = null;
  * be flushed atomically after the transaction commits.
  */
 function emit(db, kind, payload, actor, model = null) {
-  const evt = makeEvent(kind, payload, { actor: actorOf(actor), model: model || undefined });
+  const evt = makeEvent(kind, payload, {
+    actor: actorOf(actor), model: model || undefined, baseRevision: pendingBaseRevision || undefined,
+    requestId: mutationContext?.requestId,
+    requestCommand: mutationContext?.requestCommand,
+  });
   if (pendingEvents) {
     pendingEvents.push(evt);
     return evt;
@@ -45,6 +112,12 @@ function emit(db, kind, payload, actor, model = null) {
   bumpMeta(db, 'applied_event_count', 1);
   return evt;
 }
+
+// Internal extension seam for agent-native domain modules. It preserves the
+// same log-first atomicity and buffered realtime notifications as core tickets.
+export const withEventMutation = (db, operation) => atomicMutation(db, operation);
+export const emitDomainEvent = (db, kind, payload, actor, model = null) => emit(db, kind, payload, actor, model);
+export const emitDomainChange = (change) => emitChange(change);
 
 /** Look up a ticket's stable ULID identity by its KEY-N id. */
 function uidFor(db, id) {
@@ -77,33 +150,19 @@ function uidFor(db, id) {
  *
  * @returns {{ applied: number, results: Array, refs: object }}
  */
-export function applyBatch(db, ops, { actor = null, model = null } = {}) {
+export function applyBatch(db, ops, { actor = null, model = null, ifRevision = null } = {}) {
   if (!Array.isArray(ops)) throw new Error('batch ops must be an array');
-  if (pendingEvents) throw new Error('applyBatch cannot be nested');
+  if (!pendingEvents) {
+    return atomicMutation(db, () => applyBatch(db, ops, { actor, model }), { ifRevision });
+  }
 
   const refs = Object.create(null);
   const deref = (v) =>
     typeof v === 'string' && v.startsWith('$') ? resolveRef(refs, v.slice(1)) : v;
 
-  pendingEvents = [];
-  try {
-    const results = db.transaction(() => {
-      const out = [];
-      ops.forEach((op, i) => {
-        out.push(dispatchOp(db, op, i, actor, model, refs, deref));
-      });
-      return out;
-    })();
-    // Transaction committed — now publish the buffered events.
-    const dir = eventsDirForDb(db);
-    for (const evt of pendingEvents) appendEvent(dir, evt);
-    if (pendingEvents.length) bumpMeta(db, 'applied_event_count', pendingEvents.length);
-    return { applied: ops.length, results, refs: { ...refs } };
-  } finally {
-    // On error the DB transaction has already rolled back; dropping the buffer
-    // means no events were written. Either way, clear batch state.
-    pendingEvents = null;
-  }
+  const results = [];
+  ops.forEach((op, i) => results.push(dispatchOp(db, op, i, actor, model, refs, deref)));
+  return { applied: ops.length, results, refs: { ...refs } };
 }
 
 function resolveRef(refs, name) {
@@ -152,6 +211,23 @@ function dispatchOp(db, op, i, actor, model, refs, deref) {
     case 'workspace':
       updateWorkspace(db, op.fields ?? {}, who, how);
       return { op: 'workspace', fields: op.fields ?? {} };
+    case 'assert': {
+      const id = deref(op.id);
+      const ticket = getTicket(db, id);
+      if (!ticket) throw new Error(`batch assertion ticket not found: ${id}`);
+      const expected = op.fields ?? {};
+      for (const [field, value] of Object.entries(expected)) {
+        const actual = ticket[field];
+        if (JSON.stringify(actual) !== JSON.stringify(value)) {
+          throw new ScopeCliError(`batch assertion failed for ${id}.${field}`, {
+            code: 'PRECONDITION_FAILED',
+            retryable: true,
+            details: { id, field, expected: value, actual },
+          });
+        }
+      }
+      return { op: 'assert', id, fields: expected };
+    }
     default:
       throw new Error(`batch op #${i}: unknown op "${op.op}"`);
   }
@@ -185,6 +261,7 @@ export function listWorkspaces(db) {
 }
 
 export function updateWorkspace(db, fields = {}, who = null, model = null) {
+  if (!pendingEvents) return atomicMutation(db, () => updateWorkspace(db, fields, who, model));
   const ws = getWorkspace(db);
   const allowed = ['key', 'name', 'description', 'overview', 'columns'];
   const updates = [];
@@ -268,6 +345,9 @@ export function createTicket(
     model = null,
   }
 ) {
+  if (!pendingEvents) return atomicMutation(db, () => createTicket(db, {
+    type, title, description, status, priority, parent, branch, prUrl, assignee, labels, actor, model,
+  }));
   if (!TICKET_TYPES.includes(type)) throw new Error(`Invalid type "${type}". Use epic|story|bug.`);
   assertValidStatus(db, status);
   if (!PRIORITIES.includes(priority)) throw new Error(`Invalid priority "${priority}".`);
@@ -486,6 +566,7 @@ export function searchTickets(db, query, { limit } = {}) {
 }
 
 export function updateTicket(db, id, fields, who = null, model = null) {
+  if (!pendingEvents) return atomicMutation(db, () => updateTicket(db, id, fields, who, model));
   const ticket = getTicket(db, id);
   if (!ticket) throw new Error(`Ticket not found: ${id}`);
 
@@ -612,6 +693,7 @@ export function updateTicket(db, id, fields, who = null, model = null) {
 }
 
 export function deleteTicket(db, id, who = null, model = null) {
+  if (!pendingEvents) return atomicMutation(db, () => deleteTicket(db, id, who, model));
   const t = getTicket(db, id);
   if (!t) return false;
   db.prepare('DELETE FROM tickets WHERE id = ?').run(t.id);
@@ -623,6 +705,7 @@ export function deleteTicket(db, id, who = null, model = null) {
 /* ---------------- relations ---------------- */
 
 export function addRelation(db, fromId, toId, type, who = null, model = null) {
+  if (!pendingEvents) return atomicMutation(db, () => addRelation(db, fromId, toId, type, who, model));
   if (!RELATION_TYPES.includes(type))
     throw new Error(`Invalid relation type "${type}". One of: ${RELATION_TYPES.join(', ')}`);
   if (fromId === toId) throw new Error('Cannot relate a ticket to itself.');
@@ -647,6 +730,7 @@ export function addRelation(db, fromId, toId, type, who = null, model = null) {
 }
 
 export function removeRelation(db, fromId, toId, type, who = null, model = null) {
+  if (!pendingEvents) return atomicMutation(db, () => removeRelation(db, fromId, toId, type, who, model));
   if (!RELATION_TYPES.includes(type)) throw new Error(`Invalid relation type "${type}".`);
   const fromUid = uidFor(db, fromId);
   const toUid = uidFor(db, toId);
@@ -680,6 +764,7 @@ export function listRelations(db, ticketId) {
 /* ---------------- comments & history ---------------- */
 
 export function addComment(db, ticketId, body, author = null, model = null) {
+  if (!pendingEvents) return atomicMutation(db, () => addComment(db, ticketId, body, author, model));
   const t = getTicket(db, ticketId);
   if (!t) throw new Error(`Ticket not found: ${ticketId}`);
   // Cache stores the rendered attribution; the event keeps author + model
@@ -738,6 +823,9 @@ export function putArtifact(
   who = null,
   model = null
 ) {
+  if (!pendingEvents) return atomicMutation(db, () => putArtifact(
+    db, ticketId, { name, content, mimeType }, who, model
+  ));
   const ticket = getTicket(db, ticketId);
   if (!ticket) throw new Error(`Ticket not found: ${ticketId}`);
   const cleanName = String(name ?? '').trim();
@@ -782,6 +870,7 @@ export function getArtifact(db, ticketId, artifactId) {
 }
 
 export function removeArtifact(db, ticketId, artifactId, who = null, model = null) {
+  if (!pendingEvents) return atomicMutation(db, () => removeArtifact(db, ticketId, artifactId, who, model));
   const ticket = getTicket(db, ticketId);
   if (!ticket) throw new Error(`Ticket not found: ${ticketId}`);
   const artifact = getArtifact(db, ticket.id, artifactId);

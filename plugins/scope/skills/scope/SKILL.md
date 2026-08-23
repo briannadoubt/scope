@@ -13,13 +13,32 @@ UI, and realtime updates.
 
 Read `../../references/guardrails.md` before mutating tickets.
 
-## Default Flow
+## Machine Protocol
 
-1. Inspect state with `scope --json board` or `scope --json ticket list`.
-2. For new multi-step work, create one epic and focused child stories.
-3. Move the active ticket to `in_progress` when work starts.
-4. Add comments when a discovery matters to another agent or future you.
-5. Attach branch or PR links when they exist.
-6. Mark tickets done as each discrete piece finishes.
+1. Run `scope --json capabilities`; parse the versioned envelope's `data`.
+   For shared workspaces, verify each host supports
+   `data.eventFormat.minimumReaderVersion` before it reads or writes events.
+2. Inspect `scope --json ready` and atomically `claim --agent <identity>`.
+3. Read `scope --json context <ticket>`, then renew the lease during long work.
+4. Record durable facts with `discover`, not untyped prose comments.
+5. Finish with `complete`, including verification/evidence required by contract.
 
-Use `scope batch --by codex` for related multi-record changes.
+When the host has native subagents, run `scope --json ready --plan` and use a
+safe parallel group. Give each child one ticket; that child runs `claim`, reads
+`context`, renews its lease, and either `complete`s with evidence or creates a
+structured `handoff`. Keep spawning, prompting, live messaging, waiting,
+cancellation, sandboxing, and worktrees in the host harness. Re-read the
+ticket's `execution` state after a child returns; do not infer success from chat.
+
+For communication that must cross hosts or survive a restart, register stable
+agent ids and use `message send`, `message inbox`, `message reply`, and
+`message ack`. Host adapters consume `scope message listen <agent>` or the
+addressed SSE stream. Delivery is at least once until acknowledgement, so
+deduplicate by message id.
+
+Use global `--request-id` when retrying mutations and `--if-revision` when a
+write depends on previously read state. Never unwrap JSON by guessing: success
+is in `data`; failures are in `error` with stable codes and retryability.
+
+Use `scope batch --by codex` for related multi-record changes. Include an
+`assert` op or `--if-revision` when correctness depends on current values.

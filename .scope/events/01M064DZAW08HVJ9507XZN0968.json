@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01M064DZAW08HVJ9507XZN0968",
+  "ts": "2026-08-16T20:32:54.108Z",
+  "actor": "codex",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M063VN0ZAY6W59RR1JJ31Z15",
+    "field": "status",
+    "value": "in_progress"
+  },
+  "hlc": "1786912374108-000000",
+  "baseRevision": "sha256:fe35dae8984a9743bb58dca4ae19562d0751a5e2ef3af248b02c3e02916e26a1"
+}

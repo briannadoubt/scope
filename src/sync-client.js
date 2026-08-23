@@ -88,9 +88,12 @@ export async function syncWithRemote(db, scopeDir, { remote, remoteWorkspace, to
   // (which also covers cross-replica display-number collisions via renumber).
   const events = pull.events || [];
   const known = new Set(readAllEvents(dir).map((e) => e.id));
-  const fresh = events.filter((e) => !known.has(e.id));
   for (const e of events) appendEvent(dir, e);
-  if (fresh.length) applyEvents(db, readAllEvents(dir), fresh);
+  const allAfter = readAllEvents(dir);
+  // A commit marker can make transaction members received on an earlier page
+  // visible now. Diff the effective committed log, not merely this response.
+  const fresh = allAfter.filter((e) => !known.has(e.id));
+  if (fresh.length) applyEvents(db, allAfter, fresh);
   if (pull.cursor) setMeta(db, cursorKey, pull.cursor);
 
   return {

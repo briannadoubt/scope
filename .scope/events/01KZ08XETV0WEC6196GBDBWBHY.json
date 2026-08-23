@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KZ08XETV0WEC6196GBDBWBHY",
+  "ts": "2026-08-02T03:40:07.387Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KZ02Z6DW956G2Y5HT8NC0798",
+    "commentId": "01KZ08XETV0WEC6196GBDBWBHX",
+    "author": "codex",
+    "body": "Deleted complete Runtime and Chill Fly stacks on 2026-08-01: Managed Postgres chill-db (kyzl60x19elopj9g), Managed Postgres gitruntime-db (82ylg01v9e70zx19), app chill-backend, and app gitruntime. Post-delete verification: flyctl reports no managed Postgres clusters in personal organization, and target app count is 0. Expected run-rate reduction is roughly /month based on current Cost Explorer."
+  }
+}

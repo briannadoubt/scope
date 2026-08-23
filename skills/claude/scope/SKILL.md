@@ -34,8 +34,13 @@ output:
 ```bash
 scope --json ticket list                 # current workspace, all tickets
 scope --json ticket show MA-3
-scope --json meta                        # legal enums (statuses/priorities/types)
+scope --json capabilities                # executable protocol + workspace vocabulary
 ```
+
+JSON output is a versioned envelope. Consume `.data` on success; failures use
+stable `.error.code`, `.error.retryable`, and `.error.details` fields.
+Before sharing a workspace across hosts, verify each host supports
+`.data.eventFormat.minimumReaderVersion` from `scope --json capabilities`.
 
 If the CLI isn't installed:
 
@@ -122,7 +127,7 @@ echo '[
 
 Batch ops: `create` (optional `ref`), `update {id,fields}`, `status {id,status}`,
 `delete {id}`, `comment {id,body}`, `link`/`unlink {from,type,to}`, `workspace
-{fields}`. If a command for what you need seems missing, ask for it to be added —
+{fields}`, `assert {id,fields}`. If a command for what you need seems missing, ask for it to be added —
 never fall back to SQL.
 
 ## Version control and storage
@@ -168,9 +173,59 @@ another agent's) pushes to all viewers via SSE within ~100ms. **Never pass
 invocations auto-discover the running hub and register their workspace with
 it.
 
-If multiple agents are working in parallel, **always read state before writing
-state** — there is no merge logic for conflicting `ticket edit` calls, last
-write wins.
+Use Scope's execution primitives when agents share work:
+
+```bash
+scope --json ready --capabilities node,postgres
+scope --json claim MA-2 --agent claude --files src/auth.js,test/auth.test.js
+scope --json context MA-2 --budget 3000
+scope --json discover MA-2 fact "Expiry is enforced in middleware" --by claude
+scope --json complete MA-2 --attempt <attempt-id> --agent claude \
+  --verification '[{"command":"npm test","ok":true}]'
+```
+
+Claims atomically create renewable, expiring leases and execution attempts.
+Dependencies determine readiness; contracts can require capabilities,
+verification/evidence, or exclusive file intent. Use global `--request-id` for
+exactly-once retries and `--if-revision` for state-dependent writes. Consume
+incremental context with `context --since`, follow events with `watch --since`,
+and inspect/resolve concurrent sibling intent via `conflicts`.
+
+For communication that must cross hosts or survive a restart, use stable agent
+ids and the addressed mailbox:
+
+```bash
+scope --json agent register claude:opus --provider anthropic --ttl 2m
+scope --json message inbox claude:opus
+scope --json message reply MESSAGE_ID --from claude:opus --body "Review complete"
+scope --json message ack MESSAGE_ID --agent claude:opus
+```
+
+Host adapters consume `scope message listen <agent>` or the addressed SSE
+stream. Delivery is at least once until acknowledgement; deduplicate by message
+id. Use native Claude messaging for siblings already running in one harness.
+
+### Native Claude subagents
+
+Claude Code owns spawning, prompting, model-session wakeup, waiting,
+cancellation, sandboxing, and worktrees. Scope supplies durable shared state
+and cross-host message delivery:
+
+1. Run `scope --json ready --plan --capabilities <csv>`. Spawn children only
+   for tickets in a safe parallel group; unresolved intent stays sequential.
+2. Give each child one ticket. The child runs `claim --agent <unique-id>
+   --files <anticipated-files>`, then reads `context`; it claims no other work.
+3. During long work, renew the lease. Renewal observes changed Git files when
+   `--files` is omitted, improving later overlap decisions.
+4. Use native Claude communication for live coordination. Persist facts and
+   decisions with `discover`; use `handoff create` when unfinished work changes
+   owners; use `complete` with verification/evidence only when actually done.
+5. Re-read the ticket's `execution` state after the child returns. Treat chat
+   output as advisory and durable attempt/evidence state as authoritative.
+
+Claims move conventional workflows to `in_progress`; successful attempts move
+to `in_review`, failures and handoffs to `todo`, and completion to `done`.
+`scope serve` is optional.
 
 ### Claude Code preview pane setup
 

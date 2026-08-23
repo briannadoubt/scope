@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createTempScope } from './helpers.js';
-import { readAllEvents, eventsDir } from '../src/event-store.js';
+import { inspectEventStore, readAllEvents, eventsDir } from '../src/event-store.js';
 import { getMeta } from '../src/db.js';
+import { syncFromLog } from '../src/replay.js';
+import { ensureEventLog } from '../src/backfill.js';
 import {
   applyBatch,
   createTicket,
@@ -60,7 +62,7 @@ test('applyBatch is atomic: a failing op rolls back the whole batch (db AND log)
   }
 });
 
-test('applyBatch writes exactly one event per emitting op on success', () => {
+test('applyBatch writes its operation events plus one durable commit marker', () => {
   const { scopeDir, db, cleanup } = createTempScope();
   try {
     const before = readAllEvents(eventsDir(scopeDir)).length;
@@ -69,7 +71,12 @@ test('applyBatch writes exactly one event per emitting op on success', () => {
       { op: 'create', type: 'bug', title: 'B' },
     ], { actor: 'bri' });
     const after = readAllEvents(eventsDir(scopeDir)).length;
-    assert.equal(after - before, 2, 'two ticket.create events written');
+    assert.equal(after - before, 3, 'two ticket.create events plus transaction.commit written');
+    const tail = readAllEvents(eventsDir(scopeDir)).slice(-3);
+    assert.deepEqual(
+      tail.map((event) => event.kind).sort(),
+      ['ticket.create', 'ticket.create', 'transaction.commit'].sort()
+    );
     assert.equal(Number(getMeta(db, 'applied_event_count')), after, 'applied count matches file count');
   } finally {
     cleanup();
@@ -84,6 +91,44 @@ test('applyBatch rejects unknown ops and bad refs (before any write)', () => {
     assert.throws(() => applyBatch(db, [{ op: 'create', type: 'story', title: 'X', parent: '$nope' }]), /unknown ref/);
     assert.equal(readAllEvents(eventsDir(scopeDir)).length, before, 'no events from failed batches');
   } finally {
+    cleanup();
+  }
+});
+
+test('crash before a batch commit leaves only invisible orphan members', () => {
+  const { scopeDir, db, cleanup } = createTempScope();
+  try {
+    ensureEventLog(db, scopeDir);
+    const before = readAllEvents(eventsDir(scopeDir)).length;
+    process.env.SCOPE_EVENT_FAILPOINT = 'before-commit';
+    assert.throws(() => applyBatch(db, [
+      { op: 'create', type: 'story', title: 'A' },
+      { op: 'create', type: 'story', title: 'B' },
+    ], { actor: 'tester' }), /injected event-store failure/);
+    assert.equal(listTickets(db).length, 0, 'SQLite rolled back');
+    assert.equal(readAllEvents(eventsDir(scopeDir)).length, before, 'partial transaction is invisible');
+    assert.equal(inspectEventStore(eventsDir(scopeDir)).orphanTransactionEvents.length, 2);
+  } finally {
+    delete process.env.SCOPE_EVENT_FAILPOINT;
+    cleanup();
+  }
+});
+
+test('crash after log commit is recovered by replaying the authoritative log', () => {
+  const { scopeDir, db, cleanup } = createTempScope();
+  try {
+    ensureEventLog(db, scopeDir);
+    process.env.SCOPE_EVENT_FAILPOINT = 'after-commit';
+    assert.throws(() => applyBatch(db, [
+      { op: 'create', type: 'story', title: 'A' },
+      { op: 'create', type: 'story', title: 'B' },
+    ], { actor: 'tester' }), /injected event-store failure/);
+    delete process.env.SCOPE_EVENT_FAILPOINT;
+    assert.equal(listTickets(db).length, 0, 'SQLite commit did not happen');
+    assert.equal(syncFromLog(db, scopeDir).rebuilt, true);
+    assert.deepEqual(listTickets(db).map((ticket) => ticket.title), ['A', 'B']);
+  } finally {
+    delete process.env.SCOPE_EVENT_FAILPOINT;
     cleanup();
   }
 });

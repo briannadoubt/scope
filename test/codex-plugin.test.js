@@ -33,7 +33,13 @@ test('Codex plugin ships a comprehensive manifest and app surfaces', () => {
   assert.equal(mcpConfig.mcpServers.scope.tool_timeout_sec, 120);
 
   const mcpServer = readFileSync(join(pluginDir, 'mcp/server.mjs'), 'utf8');
-  for (const tool of ['scope_auth_status', 'scope_auth_begin', 'scope_auth_poll']) {
+  for (const tool of [
+    'scope_capabilities', 'scope_ready', 'scope_claim', 'scope_context',
+    'scope_discover', 'scope_handoff', 'scope_lease_renew', 'scope_complete',
+    'scope_agent_register', 'scope_agent_heartbeat', 'scope_agents',
+    'scope_message_send', 'scope_message_inbox', 'scope_message_ack', 'scope_message_reply',
+    'scope_auth_status', 'scope_auth_begin', 'scope_auth_poll',
+  ]) {
     assert.match(mcpServer, new RegExp(`name: '${tool}'`));
   }
 });

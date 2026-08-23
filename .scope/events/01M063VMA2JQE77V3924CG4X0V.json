@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M063VMA2JQE77V3924CG4X0V",
+  "ts": "2026-08-16T20:22:52.994Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M063VMA1GJD68ZMV29AQCB5B",
+    "number": 302,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Show active execution state on tickets and boards",
+    "description": "Enrich machine and UI board tickets with active/expired lease, attempt, agent, file intent, latest discovery, and verification state.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M063VM47F4YD99KDPCB1B78D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1786911772994-000000",
+  "baseRevision": "sha256:e2966e62a646ba2999413c5be430b7dbb8197786c630f71b13c5e5e82cea1de2"
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KZ02Z6Q6JH0Q770C75AGQ6BX",
+  "ts": "2026-08-02T01:56:13.158Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KZ02Z6Q5S53ENCWHXEHDH9VZ",
+    "number": 288,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Verify billing is stopped",
+    "description": "Re-inventory providers, inspect billing/resource pages, and record anything retained, pending deletion, or requiring external action.",
+    "status": "todo",
+    "priority": "urgent",
+    "parentId": "01KZ02Z699HTT6Z8622SARS2WN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

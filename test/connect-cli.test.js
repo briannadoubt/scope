@@ -107,7 +107,7 @@ test('scope connect creates a remote project, writes a safe pointer, and runs in
     });
     assert.equal(run.status, 0, run.stderr || run.stdout);
     assert.doesNotMatch(run.stdout, /sk_fake|secret/);
-    const out = JSON.parse(run.stdout);
+    const out = JSON.parse(run.stdout).data;
     assert.equal(out.remote.url, hub.base);
     assert.equal(out.remote.project, 'tnt_created');
     assert.equal(out.synced.pulled, 0);
@@ -149,7 +149,7 @@ test('scope connect can join an existing project without creating one', async ()
       env: { ...process.env, HOME: home },
     });
     assert.equal(run.status, 0, run.stderr || run.stdout);
-    assert.equal(JSON.parse(run.stdout).remote.project, 'tnt_existing');
+    assert.equal(JSON.parse(run.stdout).data.remote.project, 'tnt_existing');
   } finally {
     await hub.close();
     rmSync(home, { recursive: true, force: true });

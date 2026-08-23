@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KZ035BQZGCENAEWGMSTEK4NX",
+  "ts": "2026-08-02T01:59:34.911Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KZ02Z6DW956G2Y5HT8NC0798",
+    "commentId": "01KZ035BQZGCENAEWGMSTEK4NW",
+    "author": "codex",
+    "body": "Inventory 2026-08-01: authenticated as bri@briannadoubt.com. Found 19 apps across personal (10) and ivy-197 (9), 20 Machines total (9 started), and 11 persistent volumes totaling 30 GB. Personal apps: aura-chat, chill-backend, gitruntime, loaditout-backend, loaditout-web, neonswarm-leaderboard-staging, neonswarm-leaderboard-staging-db, scope-hub, scope-hub-db, yus-hosting-control-plane-beta. Ivy apps: dataplane-router, neoplumes, pbi-cv0swwwruio1pvu-ug3xayj6vjjx0eo, pbi-zcvyvm7b9xeai0y-rawrface-prod, pbi-zcvyvm7b9xeai0y-rawr-prod, pocketbasebaseimage, pocketsand-backend, pocketsand-web, portfoliage. Awaiting exact-scope/no-backup confirmation before irreversible deletion."
+  }
+}

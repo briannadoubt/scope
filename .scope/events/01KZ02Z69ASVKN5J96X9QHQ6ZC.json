@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KZ02Z69ASVKN5J96X9QHQ6ZC",
+  "ts": "2026-08-02T01:56:12.714Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KZ02Z699HTT6Z8622SARS2WN",
+    "number": 285,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Decommission paid Fly.io and Google Cloud/Firebase infrastructure",
+    "description": "Inventory and permanently remove all user-owned Fly.io resources and all running Firebase/Google Cloud resources, then verify no billable infrastructure remains. Destructive operations require exact target resolution and post-delete verification.",
+    "status": "in_progress",
+    "priority": "urgent",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

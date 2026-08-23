@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M0PQRJE8NCWDKB2Z9VQ83GD9",
+  "ts": "2026-08-23T07:18:35.208Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0PQRJE7GQWCFEJFDWDR6VAM",
+    "number": 309,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Expose mailbox through CLI, Node, REST, and MCP",
+    "description": "Provide stable machine operations for agent upsert/heartbeat/list, message send/inbox/show/ack, and conversation replies across every supported protocol surface.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M0PQRJ1AF64PKTFKJR3TV3T9",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787469515208-000000",
+  "baseRevision": "sha256:91a0657a9925cd17bbeb69fd3b96d01cfacdc8c30273dc6ffb90056cbde293ff"
+}

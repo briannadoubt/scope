@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M0PT4MQBPHPX0CB53Q37CMVN",
+  "ts": "2026-08-23T08:00:07.915Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0PT4MQBPHPX0CB53Q37CMVM",
+    "number": 314,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Add temporary dogfood telemetry",
+    "description": "Add opt-in local NDJSON instrumentation for CLI and hub operations with latency/outcome metadata and strict content redaction, plus tests and a summary workflow.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M0PT4BRYSRW7B9DR7RMH8C5D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787472007915-000000",
+  "baseRevision": "sha256:2789ceef1e98661e2ca7494b513b6174ac4a6880f31e93160bc920a163764e76"
+}

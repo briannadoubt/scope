@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "id": "01M03GQA5558YNSCJJ1X7JQ1NF",
+  "ts": "2026-08-15T20:09:59.717Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01M03EDFYFN5BYG3Y2SX7RJS35",
+    "commentId": "01M03GQA5558YNSCJJ1X7JQ1NE",
+    "author": "codex",
+    "body": "Implemented agent protocol 1.0 across CLI, Node, REST, MCP, SQLite, sync, and Postgres: crash-safe event transactions; capability discovery and stable envelopes; request/revision fencing; readiness, leases, attempts, contracts, policies, repository intent, context, discoveries, plans, conflicts, metrics, watch; generated docs and non-skipping Postgres CI. Verified 398/398 tests with Postgres and RLS enabled."
+  },
+  "hlc": "1786824599717-000000",
+  "baseRevision": "sha256:6f9fbad8e088e559bf7d17cb33e19aa594f8cf65c422f1db5aad4734a316c17f"
+}

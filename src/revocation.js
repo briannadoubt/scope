@@ -30,6 +30,11 @@ export const REVOKED_PATH = join(HUB_DIR, 'revoked.json');
 
 // Module-level cache. Loaded at startup, refreshed via reloadCrl().
 let crlSet = null;
+let reloadSignalInstalled = false;
+
+function handleReloadSignal() {
+  try { reloadCrl(); } catch {}
+}
 
 function emptyCrl() { return { version: 1, revoked: [] }; }
 
@@ -104,9 +109,9 @@ export function listRevoked() {
  * entry without a restart.
  */
 export function installCrlReloadSignal() {
-  process.on('SIGUSR1', () => {
-    try { reloadCrl(); } catch {}
-  });
+  if (reloadSignalInstalled) return;
+  process.on('SIGUSR1', handleReloadSignal);
+  reloadSignalInstalled = true;
 }
 
 // Exposed for tests.

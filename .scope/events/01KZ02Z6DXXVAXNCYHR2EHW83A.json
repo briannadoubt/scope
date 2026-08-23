@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KZ02Z6DXXVAXNCYHR2EHW83A",
+  "ts": "2026-08-02T01:56:12.861Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KZ02Z6DW956G2Y5HT8NC0798",
+    "number": 286,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Inventory and decommission Fly.io",
+    "description": "Enumerate authenticated Fly organizations, applications, Machines, volumes, databases, IPs, certificates, and other billable resources; destroy exact targets; verify absence.",
+    "status": "in_progress",
+    "priority": "urgent",
+    "parentId": "01KZ02Z699HTT6Z8622SARS2WN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

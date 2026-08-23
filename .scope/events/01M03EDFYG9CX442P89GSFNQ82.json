@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01M03EDFYG9CX442P89GSFNQ82",
+  "ts": "2026-08-15T19:29:40.816Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M03EDFYFN5BYG3Y2SX7RJS35",
+    "number": 289,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Agent-first coordination kernel",
+    "description": "Turn Scope from an agent-operable kanban into a reliable transactional coordination protocol: crash-safe persistence, strict machine contracts, leases and work selection, structured attempts/context/evidence, repository awareness, policies, causal conflict handling, metrics, hooks, and adversarial verification.",
+    "status": "in_progress",
+    "priority": "urgent",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

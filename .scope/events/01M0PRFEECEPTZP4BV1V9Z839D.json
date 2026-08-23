@@ -1,0 +1,29 @@
+{
+  "v": 1,
+  "id": "01M0PRFEECEPTZP4BV1V9Z839D",
+  "ts": "2026-08-23T07:31:04.780Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0PRF2BWEF2D1DZ0HS647MT4",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T07:31:04.780Z",
+    "summary": "Exposed agent registration, heartbeat, listing, message send/inbox/show/reply/ack/conversation through CLI, Node facade, REST, and MCP; added protocol-surface tests.",
+    "failure": null,
+    "evidence": [
+      {
+        "tests": "MCP, REST, Node facade, and plugin tests passed"
+      }
+    ],
+    "verification": [
+      {
+        "command": "node --test test/workspace-open.test.js test/mcp-agent.test.js test/codex-plugin.test.js test/server.test.js",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787470264780-000000",
+  "baseRevision": "sha256:d5347c26619cd34f98af48d6383242441bc97b78570e0977f3b30fbc961ee5e6",
+  "transactionId": "01M0PRFEEDMBDGREGG50BM447R",
+  "transactionIndex": 0
+}

@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M0PQRJ7WACHD0Z8TAFTR7CFB",
+  "ts": "2026-08-23T07:18:35.004Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0PQRJ7VXEGG74N0ZB2C38PG",
+    "number": 308,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Persist agent identities, presence, and addressed messages",
+    "description": "Add event kinds and SQLite/Postgres projections for agent registration, heartbeat/presence, message envelopes, threading, delivery state, acknowledgements, expiry, and ticket linkage.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M0PQRJ1AF64PKTFKJR3TV3T9",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787469515004-000000",
+  "baseRevision": "sha256:81c9b52fdabc49022bd6c2a7605ff4004b95a61d05000dc87d9cc3cc8daf6cdc"
+}

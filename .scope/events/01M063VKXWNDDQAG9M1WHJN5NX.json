@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "id": "01M063VKXWNDDQAG9M1WHJN5NX",
+  "ts": "2026-08-16T20:22:52.604Z",
+  "actor": "codex",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M06149C3DAW3N0E6N58RF1X2",
+    "field": "status",
+    "value": "cancelled"
+  },
+  "hlc": "1786911772604-000000",
+  "baseRevision": "sha256:e39187e99ea3d4c52180b120d37e1e5c3f0fbfd5feba45eea289542c27e0103e",
+  "transactionId": "01M063VKXX6GV4EV0VXRA3FWBY",
+  "transactionIndex": 0
+}

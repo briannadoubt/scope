@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M0PT4BRZNS151RRKGJMXM7QS",
+  "ts": "2026-08-23T07:59:58.751Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0PT4BRYSRW7B9DR7RMH8C5D",
+    "number": 313,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Dogfood agent coordination locally",
+    "description": "Commit and install the unreleased coordination/mailbox build, refresh every local Scope skill surface, enable privacy-preserving temporary usage telemetry, run the shared hub locally, and observe active-agent outcomes before release.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787471998751-000000",
+  "baseRevision": "sha256:6e218a14879abee4a984cc069edcc30ecd11e29417f0340f955ec2f1be7ac56a"
+}

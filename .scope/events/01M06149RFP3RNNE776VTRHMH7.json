@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M06149RFP3RNNE776VTRHMH7",
+  "ts": "2026-08-16T19:35:11.375Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M06149RFP3RNNE776VTRHMH6",
+    "number": 299,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Expose delegation through agent protocol surfaces",
+    "description": "Expose dispatch through CLI, Node, REST, and MCP with stable schemas and capability discovery.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M06149C3DAW3N0E6N58RF1X2",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1786908911375-000000",
+  "baseRevision": "sha256:e656781057bfaa47ebd3493d4897dac9e4b4e1a7f39ff96fade137ac88b8bc12"
+}

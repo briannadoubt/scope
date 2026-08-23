@@ -38,6 +38,14 @@ export const RLS_TABLES = [
   'ticket_comments',
   'ticket_history',
   'ticket_artifacts',
+  'agent_contracts',
+  'agent_leases',
+  'agent_attempts',
+  'agent_discoveries',
+  'agent_plans',
+  'agent_conflicts',
+  'agent_registry',
+  'agent_messages',
 ];
 
 /** The session GUC the policies key on. */

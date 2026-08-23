@@ -1,6 +1,6 @@
 import { Command, Option } from 'commander';
 import chalk from 'chalk';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, watch as watchFileSystem, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir, hostname } from 'node:os';
@@ -17,11 +17,34 @@ const PKG = JSON.parse(
 import {
   openDb,
   findScopeDir,
+  getMeta,
+  setMeta,
   defaultScopeDir,
   ensureScopeGitignore,
   SCOPE_DIR_NAME,
   DB_FILE_NAME,
 } from './db.js';
+import { eventsDir, inspectEventStore, readAllEvents } from './event-store.js';
+import { EVENT_FORMAT_VERSION } from './event-schema.js';
+import { replayInto } from './replay.js';
+import {
+  PROTOCOL_VERSION,
+  ReceiptReplay,
+  ScopeCliError,
+  errorEnvelope,
+  normalizeError,
+  readReceipt,
+  successEnvelope,
+  workspaceRevision,
+  writeReceipt,
+} from './protocol.js';
+import { buildCapabilities } from './capabilities.js';
+import {
+  disableDogfoodTelemetry,
+  dogfoodStatus,
+  enableDogfoodTelemetry,
+  startDogfoodSpan,
+} from './dogfood-telemetry.js';
 import { openWorkspaceDb } from './workspace-open.js';
 import { syncWithRemote } from './sync-client.js';
 import { startRemoteSync } from './remote-sync.js';
@@ -69,8 +92,50 @@ import {
   SCHEMA_STATUSES,
   SCHEMA_PRIORITIES,
   SCHEMA_RELATION_TYPES,
+  SCHEMA_TICKET_TYPES,
+  setMutationContext,
 } from './repo.js';
 import { startServer } from './server.js';
+import {
+  DISCOVERY_TYPES,
+  activeLease,
+  addDiscovery,
+  agentMetrics,
+  claimNext,
+  claimTicket,
+  completeWork,
+  contextPack,
+  createHandoff,
+  enrichTicketsWithExecution,
+  executionState,
+  finishAttempt,
+  getAttempt,
+  getContract,
+  listConflicts,
+  listReady,
+  parallelPlan,
+  readiness,
+  releaseLease,
+  renewLease,
+  revisePlan,
+  resolveConflict,
+  setContract,
+  getLatestHandoff,
+} from './agent-runtime.js';
+import {
+  AGENT_PRESENCE_STATUSES,
+  MESSAGE_KINDS,
+  acknowledgeMessage,
+  getAgent,
+  getMessage,
+  heartbeatAgent,
+  listAgents,
+  listConversation,
+  listInbox,
+  registerAgent,
+  replyToMessage,
+  sendMessage,
+} from './agent-mailbox.js';
 import { ensureHub, findRunningHub, startHubWatchdog, hubFetch, DEFAULT_HUB_PORT } from './hub.js';
 import { loadOrCreateCa, CA_CERT_PATH, CA_KEY_PATH, CA_DIR, fingerprintHex } from './ca.js';
 import { loadOrCreateToken } from './auth.js';
@@ -91,12 +156,9 @@ import {
 function openOrDie() {
   const dir = findScopeDir();
   if (!dir) {
-    console.error(
-      chalk.red(
-        `No ${SCOPE_DIR_NAME}/ directory found. Run \`scope init\` in your project root first.`
-      )
-    );
-    process.exit(1);
+    fail(`No ${SCOPE_DIR_NAME}/ directory found. Run \`scope init\` in your project root first.`, {
+      code: 'WORKSPACE_NOT_FOUND',
+    });
   }
   // Shared "open a workspace" sequence — see workspace-open.js. Same path the
   // hub registry and the library facade use, so the three can't drift.
@@ -106,19 +168,52 @@ function openOrDie() {
 function out(cmd, data, formatter) {
   const opts = cmd.optsWithGlobals();
   if (opts.json) {
-    process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+    const scopeDir = findScopeDir();
+    const command = commandPath(cmd);
+    const meta = {
+      command,
+      ...(scopeDir ? { revision: safeRevision(scopeDir) } : {}),
+      ...(opts.requestId ? { requestId: opts.requestId, replayed: false } : {}),
+    };
+    const envelope = successEnvelope(data, meta);
+    if (opts.requestId && scopeDir) writeReceipt(scopeDir, opts.requestId, command, envelope);
+    process.stdout.write(JSON.stringify(envelope, null, 2) + '\n');
+    setMutationContext(null);
     return;
   }
   if (formatter) {
     const s = formatter(data);
     if (s) process.stdout.write(s + '\n');
   }
+  setMutationContext(null);
 }
 
-function fail(msg) {
-  console.error(chalk.red(msg));
-  process.exit(1);
+function fail(msg, options = {}) {
+  if (!options.code && /not found|No \.scope|No ticket|No device|No project/i.test(msg)) {
+    options = { ...options, code: 'NOT_FOUND' };
+  } else if (!options.code && /required|invalid|must|refusing|nothing to|doesn't match|unknown/i.test(msg)) {
+    options = { ...options, code: 'INVALID_ARGUMENT' };
+  }
+  throw new ScopeCliError(msg, options);
 }
+
+function commandPath(cmd) {
+  const names = [];
+  for (let cursor = cmd; cursor?.parent; cursor = cursor.parent) names.unshift(cursor.name());
+  return names.join(' ');
+}
+
+function safeRevision(scopeDir) {
+  try { return workspaceRevision(scopeDir); } catch { return null; }
+}
+
+function parseJsonValue(raw, fallback, label) {
+  if (raw == null) return fallback;
+  try { return JSON.parse(raw); }
+  catch (error) { fail(`${label} must be valid JSON: ${error.message}`); }
+}
+
+const csv = (raw) => raw ? String(raw).split(',').map((item) => item.trim()).filter(Boolean) : [];
 
 function remoteBase(url) {
   return String(url || '').replace(/\/+$/, '');
@@ -188,6 +283,31 @@ async function pollDeviceAuth(remote, deviceCode) {
  */
 function actingModel(cmd) {
   return cmd.optsWithGlobals().model || process.env.SCOPE_MODEL || null;
+}
+
+function gitExecutionContext() {
+  const read = (...args) => {
+    const result = spawnSync('git', args, { cwd: process.cwd(), encoding: 'utf8' });
+    return result.status === 0 ? result.stdout.trim() || null : null;
+  };
+  return {
+    worktree: read('rev-parse', '--show-toplevel'),
+    branch: read('branch', '--show-current'),
+    baseSha: read('rev-parse', 'HEAD'),
+  };
+}
+
+function gitChangedFiles() {
+  const readZeroSeparated = (args) => {
+    const result = spawnSync('git', args, { cwd: process.cwd(), encoding: 'utf8' });
+    return result.status === 0
+      ? result.stdout.split('\0').map((item) => item.trim()).filter(Boolean)
+      : [];
+  };
+  return Array.from(new Set([
+    ...readZeroSeparated(['diff', '--name-only', '-z', 'HEAD']),
+    ...readZeroSeparated(['ls-files', '--others', '--exclude-standard', '-z']),
+  ])).sort();
 }
 
 function readBodyFromOpts({ description, descriptionFile, edit }) {
@@ -295,7 +415,7 @@ function detectTargets(_tool, projectDir) {
   const root = projectDir ? resolve(projectDir) : process.cwd();
   return {
     claude: join(home, '.claude/skills/scope/SKILL.md'),
-    codex: join(home, '.codex/AGENTS.md') + chalk.gray(' (appends if exists)'),
+    codex: join(home, '.agents/skills/scope/SKILL.md') + chalk.gray(' + managed ~/.codex/AGENTS.md block'),
     cursor: join(root, '.cursor/rules/scope.mdc'),
   };
 }
@@ -310,11 +430,62 @@ export function buildProgram() {
       'Local-first kanban for projects, epics, stories, and bugs. Built for agents.'
     )
     .version(PKG.version)
-    .option('--json', 'output JSON instead of pretty text', false)
+    .option('--json', 'output the versioned machine-protocol envelope', false)
+    .option('--request-id <id>', 'idempotency key; replays the original JSON receipt on retry')
+    .option('--if-revision <revision>', 'fail before acting unless the workspace is still at this revision')
     .option(
       '--model <model>',
       'acting model for agent-driven changes; history shows "<model> on behalf of <--by>" (or set SCOPE_MODEL)'
     );
+
+  program.hook('preAction', (_root, actionCommand) => {
+    const global = actionCommand.optsWithGlobals();
+    const scopeDir = findScopeDir();
+    const command = commandPath(actionCommand);
+    if (global.requestId) {
+      if (!global.json) throw new ScopeCliError('--request-id requires --json', { code: 'INVALID_ARGUMENT' });
+      const receipt = readReceipt(scopeDir, global.requestId);
+      if (receipt) {
+        if (receipt.command !== command) {
+          throw new ScopeCliError(`request id ${global.requestId} was already used for ${receipt.command}`, {
+            code: 'REQUEST_ID_REUSED',
+            details: { originalCommand: receipt.command, attemptedCommand: command },
+          });
+        }
+        throw new ReceiptReplay(receipt.envelope);
+      }
+      if (scopeDir) {
+        const applied = readAllEvents(eventsDir(scopeDir)).filter((event) => event.requestId === global.requestId);
+        if (applied.length) {
+          const originalCommand = applied[0].requestCommand;
+          if (originalCommand !== command) throw new ScopeCliError(
+            `request id ${global.requestId} was already applied by ${originalCommand}`,
+            { code: 'REQUEST_ID_REUSED', details: { originalCommand, attemptedCommand: command } }
+          );
+          throw new ScopeCliError('request was durably applied but its response receipt was interrupted', {
+            code: 'REQUEST_ALREADY_APPLIED',
+            details: { requestId: global.requestId, command, eventIds: applied.map((event) => event.id) },
+          });
+        }
+      }
+    }
+    if (global.ifRevision) {
+      if (!scopeDir) throw new ScopeCliError('cannot check a revision without a workspace', {
+        code: 'WORKSPACE_NOT_FOUND',
+      });
+      const actual = workspaceRevision(scopeDir);
+      if (actual !== global.ifRevision) throw new ScopeCliError('workspace revision is stale', {
+        code: 'STALE_REVISION',
+        retryable: true,
+        details: { expected: global.ifRevision, actual },
+      });
+    }
+    setMutationContext({
+      requestId: global.requestId ?? null,
+      requestCommand: command,
+      ifRevision: global.ifRevision ?? null,
+    });
+  });
 
   /* ---------- init ---------- */
   program
@@ -329,8 +500,8 @@ export function buildProgram() {
       const dir = defaultScopeDir();
       const isJson = cmd.optsWithGlobals().json;
       if (existsSync(dir) && !opts.force) {
-        console.error(chalk.yellow(`${SCOPE_DIR_NAME}/ already exists at ${dir}`));
-        process.exit(0);
+        out(cmd, { scope_dir: dir, existing: true }, () => chalk.yellow(`${SCOPE_DIR_NAME}/ already exists at ${dir}`));
+        return;
       }
       mkdirSync(dir, { recursive: true });
       ensureWorkspaceStorageConfig(dir, { mode: opts.gitEvents ? 'git' : 'local' });
@@ -383,6 +554,128 @@ export function buildProgram() {
           chalk.gray(`  name:      ${d.workspace.name}\n`) +
           chalk.gray(`  Next: scope ticket create -t story "first ticket"`)
       );
+    });
+
+  /* ---------- executable machine contract ---------- */
+  program
+    .command('capabilities')
+    .alias('meta')
+    .description('Print the executable agent protocol, schemas, enums, and workspace-specific vocabulary.')
+    .action((_opts, cmd) => {
+      const scopeDir = findScopeDir();
+      let workspace = null;
+      if (scopeDir) {
+        const { db } = openWorkspaceDb(scopeDir);
+        workspace = getWorkspace(db);
+        db.close();
+      }
+      out(cmd, buildCapabilities({ cliVersion: PKG.version, workspace }),
+        (value) => JSON.stringify(value, null, 2));
+    });
+
+  /* ---------- doctor ---------- */
+  program
+    .command('doctor')
+    .description('Audit the event log and rebuildable cache. With --repair, rebuild only the cache; source events are never deleted.')
+    .option('--repair', 'rebuild the SQLite cache from the valid committed event log', false)
+    .action((opts, cmd) => {
+      const scopeDir = findScopeDir();
+      if (!scopeDir) fail(`No ${SCOPE_DIR_NAME}/ directory found.`);
+      const dir = eventsDir(scopeDir);
+      const eventStore = inspectEventStore(dir);
+      const report = {
+        ok: eventStore.ok,
+        workspace: scopeDir,
+        eventStore,
+        cache: {
+          opened: false,
+          effectiveEventCount: eventStore.effectiveEvents,
+          appliedEventCount: null,
+          inSync: false,
+          foreignKeyErrors: [],
+          repaired: false,
+          error: null,
+        },
+      };
+
+      if (eventStore.corruptFiles.length === 0 && eventStore.incompatibleFiles.length === 0) {
+        let db;
+        try {
+          db = openDb(scopeDir);
+          report.cache.opened = true;
+          const events = readAllEvents(dir);
+          if (opts.repair) {
+            replayInto(db, events);
+            setMeta(db, 'applied_event_count', events.length);
+            report.cache.repaired = true;
+          }
+          report.cache.appliedEventCount = Number(getMeta(db, 'applied_event_count')) || 0;
+          report.cache.inSync = report.cache.appliedEventCount === events.length;
+          report.cache.foreignKeyErrors = db.prepare('PRAGMA foreign_key_check').all();
+        } catch (error) {
+          report.cache.error = error.message;
+        } finally {
+          db?.close();
+        }
+      } else {
+        report.cache.error = eventStore.incompatibleFiles.length
+          ? 'cache was not opened because the event log requires a newer Scope reader'
+          : 'cache was not opened because the event log contains corrupt files';
+      }
+      report.ok = eventStore.ok && report.cache.opened && report.cache.inSync
+        && report.cache.foreignKeyErrors.length === 0 && !report.cache.error;
+      out(cmd, report, (value) => {
+        const mark = value.ok ? chalk.green('✓ healthy') : chalk.red('✗ needs attention');
+        const lines = [
+          `${mark} ${value.workspace}`,
+          `  events: ${value.eventStore.effectiveEvents} effective / ${value.eventStore.files} files`,
+          `  transactions: ${value.eventStore.committedTransactions} committed, ${value.eventStore.incompleteTransactions.length} incomplete`,
+          `  cache: ${value.cache.inSync ? 'in sync' : 'out of sync'}${value.cache.repaired ? ' (rebuilt)' : ''}`,
+        ];
+        if (value.eventStore.corruptFiles.length) lines.push(`  corrupt files: ${value.eventStore.corruptFiles.length}`);
+        if (value.eventStore.incompatibleFiles.length) {
+          const versions = [...new Set(value.eventStore.incompatibleFiles.map((item) => item.version))].join(', ');
+          lines.push(`  incompatible event files: ${value.eventStore.incompatibleFiles.length} (format ${versions}; upgrade Scope)`);
+        }
+        if (value.cache.foreignKeyErrors.length) lines.push(`  foreign key errors: ${value.cache.foreignKeyErrors.length}`);
+        if (value.cache.error) lines.push(`  error: ${value.cache.error}`);
+        return lines.join('\n');
+      });
+      if (!report.ok) process.exitCode = 2;
+    });
+
+  /* ---------- temporary local dogfood telemetry ---------- */
+  const dogfood = program
+    .command('dogfood')
+    .description('Configure or inspect privacy-bounded local dogfood telemetry (enabled by default).');
+
+  dogfood
+    .command('enable')
+    .description('Enable telemetry or select its log for every local Scope CLI/hub process.')
+    .option('--log <path>', 'NDJSON destination (default: ~/.scope/dogfood/usage.ndjson)')
+    .action((opts, cmd) => {
+      const result = enableDogfoodTelemetry(opts.log);
+      out(cmd, result, (value) => `${chalk.green('✓')} dogfood telemetry → ${value.logPath}`);
+    });
+
+  dogfood
+    .command('status')
+    .description('Show whether local dogfood telemetry is enabled and where it writes.')
+    .action((_opts, cmd) => {
+      const result = dogfoodStatus();
+      out(cmd, result, (value) => value.enabled
+        ? `${chalk.green('● enabled')} (${value.source}) → ${value.logPath}`
+        : chalk.gray('○ disabled'));
+    });
+
+  dogfood
+    .command('disable')
+    .description('Disable machine-local telemetry without deleting the accumulated log.')
+    .action((_opts, cmd) => {
+      const result = disableDogfoodTelemetry();
+      out(cmd, result, (value) => value.enabled
+        ? `${chalk.yellow('! still enabled by environment')} → ${value.logPath}`
+        : `${chalk.green('✓')} dogfood telemetry disabled`);
     });
 
   /* ---------- project (deprecated aliases to workspace) ---------- */
@@ -660,9 +953,10 @@ export function buildProgram() {
       const artifacts = listArtifacts(db, t.id);
       const children = t.type === 'epic' ? listEpicChildren(db, t.id) : [];
       const progress = t.type === 'epic' ? epicProgress(db, t.id) : undefined;
+      const execution = executionState(db, t.id);
       out(
         cmd,
-        { ...t, relations, comments, artifacts, children, progress },
+        { ...t, relations, comments, artifacts, children, progress, execution },
         (data) =>
           ticketDetail(t, {
             children: data.children,
@@ -1031,6 +1325,448 @@ export function buildProgram() {
           { key: 'new_value', header: 'TO', width: 30 },
         ])
       );
+    });
+
+  /* ---------- agent-native coordination ---------- */
+
+  const agent = program.command('agent').description('Register agent identities and maintain heartbeat-based presence.');
+  agent.command('register <agentId>')
+    .option('--display-name <name>')
+    .option('--provider <provider>')
+    .option('--capabilities <csv>')
+    .option('--metadata <json>', 'JSON object')
+    .option('--status <status>', AGENT_PRESENCE_STATUSES.join('|'), 'online')
+    .option('--ttl <duration>', 'presence lease duration', '2m')
+    .option('--by <actor>')
+    .action((agentId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = registerAgent(db, agentId, {
+        displayName: opts.displayName, provider: opts.provider, capabilities: csv(opts.capabilities),
+        metadata: parseJsonValue(opts.metadata, {}, 'metadata'), status: opts.status, ttl: opts.ttl,
+        actor: opts.by, model: actingModel(cmd),
+      });
+      out(cmd, result, (value) => `${chalk.green('✓')} registered ${value.agentId} (${value.status})`);
+    });
+  agent.command('heartbeat <agentId>')
+    .option('--status <status>', AGENT_PRESENCE_STATUSES.join('|'))
+    .option('--capabilities <csv>')
+    .option('--metadata <json>', 'JSON object')
+    .option('--ttl <duration>', 'presence lease duration', '2m')
+    .option('--by <actor>')
+    .action((agentId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = heartbeatAgent(db, agentId, {
+        status: opts.status,
+        capabilities: opts.capabilities === undefined ? undefined : csv(opts.capabilities),
+        metadata: opts.metadata === undefined ? undefined : parseJsonValue(opts.metadata, {}, 'metadata'),
+        ttl: opts.ttl, actor: opts.by, model: actingModel(cmd),
+      });
+      out(cmd, result, (value) => `${chalk.green('✓')} ${value.agentId} ${value.status} through ${value.expiresAt}`);
+    });
+  agent.command('list')
+    .option('--online', 'omit offline or stale agents', false)
+    .action((opts, cmd) => {
+      const { db } = openOrDie();
+      out(cmd, listAgents(db, { includeOffline: !opts.online }), (value) => JSON.stringify(value, null, 2));
+    });
+  agent.command('show <agentId>').action((agentId, _opts, cmd) => {
+    const { db } = openOrDie();
+    const result = getAgent(db, agentId);
+    if (!result) fail(`Agent not found: ${agentId}`);
+    out(cmd, result, (value) => JSON.stringify(value, null, 2));
+  });
+
+  const message = program.command('message').description('Exchange durable addressed messages between agents.');
+  message.command('send')
+    .requiredOption('--from <agent>')
+    .requiredOption('--to <agent>')
+    .requiredOption('--body <text>')
+    .option('--kind <kind>', `message kind (${MESSAGE_KINDS.join('|')} or a custom snake_case kind)`, 'question')
+    .option('--ticket <ticketId>')
+    .option('--thread <threadId>')
+    .option('--reply-to <messageId>')
+    .option('--correlation <id>')
+    .option('--artifacts <json>', 'JSON array of artifact references')
+    .option('--ttl <duration>', 'optional message expiry')
+    .option('--by <actor>')
+    .action((opts, cmd) => {
+      const { db } = openOrDie();
+      const result = sendMessage(db, {
+        fromAgent: opts.from, toAgent: opts.to, body: opts.body, kind: opts.kind,
+        ticketId: opts.ticket, threadId: opts.thread, replyTo: opts.replyTo,
+        correlationId: opts.correlation, artifactRefs: parseJsonValue(opts.artifacts, [], 'artifacts'),
+        ttl: opts.ttl, actor: opts.by, model: actingModel(cmd),
+      });
+      out(cmd, result, (value) => `${chalk.green('✓')} sent ${value.messageId} to ${value.toAgent}`);
+    });
+  message.command('reply <messageId>')
+    .requiredOption('--from <agent>')
+    .requiredOption('--body <text>')
+    .option('--kind <kind>', 'message kind', 'reply')
+    .option('--artifacts <json>', 'JSON array of artifact references')
+    .option('--ttl <duration>')
+    .option('--by <actor>')
+    .action((messageId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = replyToMessage(db, messageId, {
+        fromAgent: opts.from, body: opts.body, kind: opts.kind,
+        artifactRefs: parseJsonValue(opts.artifacts, [], 'artifacts'), ttl: opts.ttl,
+        actor: opts.by, model: actingModel(cmd),
+      });
+      out(cmd, result, (value) => `${chalk.green('✓')} replied with ${value.messageId}`);
+    });
+  message.command('inbox <agentId>')
+    .option('--all', 'include acknowledged messages', false)
+    .option('--expired', 'include expired messages', false)
+    .option('--since <messageId>')
+    .option('--ticket <ticketId>')
+    .option('--limit <number>', 'maximum messages', '100')
+    .action((agentId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = listInbox(db, agentId, {
+        includeAcknowledged: opts.all, includeExpired: opts.expired,
+        since: opts.since, ticketId: opts.ticket, limit: Number(opts.limit),
+      });
+      out(cmd, result, (value) => JSON.stringify(value, null, 2));
+    });
+  message.command('show <messageId>').action((messageId, _opts, cmd) => {
+    const { db } = openOrDie();
+    const result = getMessage(db, messageId);
+    if (!result) fail(`Message not found: ${messageId}`);
+    out(cmd, result, (value) => JSON.stringify(value, null, 2));
+  });
+  message.command('ack <messageId>')
+    .requiredOption('--agent <agentId>')
+    .option('--by <actor>')
+    .action((messageId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = acknowledgeMessage(db, messageId, {
+        agent: opts.agent, actor: opts.by, model: actingModel(cmd),
+      });
+      out(cmd, result, (value) => `${chalk.green('✓')} acknowledged ${value.messageId}`);
+    });
+  message.command('conversation <threadId>')
+    .requiredOption('--agent <agentId>', 'participant requesting the conversation')
+    .action((threadId, opts, cmd) => {
+      const { db } = openOrDie();
+      out(cmd, listConversation(db, threadId, { agentId: opts.agent }), (value) => JSON.stringify(value, null, 2));
+    });
+  message.command('listen <agentId>')
+    .description('Stream pending addressed messages as resumable JSON Lines for a host wakeup adapter.')
+    .option('--once', 'print the current pending inbox and exit', false)
+    .action((agentId, opts, cmd) => {
+      const scopeDir = findScopeDir();
+      if (!scopeDir) fail('No .scope/ directory found.');
+      const readPending = () => {
+        const opened = openWorkspaceDb(scopeDir);
+        try { return listInbox(opened.db, agentId, { limit: 1000 }); }
+        finally { opened.db.close(); }
+      };
+      if (opts.once) {
+        out(cmd, readPending(), (value) => JSON.stringify(value, null, 2));
+        return;
+      }
+      const seen = new Set();
+      const flush = () => {
+        for (const item of readPending()) {
+          if (seen.has(item.messageId)) continue;
+          seen.add(item.messageId);
+          process.stdout.write(JSON.stringify(successEnvelope(item, {
+            command: commandPath(cmd), cursor: item.messageId, delivery: 'at-least-once',
+          })) + '\n');
+        }
+      };
+      flush();
+      const dir = eventsDir(scopeDir);
+      let timer = null;
+      const watcher = watchFileSystem(dir, { persistent: true }, () => {
+        clearTimeout(timer);
+        timer = setTimeout(flush, 25);
+      });
+      const stop = () => {
+        clearTimeout(timer);
+        watcher.close();
+        process.exit(0);
+      };
+      process.once('SIGINT', stop);
+      process.once('SIGTERM', stop);
+    });
+
+  program
+    .command('ready [ticketId]')
+    .description('Explain one ticket readiness or list all eligible unclaimed work.')
+    .option('--capabilities <csv>', 'capabilities available to the agent')
+    .option('--parent <epicId>', 'limit ready work to one epic')
+    .option('--plan', 'return deterministic native-subagent parallel groups and overlap signals')
+    .action((ticketId, opts, cmd) => {
+      const { db } = openOrDie();
+      const capabilities = csv(opts.capabilities);
+      if (ticketId && opts.plan) fail('--plan cannot be combined with a specific ticket id');
+      const data = opts.plan
+        ? parallelPlan(db, { capabilities, parentId: opts.parent })
+        : ticketId
+        ? { ticket: getTicket(db, ticketId), readiness: readiness(db, ticketId, { capabilities }) }
+        : listReady(db, { capabilities, parentId: opts.parent });
+      out(cmd, data, (value) => JSON.stringify(value, null, 2));
+    });
+
+  program
+    .command('claim [ticketId]')
+    .description('Atomically lease a ticket and start an execution attempt; omit ticketId to claim the best ready work.')
+    .requiredOption('--agent <name>', 'runtime agent identity')
+    .option('--ttl <duration>', 'lease duration, e.g. 20m or 2h', '20m')
+    .option('--capabilities <csv>')
+    .option('--files <csv>', 'anticipated repository-relative files')
+    .option('--worktree <path>')
+    .option('--branch <name>')
+    .option('--base <sha>', 'base commit SHA')
+    .option('--parent <epicId>', 'when claiming next, limit to one epic')
+    .action((ticketId, opts, cmd) => {
+      const { db } = openOrDie();
+      const git = gitExecutionContext();
+      const options = {
+        agent: opts.agent, ttl: opts.ttl, capabilities: csv(opts.capabilities), files: csv(opts.files),
+        worktree: opts.worktree ?? git.worktree,
+        branch: opts.branch ?? git.branch,
+        baseSha: opts.base ?? git.baseSha,
+        parentId: opts.parent,
+        model: actingModel(cmd),
+      };
+      const result = ticketId ? claimTicket(db, ticketId, options) : claimNext(db, options);
+      out(cmd, result, (value) => `${chalk.green('✓')} claimed ${value.ticket?.id || value.lease.ticketId} as ${opts.agent}`);
+    });
+
+  const lease = program.command('lease').description('Renew, release, and inspect execution leases.');
+  lease.command('show <ticketId>').action((ticketId, _opts, cmd) => {
+    const { db } = openOrDie();
+    out(cmd, activeLease(db, ticketId), (value) => value ? JSON.stringify(value, null, 2) : '(no active lease)');
+  });
+  lease.command('renew <leaseId>')
+    .requiredOption('--agent <name>')
+    .option('--ttl <duration>', 'renewal duration', '20m')
+    .option('--files <csv>', 'additional changed/intended files; defaults to current git changes')
+    .action((leaseId, opts, cmd) => {
+      const { db } = openOrDie();
+      const git = gitExecutionContext();
+      const result = renewLease(db, leaseId, {
+        agent: opts.agent,
+        ttl: opts.ttl,
+        files: opts.files === undefined ? gitChangedFiles() : csv(opts.files),
+        worktree: git.worktree,
+        branch: git.branch,
+        baseSha: git.baseSha,
+        model: actingModel(cmd),
+      });
+      out(cmd, result, (value) => `${chalk.green('✓')} renewed through ${value.expiresAt}`);
+    });
+  lease.command('release <leaseId>')
+    .requiredOption('--agent <name>')
+    .option('--reason <reason>', 'release reason', 'released')
+    .action((leaseId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = releaseLease(db, leaseId, { agent: opts.agent, reason: opts.reason, model: actingModel(cmd) });
+      out(cmd, result, () => `${chalk.green('✓')} released ${leaseId}`);
+    });
+
+  const contract = program.command('contract').description('Manage structured acceptance, verification, capabilities, and policies.');
+  contract.command('show <ticketId>').action((ticketId, _opts, cmd) => {
+    const { db } = openOrDie();
+    out(cmd, getContract(db, ticketId), (value) => JSON.stringify(value, null, 2));
+  });
+  contract.command('set <ticketId>')
+    .option('--acceptance <json>', 'JSON array of acceptance criteria')
+    .option('--constraints <json>', 'JSON array of constraints')
+    .option('--verify <json>', 'JSON array of verification commands')
+    .option('--capabilities <json>', 'JSON array of required capabilities')
+    .option('--policy <json>', 'JSON policy object')
+    .option('--by <actor>')
+    .action((ticketId, opts, cmd) => {
+      const { db } = openOrDie();
+      const current = getContract(db, ticketId) ?? {};
+      const result = setContract(db, ticketId, {
+        acceptance: parseJsonValue(opts.acceptance, current.acceptance ?? [], 'acceptance'),
+        constraints: parseJsonValue(opts.constraints, current.constraints ?? [], 'constraints'),
+        verificationCommands: parseJsonValue(opts.verify, current.verificationCommands ?? [], 'verify'),
+        requiredCapabilities: parseJsonValue(opts.capabilities, current.requiredCapabilities ?? [], 'capabilities'),
+        policy: parseJsonValue(opts.policy, current.policy ?? {}, 'policy'),
+      }, opts.by, actingModel(cmd));
+      out(cmd, result, () => `${chalk.green('✓')} updated contract for ${ticketId}`);
+    });
+
+  const attempt = program.command('attempt').description('Inspect and finish execution attempts.');
+  attempt.command('show <attemptId>').action((attemptId, _opts, cmd) => {
+    const { db } = openOrDie();
+    const value = getAttempt(db, attemptId);
+    if (!value) fail(`Attempt not found: ${attemptId}`);
+    out(cmd, value, (item) => JSON.stringify(item, null, 2));
+  });
+  attempt.command('finish <attemptId>')
+    .requiredOption('--outcome <outcome>', 'succeeded|failed|handed_off|cancelled')
+    .requiredOption('--agent <name>')
+    .option('--summary <text>')
+    .option('--failure <text>')
+    .option('--evidence <json>', 'JSON array')
+    .option('--verification <json>', 'JSON array')
+    .action((attemptId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = finishAttempt(db, attemptId, {
+        outcome: opts.outcome, agent: opts.agent, summary: opts.summary, failure: opts.failure,
+        evidence: parseJsonValue(opts.evidence, [], 'evidence'),
+        verification: parseJsonValue(opts.verification, [], 'verification'), model: actingModel(cmd),
+      });
+      out(cmd, result, (value) => `${chalk.green('✓')} attempt ${value.status}`);
+    });
+
+  program.command('complete <ticketId>')
+    .description('Atomically finish an attempt, attach evidence, release its lease, and move the ticket to done.')
+    .requiredOption('--attempt <attemptId>')
+    .requiredOption('--agent <name>')
+    .option('--summary <text>')
+    .option('--evidence <json>', 'JSON array')
+    .option('--verification <json>', 'JSON array of {command,ok,...}')
+    .option('--branch <name>')
+    .option('--pr <url>')
+    .action((ticketId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = completeWork(db, ticketId, {
+        attemptId: opts.attempt, agent: opts.agent, summary: opts.summary,
+        evidence: parseJsonValue(opts.evidence, [], 'evidence'),
+        verification: parseJsonValue(opts.verification, [], 'verification'),
+        branch: opts.branch, prUrl: opts.pr, model: actingModel(cmd),
+      });
+      out(cmd, result, (value) => `${chalk.green('✓')} completed ${value.ticket.id}`);
+    });
+
+  program.command('discover <ticketId> <type> <body...>')
+    .description(`Record a typed discovery: ${Array.from(DISCOVERY_TYPES).join('|')}`)
+    .option('--data <json>', 'structured JSON payload')
+    .option('--by <actor>')
+    .action((ticketId, type, body, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = addDiscovery(db, ticketId, {
+        type, body: body.join(' '), data: parseJsonValue(opts.data, {}, 'data'), author: opts.by, model: actingModel(cmd),
+      });
+      out(cmd, result, () => `${chalk.green('✓')} recorded ${type}`);
+    });
+
+  const handoff = program.command('handoff').description('Create and inspect durable cross-session agent handoffs.');
+  handoff.command('create <ticketId>')
+    .description('Record a structured handoff and finish/release the current running attempt when present.')
+    .requiredOption('--agent <name>', 'agent creating the handoff')
+    .requiredOption('--summary <text>', 'compact continuation summary')
+    .option('--to <agent>', 'intended receiving agent or role')
+    .option('--attempt <attemptId>', 'source attempt; defaults to the latest attempt')
+    .option('--decisions <json>', 'JSON array; defaults to recorded decision discoveries')
+    .option('--remaining <json>', 'JSON array of remaining work')
+    .option('--blockers <json>', 'JSON array; defaults to recorded blocker discoveries')
+    .option('--verification <json>', 'JSON array; defaults to attempt verification')
+    .option('--evidence <json>', 'JSON array; defaults to attempt evidence')
+    .option('--files <csv>', 'changed files; defaults to current lease intent')
+    .option('--keep-attempt', 'record the handoff without finishing/releasing the running attempt', false)
+    .action((ticketId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = createHandoff(db, ticketId, {
+        agent: opts.agent,
+        summary: opts.summary,
+        toAgent: opts.to,
+        attemptId: opts.attempt,
+        decisions: opts.decisions === undefined ? undefined : parseJsonValue(opts.decisions, [], 'decisions'),
+        remaining: opts.remaining === undefined ? undefined : parseJsonValue(opts.remaining, [], 'remaining'),
+        blockers: opts.blockers === undefined ? undefined : parseJsonValue(opts.blockers, [], 'blockers'),
+        verification: opts.verification === undefined ? undefined : parseJsonValue(opts.verification, [], 'verification'),
+        evidence: opts.evidence === undefined ? undefined : parseJsonValue(opts.evidence, [], 'evidence'),
+        files: opts.files === undefined ? undefined : csv(opts.files),
+        finishAttempt: opts.keepAttempt ? false : undefined,
+        model: actingModel(cmd),
+      });
+      out(cmd, result, (value) => `${chalk.green('✓')} handoff recorded for ${value.handoff.ticketId}`);
+    });
+  handoff.command('show <ticketId>')
+    .description('Return the latest structured handoff for a ticket.')
+    .action((ticketId, _opts, cmd) => {
+      const { db } = openOrDie();
+      out(cmd, getLatestHandoff(db, ticketId), (value) => value ? JSON.stringify(value, null, 2) : '(no handoff)');
+    });
+
+  const plan = program.command('plan').description('Record versioned plan revisions without erasing prior intent.');
+  plan.command('revise <ticketId> <body...>')
+    .option('--reason <text>')
+    .option('--by <actor>')
+    .action((ticketId, body, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = revisePlan(db, ticketId, { body: body.join(' '), reason: opts.reason, actor: opts.by, model: actingModel(cmd) });
+      out(cmd, result, (value) => `${chalk.green('✓')} plan v${value.version}`);
+    });
+
+  program.command('context <ticketId>')
+    .description('Return a compact deterministic context pack for an agent.')
+    .option('--since <timestamp>')
+    .option('--budget <tokens>', 'approximate token budget', '4000')
+    .action((ticketId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = contextPack(db, ticketId, { since: opts.since, budget: Number(opts.budget) });
+      out(cmd, result, (value) => JSON.stringify(value, null, 2));
+    });
+
+  program.command('metrics')
+    .description('Report agent-oriented contention, failure, and lease health metrics.')
+    .action((_opts, cmd) => {
+      const { db } = openOrDie();
+      const result = agentMetrics(db);
+      out(cmd, result, (value) => JSON.stringify(value, null, 2));
+    });
+
+  const conflicts = program.command('conflicts').description('Inspect and explicitly resolve concurrent sibling writes.');
+  conflicts.command('list [ticketId]')
+    .option('--all', 'include resolved conflicts', false)
+    .action((ticketId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = listConflicts(db, { ticketId, unresolvedOnly: !opts.all });
+      out(cmd, result, (value) => JSON.stringify(value, null, 2));
+    });
+  conflicts.command('resolve <conflictId>')
+    .requiredOption('--value <json>', 'chosen JSON value')
+    .option('--by <actor>')
+    .action((conflictId, opts, cmd) => {
+      const { db } = openOrDie();
+      const result = resolveConflict(db, conflictId, {
+        value: parseJsonValue(opts.value, null, 'value'), actor: opts.by, model: actingModel(cmd),
+      });
+      out(cmd, result, () => `${chalk.green('✓')} resolved ${conflictId}`);
+    });
+
+  program.command('watch')
+    .description('Emit committed workspace events as resumable JSON Lines for agent monitors.')
+    .option('--since <eventId>', 'resume after this event id')
+    .option('--once', 'print the current tail and exit', false)
+    .action((opts, cmd) => {
+      const scopeDir = findScopeDir();
+      if (!scopeDir) fail('No .scope/ directory found.');
+      const dir = eventsDir(scopeDir);
+      const seen = new Set();
+      let started = !opts.since;
+      const flush = () => {
+        for (const event of readAllEvents(dir)) {
+          if (!started) {
+            if (event.id === opts.since) started = true;
+            seen.add(event.id);
+            continue;
+          }
+          if (seen.has(event.id)) continue;
+          seen.add(event.id);
+          process.stdout.write(JSON.stringify(successEnvelope(event, { command: commandPath(cmd), cursor: event.id })) + '\n');
+        }
+      };
+      flush();
+      if (opts.once) return;
+      const watcher = watchFileSystem(dir, { persistent: true }, () => {
+        try { flush(); } catch (error) {
+          process.stdout.write(JSON.stringify(errorEnvelope(error)) + '\n');
+        }
+      });
+      const stop = () => watcher.close();
+      process.once('SIGINT', stop);
+      process.once('SIGTERM', stop);
     });
 
   /* ---------- batch ---------- */
@@ -1533,7 +2269,7 @@ export function buildProgram() {
           chalk.yellow('! -p/--project is deprecated.\n')
         );
       }
-      const tickets = listTickets(db, { parentId: opts.epic });
+      const tickets = enrichTicketsWithExecution(db, listTickets(db, { parentId: opts.epic }));
       out(cmd, tickets, boardView);
     });
 
@@ -1797,7 +2533,7 @@ export function buildProgram() {
         },
         {
           tool: 'codex',
-          source: join(skillsDir, 'codex/AGENTS.md'),
+          source: join(skillsDir, 'claude/scope/SKILL.md') + ' + ' + join(skillsDir, 'codex/AGENTS.md'),
           target: targets.codex,
           detected: existsSync((process.env.HOME || '') + '/.codex'),
         },
@@ -2373,8 +3109,69 @@ export function buildProgram() {
 
 export function run(argv) {
   const program = buildProgram();
+  const wantsJson = argv.includes('--json');
+  let commanderError = '';
+  let dogfoodSpan = null;
+  program.exitOverride();
+  program.hook('preAction', (_thisCommand, actionCommand) => {
+    const global = actionCommand.optsWithGlobals();
+    dogfoodSpan = startDogfoodSpan({
+      surface: 'cli',
+      operation: commandPath(actionCommand),
+      workspace: findScopeDir(),
+      cliVersion: PKG.version,
+      protocolVersion: PROTOCOL_VERSION,
+      eventFormatVersion: EVENT_FORMAT_VERSION,
+      json: Boolean(global.json),
+      requestId: Boolean(global.requestId),
+      ifRevision: Boolean(global.ifRevision),
+      model: Boolean(global.model || process.env.SCOPE_MODEL),
+    });
+  });
+  program.hook('postAction', () => {
+    const statusCode = Number(process.exitCode) || 0;
+    dogfoodSpan?.finish({
+      outcome: statusCode === 0 ? 'success' : 'error',
+      statusCode,
+    });
+  });
+  program.configureOutput({
+    writeErr: (text) => {
+      if (wantsJson) commanderError += text;
+      else process.stderr.write(text);
+    },
+  });
   program.parseAsync(argv).catch((e) => {
-    console.error(chalk.red(e.message || String(e)));
-    process.exit(1);
+    setMutationContext(null);
+    if (e instanceof ReceiptReplay) {
+      dogfoodSpan?.finish({ outcome: 'success', statusCode: 0, replayed: true });
+      const envelope = {
+        ...e.envelope,
+        meta: { ...(e.envelope.meta || {}), replayed: true },
+      };
+      process.stdout.write(JSON.stringify(envelope, null, 2) + '\n');
+      return;
+    }
+    if (e.code === 'commander.helpDisplayed' || e.code === 'commander.version') return;
+    const normalized = normalizeError(
+      e instanceof ScopeCliError
+        ? e
+        : new ScopeCliError((commanderError || e.message || String(e)).trim(), {
+            code: e.code?.startsWith?.('commander.') ? 'CLI_USAGE' : undefined,
+          })
+    );
+    dogfoodSpan?.finish({
+      outcome: 'error',
+      statusCode: normalized.exitCode || 1,
+      errorCode: normalized.code,
+    });
+    if (wantsJson) {
+      const scopeDir = findScopeDir();
+      const meta = scopeDir ? { revision: safeRevision(scopeDir) } : {};
+      process.stdout.write(JSON.stringify(errorEnvelope(normalized, meta), null, 2) + '\n');
+    } else {
+      process.stderr.write(chalk.red(normalized.message) + '\n');
+    }
+    process.exitCode = normalized.exitCode || 1;
   });
 }

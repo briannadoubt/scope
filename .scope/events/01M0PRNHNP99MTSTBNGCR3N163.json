@@ -1,0 +1,42 @@
+{
+  "v": 1,
+  "id": "01M0PRNHNP99MTSTBNGCR3N163",
+  "ts": "2026-08-23T07:34:24.694Z",
+  "actor": "sol",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M0PQRJVBRR9TWG4TG6THFFW9",
+    "leaseId": "01M0PRNHNN69R1T9D9Z975SGC6",
+    "agent": "sol",
+    "capabilities": [],
+    "files": [
+      "README.md",
+      "CHANGELOG.md",
+      "docs/agent-protocol.md",
+      "docs/event-log-format.md",
+      "docs/agent-messaging.md",
+      "skills/scope.md",
+      "skills/claude/scope/SKILL.md",
+      "skills/codex/AGENTS.md",
+      "skills/cursor/scope.mdc",
+      "skills/README.md",
+      "plugins/scope/skills/scope/SKILL.md",
+      "plugins/scope/skills/multi-agent/SKILL.md",
+      "plugins/scope/references/cli-recipes.md",
+      "test/agent-mailbox.test.js",
+      "test/event-schema.test.js",
+      "test/pg-replay.test.js",
+      "test/pg-schema.test.js",
+      "test/pg-snapshot.test.js"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "10b7fb43d899ee00333a32de4f871cad091ddde4",
+    "claimedAt": "2026-08-23T07:34:24.693Z",
+    "expiresAt": "2026-08-23T09:34:24.693Z"
+  },
+  "hlc": "1787470464694-000000",
+  "baseRevision": "sha256:f511fd9635a93c5b604b2cdbd1bdb0048cfe11133b4435f280a43d33c60ba9a8",
+  "transactionId": "01M0PRNHNP99MTSTBNGCR3N166",
+  "transactionIndex": 0
+}

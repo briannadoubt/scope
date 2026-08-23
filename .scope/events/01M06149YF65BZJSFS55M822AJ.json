@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M06149YF65BZJSFS55M822AJ",
+  "ts": "2026-08-16T19:35:11.567Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M06149YF65BZJSFS55M822AH",
+    "number": 300,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Teach Codex and Claude native orchestration",
+    "description": "Update bundled skills and documentation so parent agents delegate ready Scope tickets through host-native subagents and children execute exactly one dispatch.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M06149C3DAW3N0E6N58RF1X2",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1786908911567-000000",
+  "baseRevision": "sha256:a05b6100123f80f459bafce1a95a3f60fd9c9a796cbc43904d420a284e1176c7"
+}

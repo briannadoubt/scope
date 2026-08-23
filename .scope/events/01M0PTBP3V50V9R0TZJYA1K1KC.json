@@ -1,0 +1,36 @@
+{
+  "v": 2,
+  "id": "01M0PTBP3V50V9R0TZJYA1K1KC",
+  "ts": "2026-08-23T08:03:58.715Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0PT4X09J1S8ABEPHWQQYR32",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T08:03:58.715Z",
+    "summary": "Added opt-in privacy-bounded NDJSON telemetry for CLI and hub route outcomes, a local aggregation script, operational docs, and tests proving content/ids/credentials are excluded and failures are isolated.",
+    "failure": null,
+    "evidence": [
+      {
+        "tests": "4 telemetry tests passed"
+      },
+      {
+        "docs": "docs/dogfood-telemetry.md"
+      }
+    ],
+    "verification": [
+      {
+        "command": "node --test --import=./test/setup.js test/dogfood-telemetry.test.js",
+        "ok": true
+      },
+      {
+        "command": "node --check src/dogfood-telemetry.js",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787472238715-000000",
+  "baseRevision": "sha256:d486adacd0bf5c696b26db949610a80ff46856c06cf06d36e57c48c2cea1fb61",
+  "transactionId": "01M0PTBP3WDDF0EPK4BJ0CC8W3",
+  "transactionIndex": 0
+}

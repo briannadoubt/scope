@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "id": "01M0640097YJDPBAQND744HQ2K",
+  "ts": "2026-08-16T20:25:16.327Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01M063VM47F4YD99KDPCB1B78D",
+    "commentId": "01M0640097YJDPBAQND744HQ2J",
+    "author": "codex",
+    "body": "Product constraint clarified: optimize machine-readable coordination only. Human UI rendering is explicitly out of scope for this epic."
+  },
+  "hlc": "1786911916327-000000",
+  "baseRevision": "sha256:de6d40686bc46abcbf13bd123e5014558b540bfbe17cc9e1098c21f8e0f0e81a"
+}

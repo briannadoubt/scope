@@ -1,0 +1,51 @@
+{
+  "v": 2,
+  "id": "01M0PSPSPEHP0H5E6Y4092ZGRM",
+  "ts": "2026-08-23T07:52:34.254Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0PSC3YG4MZXAQ2JK4VT2BKR",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T07:52:34.254Z",
+    "summary": "Added event format 2 as an explicit reader boundary, retained v1 history support, made future formats fail closed with UNSUPPORTED_EVENT_FORMAT, separated incompatible files from corruption in doctor, advertised compatibility in capabilities, and synchronized documentation and skills.",
+    "failure": null,
+    "evidence": [
+      {
+        "tests": "411 total: 341 passed, 70 PostgreSQL-dependent skipped, 0 failed"
+      },
+      {
+        "capabilities": {
+          "writerVersion": 2,
+          "readerVersions": [
+            1,
+            2
+          ],
+          "minimumReaderVersion": 2
+        }
+      },
+      {
+        "docs": "docs/event-log-format.md#reader-compatibility-and-upgrades"
+      }
+    ],
+    "verification": [
+      {
+        "command": "npm test",
+        "ok": true,
+        "summary": "341 passed, 70 skipped, 0 failed"
+      },
+      {
+        "command": "npm run docs:agent:check",
+        "ok": true
+      },
+      {
+        "command": "git diff --check",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787471554254-000000",
+  "baseRevision": "sha256:c24cab35e316fc0bf1f8a9660273bb9957a9cf02bd4fd49b52750f570d371460",
+  "transactionId": "01M0PSPSPFHHV63K7N4KETT57H",
+  "transactionIndex": 0
+}

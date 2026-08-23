@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "id": "01M061CPFNWK2C300TD0RP7GBV",
+  "ts": "2026-08-16T19:39:46.549Z",
+  "actor": "codex",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M06149J2JDR7DRX5HA8G8143",
+    "field": "status",
+    "value": "done"
+  },
+  "hlc": "1786909186549-000000",
+  "baseRevision": "sha256:266b83254333d8031c2ba6a8f3b07f489ace93d02ea0ae3a33e53d3d5cdc2cfa",
+  "transactionId": "01M061CPFPG5YFWX0QRXFSMG6M",
+  "transactionIndex": 0
+}

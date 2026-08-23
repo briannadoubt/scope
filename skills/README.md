@@ -7,7 +7,8 @@ at the same canonical content (`scope.md`).
 | Tool | File | Installed to |
 |---|---|---|
 | Claude Code | `claude/scope/SKILL.md` | `~/.claude/skills/scope/SKILL.md` |
-| Codex | `codex/AGENTS.md` | `~/.codex/AGENTS.md` (appended if it exists) |
+| Codex user skill | `claude/scope/SKILL.md` | `~/.agents/skills/scope/SKILL.md` |
+| Codex global guidance | `codex/AGENTS.md` | managed block in `~/.codex/AGENTS.md` |
 | Cursor | `cursor/scope.mdc` | `<project>/.cursor/rules/scope.mdc` |
 
 ## Remote install (recommended)
@@ -41,10 +42,10 @@ mkdir -p ~/.claude/skills/scope && \
   curl -fsSL https://raw.githubusercontent.com/briannadoubt/scope/main/skills/claude/scope/SKILL.md \
        -o ~/.claude/skills/scope/SKILL.md
 
-# Codex (creates ~/.codex/AGENTS.md or appends to it)
-mkdir -p ~/.codex && \
-  curl -fsSL https://raw.githubusercontent.com/briannadoubt/scope/main/skills/codex/AGENTS.md \
-       >> ~/.codex/AGENTS.md
+# Codex user skill (Codex also supports symlinking this directory while developing)
+mkdir -p ~/.agents/skills/scope && \
+  curl -fsSL https://raw.githubusercontent.com/briannadoubt/scope/main/skills/claude/scope/SKILL.md \
+       -o ~/.agents/skills/scope/SKILL.md
 
 # Cursor (per-project — run from the project root)
 mkdir -p .cursor/rules && \
@@ -57,7 +58,8 @@ mkdir -p .cursor/rules && \
 In short: when to reach for Scope (multi-step work, planning, status updates,
 bug tracking), how to invoke it (the CLI, with `--json` for parseable output),
 the data model (workspace / epic / story / bug / relations / statuses /
-priorities), and a handful of common commands. See [`scope.md`](./scope.md)
+priorities), native Codex/Claude coordination, durable cross-host messaging and
+wakeup adapters, and a handful of common commands. See [`scope.md`](./scope.md)
 for the canonical text — the per-tool files are mostly the same content with
 different frontmatter.
 
@@ -66,6 +68,10 @@ different frontmatter.
 Scope is **CLI-first**. Agents shell out to `scope` directly (every command
 supports `--json`). There is nothing to wire up in `~/.claude.json` or
 `~/.codex/config.toml` — if `scope` is on `$PATH` the skill works.
+
+The installer refreshes its marked block in `~/.codex/AGENTS.md` idempotently
+for older Codex hosts while also installing the current user-wide skill in the
+official `~/.agents/skills` location. It never appends duplicate Scope blocks.
 
 To watch the board live while an agent works, run `scope serve` once and open
 http://localhost:4321. Every agent that touches `scope` in any repo registers

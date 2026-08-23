@@ -18,6 +18,8 @@ import { compareEvents, formatActor } from '../event-schema.js';
 import { resolveDisplayNumbers, nextNumberSeed } from '../identity.js';
 import { COLUMN_TO_FIELD, RELATION_INVERSE } from '../enums.js';
 import { withTenant, TENANT_GUC } from './rls.js';
+import { createHash } from 'node:crypto';
+import { committedEvents } from '../event-store.js';
 
 const FIELD_TO_COLUMN = Object.fromEntries(
   Object.entries(COLUMN_TO_FIELD).map(([col, field]) => [field, col])
@@ -40,18 +42,19 @@ export async function replayWithinTx(client, tenantId, events) {
   // statement below runs under the tenant's row-level-security policies.
   await client.query('SELECT set_config($1, $2, true)', [TENANT_GUC, tenantId]);
 
-  const ordered = events.slice().sort(compareEvents);
+  const ordered = committedEvents(events).slice().sort(compareEvents);
   const { assignments, renumbered, human } = resolveProjection(ordered);
 
   const T = tenantId;
   const now = new Date().toISOString();
 
   // Wipe this tenant's derived rows (workspace row is upserted, not deleted).
-  for (const t of ['ticket_artifacts', 'ticket_history', 'ticket_comments', 'ticket_relations', 'tickets'])
+  for (const t of ['agent_messages','agent_registry','agent_conflicts','agent_plans','agent_discoveries','agent_attempts','agent_leases','agent_contracts','ticket_artifacts', 'ticket_history', 'ticket_comments', 'ticket_relations', 'tickets'])
     await client.query(`DELETE FROM ${t} WHERE tenant_id = $1`, [T]);
   await ensureWorkspaceRow(client, T, now);
 
   const { applied, wsKey } = await applyEventLoop(client, T, ordered, human, assignments);
+  await materializeConflicts(client, T, ordered, human);
 
   await cleanupOrphans(client, T);
   await advanceWorkspace(client, T, now, nextNumberSeed(assignments), wsKey);
@@ -156,6 +159,10 @@ async function applyEventLoop(client, T, ordered, human, assignments) {
 
 /** Orphan cleanup mirroring the SQLite FK CASCADE for a tenant. */
 async function cleanupOrphans(client, T) {
+  for (const table of ['agent_contracts','agent_leases','agent_attempts','agent_discoveries','agent_plans','agent_conflicts']) {
+    await client.query(`DELETE FROM ${table} WHERE tenant_id=$1
+      AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
+  }
   await client.query(
     `DELETE FROM ticket_artifacts WHERE tenant_id=$1
        AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
@@ -168,6 +175,9 @@ async function cleanupOrphans(client, T) {
             OR to_ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1))`, [T]);
   await client.query(
     `DELETE FROM ticket_history WHERE tenant_id=$1
+       AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
+  await client.query(
+    `UPDATE agent_messages SET ticket_id=NULL WHERE tenant_id=$1 AND ticket_id IS NOT NULL
        AND ticket_id NOT IN (SELECT id FROM tickets WHERE tenant_id=$1)`, [T]);
 }
 
@@ -319,9 +329,119 @@ async function applyEvent(db, T, e, human, assignments) {
       return 1;
     }
 
+    case 'agent.contract.set': {
+      const id = human.get(p.ticketId); if (!id) return 0; const c = p.contract;
+      await db.query(`INSERT INTO agent_contracts
+        (tenant_id,ticket_id,acceptance,constraints,verification_commands,required_capabilities,policy,plan_version,updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8) ON CONFLICT (tenant_id,ticket_id) DO UPDATE SET
+        acceptance=excluded.acceptance,constraints=excluded.constraints,verification_commands=excluded.verification_commands,
+        required_capabilities=excluded.required_capabilities,policy=excluded.policy,updated_at=excluded.updated_at`,
+        [T,id,JSON.stringify(c.acceptance??[]),JSON.stringify(c.constraints??[]),
+          JSON.stringify(c.verificationCommands??[]),JSON.stringify(c.requiredCapabilities??[]),
+          JSON.stringify(c.policy??{}),e.ts]);
+      return 1;
+    }
+    case 'agent.lease.claim': {
+      const id = human.get(p.ticketId); if (!id) return 0;
+      await db.query(`INSERT INTO agent_leases
+        (tenant_id,lease_id,ticket_id,agent,capabilities,worktree,branch,base_sha,files,claimed_at,heartbeat_at,expires_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$11)
+        ON CONFLICT (tenant_id,lease_id) DO UPDATE SET expires_at=excluded.expires_at`,
+        [T,p.leaseId,id,p.agent,JSON.stringify(p.capabilities??[]),p.worktree??null,p.branch??null,
+          p.baseSha??null,JSON.stringify(p.files??[]),p.claimedAt??e.ts,p.expiresAt]);
+      return 1;
+    }
+    case 'agent.lease.renew':
+      await db.query(`UPDATE agent_leases SET heartbeat_at=$3,expires_at=$4,
+        files=COALESCE($5::jsonb,files),worktree=COALESCE($6,worktree),
+        branch=COALESCE($7,branch),base_sha=COALESCE($8,base_sha)
+        WHERE tenant_id=$1 AND lease_id=$2`,
+        [T,p.leaseId,p.heartbeatAt??e.ts,p.expiresAt,p.files ? JSON.stringify(p.files) : null,
+          p.worktree??null,p.branch??null,p.baseSha??null]); return 1;
+    case 'agent.lease.release':
+      await db.query('UPDATE agent_leases SET released_at=$3,release_reason=$4 WHERE tenant_id=$1 AND lease_id=$2',[T,p.leaseId,p.releasedAt??e.ts,p.reason??'released']); return 1;
+    case 'agent.attempt.start': {
+      const id = human.get(p.ticketId); if (!id) return 0;
+      await db.query(`INSERT INTO agent_attempts (tenant_id,attempt_id,ticket_id,lease_id,agent,status,started_at)
+        VALUES ($1,$2,$3,$4,$5,'running',$6) ON CONFLICT (tenant_id,attempt_id) DO NOTHING`,
+        [T,p.attemptId,id,p.leaseId??null,p.agent,p.startedAt??e.ts]); return 1;
+    }
+    case 'agent.attempt.finish':
+      await db.query(`UPDATE agent_attempts SET status=$3,finished_at=$4,summary=$5,failure=$6,evidence=$7,verification=$8
+        WHERE tenant_id=$1 AND attempt_id=$2`,[T,p.attemptId,p.outcome,p.finishedAt??e.ts,p.summary??null,p.failure??null,
+          JSON.stringify(p.evidence??[]),JSON.stringify(p.verification??[])]); return 1;
+    case 'agent.discovery.add': {
+      const id = human.get(p.ticketId); if (!id) return 0;
+      await db.query(`INSERT INTO agent_discoveries (tenant_id,discovery_id,ticket_id,type,body,data,author,created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (tenant_id,discovery_id) DO NOTHING`,
+        [T,p.discoveryId,id,p.discoveryType,p.body,JSON.stringify(p.data??{}),p.author??null,p.createdAt??e.ts]); return 1;
+    }
+    case 'agent.plan.revise': {
+      const id = human.get(p.ticketId); if (!id) return 0;
+      await db.query(`INSERT INTO agent_plans (tenant_id,ticket_id,version,body,reason,actor,created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (tenant_id,ticket_id,version) DO NOTHING`,
+        [T,id,p.version,p.body,p.reason??null,e.actor,p.createdAt??e.ts]);
+      await db.query(`INSERT INTO agent_contracts (tenant_id,ticket_id,updated_at,plan_version)
+        VALUES ($1,$2,$3,$4) ON CONFLICT (tenant_id,ticket_id) DO UPDATE SET plan_version=excluded.plan_version,updated_at=excluded.updated_at`,
+        [T,id,p.createdAt??e.ts,p.version]); return 1;
+    }
+    case 'agent.conflict.resolve': return 1;
+    case 'agent.register':
+      await db.query(`INSERT INTO agent_registry
+        (tenant_id,agent_id,display_name,provider,capabilities,metadata,status,registered_at,last_seen_at,expires_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (tenant_id,agent_id) DO UPDATE SET
+        display_name=excluded.display_name,provider=excluded.provider,capabilities=excluded.capabilities,
+        metadata=excluded.metadata,status=excluded.status,last_seen_at=excluded.last_seen_at,expires_at=excluded.expires_at`,
+        [T,p.agentId,p.displayName,p.provider??null,JSON.stringify(p.capabilities??[]),JSON.stringify(p.metadata??{}),
+          p.status,p.registeredAt,p.seenAt,p.expiresAt]);
+      return 1;
+    case 'agent.heartbeat':
+      await db.query(`UPDATE agent_registry SET status=$3,capabilities=$4,metadata=$5,last_seen_at=$6,expires_at=$7
+        WHERE tenant_id=$1 AND agent_id=$2`,
+        [T,p.agentId,p.status,JSON.stringify(p.capabilities??[]),JSON.stringify(p.metadata??{}),p.seenAt,p.expiresAt]);
+      return 1;
+    case 'agent.message.send': {
+      const ticketId = p.ticketId ? human.get(p.ticketId) ?? null : null;
+      await db.query(`INSERT INTO agent_messages
+        (tenant_id,message_id,ticket_id,from_agent,to_agent,kind,body,artifact_refs,thread_id,reply_to,correlation_id,created_at,expires_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        ON CONFLICT (tenant_id,message_id) DO NOTHING`,
+        [T,p.messageId,ticketId,p.fromAgent,p.toAgent,p.kind,p.body,JSON.stringify(p.artifactRefs??[]),
+          p.threadId,p.replyTo??null,p.correlationId??null,p.createdAt,p.expiresAt??null]);
+      return 1;
+    }
+    case 'agent.message.ack':
+      await db.query(`UPDATE agent_messages SET acked_at=$3,acked_by=$4
+        WHERE tenant_id=$1 AND message_id=$2 AND acked_at IS NULL`,
+        [T,p.messageId,p.acknowledgedAt,p.agent]);
+      return 1;
+
     default:
       return 0;
   }
+}
+
+async function materializeConflicts(db, T, ordered, human) {
+  const groups = new Map(); const resolutions = [];
+  for (const event of ordered) {
+    if (event.kind === 'agent.conflict.resolve') { resolutions.push(event); continue; }
+    if (event.kind !== 'ticket.set_field' || !event.baseRevision) continue;
+    const key = `${event.baseRevision}\n${event.payload.ticketId}\n${event.payload.field}`;
+    if (!groups.has(key)) groups.set(key, []); groups.get(key).push(event);
+  }
+  for (const [key, events] of groups) {
+    if (events.length < 2 || new Set(events.map((x)=>JSON.stringify(x.payload.value))).size < 2 || new Set(events.map((x)=>x.actor)).size < 2) continue;
+    const [baseRevision,uid,field]=key.split('\n'); const ticketId=human.get(uid); if(!ticketId) continue;
+    const conflictId=createHash('sha256').update(key).digest('hex');
+    await db.query(`INSERT INTO agent_conflicts
+      (tenant_id,conflict_id,ticket_id,field,base_revision,event_ids,values_json,detected_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (tenant_id,conflict_id) DO NOTHING`,
+      [T,conflictId,ticketId,field,baseRevision,JSON.stringify(events.map((x)=>x.id)),
+        JSON.stringify(events.map((x)=>({eventId:x.id,actor:x.actor,value:x.payload.value}))),events.map((x)=>x.ts).sort()[0]]);
+  }
+  for (const event of resolutions) await db.query(`UPDATE agent_conflicts SET resolved_at=$3,resolution=$4
+    WHERE tenant_id=$1 AND conflict_id=$2`,[T,event.payload.conflictId,event.payload.resolvedAt??event.ts,
+      JSON.stringify(event.payload.resolution??null)]);
 }
 
 // labels is the only jsonb column read back as old_value; node-pg returns it as

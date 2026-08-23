@@ -39,7 +39,44 @@ jobs:
           node bin/scope.js --version
           node bin/scope.js --help | head -5
 
+      - name: Agent protocol docs are current
+        run: npm run docs:agent:check
+
       - name: Unit + HTTP tests
+        run: npm test
+
+  postgres-integration:
+    name: Postgres integration (Node 22)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: scope
+          POSTGRES_PASSWORD: scope
+          POSTGRES_DB: scope_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scope -d scope_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      SCOPE_PG_URL: postgres://scope:scope@localhost:5432/scope_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Unit + HTTP + Postgres tests
         run: npm test
 
   brew-formula:

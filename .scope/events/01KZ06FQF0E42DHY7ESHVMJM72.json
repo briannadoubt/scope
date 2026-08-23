@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KZ06FQF0E42DHY7ESHVMJM72",
+  "ts": "2026-08-02T02:57:40.320Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KZ02Z6DW956G2Y5HT8NC0798",
+    "commentId": "01KZ06FQEZ0Y4FQ046NARVD53M",
+    "author": "codex",
+    "body": "Active-cost ranking 2026-08-01 (estimated 30-day always-on compute + provisioned volume, excluding bandwidth/IP/snapshots): chill-backend .83; gitruntime .79; aura-chat .98; scope-hub-db .27; neonswarm-leaderboard-staging-db .96; scope-hub .34; neonswarm-leaderboard-staging .32. Total active baseline about .49/month. Top four are ~79% of active baseline."
+  }
+}

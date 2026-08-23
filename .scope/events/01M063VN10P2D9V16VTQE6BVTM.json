@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M063VN10P2D9V16VTQE6BVTM",
+  "ts": "2026-08-16T20:22:53.728Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M063VN0ZAY6W59RR1JJ31Z15",
+    "number": 306,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Remove dispatch ceremony and teach native orchestration",
+    "description": "Remove the prompt/provider dispatch abstraction and update Codex/Claude guidance to use native subagents with Scope claims, context, discoveries, handoffs, and completion only.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M063VM47F4YD99KDPCB1B78D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1786911773728-000000",
+  "baseRevision": "sha256:c42995f7ea4d39b62eec5f31046dd0ed2d52fc4655ce755334a7d7e05d47b1f6"
+}

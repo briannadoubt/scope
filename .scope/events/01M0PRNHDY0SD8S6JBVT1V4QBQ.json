@@ -1,0 +1,32 @@
+{
+  "v": 1,
+  "id": "01M0PRNHDY0SD8S6JBVT1V4QBQ",
+  "ts": "2026-08-23T07:34:24.446Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0PRFEP755F9EMFA05SNFS62",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T07:34:24.446Z",
+    "summary": "Added provider-neutral at-least-once wakeup streams over addressed SSE and local JSONL listener, reconnect retry semantics, acknowledgement receipts, adapter documentation, and tests.",
+    "failure": null,
+    "evidence": [
+      {
+        "doc": "docs/agent-messaging.md"
+      },
+      {
+        "tests": "15 wakeup and server tests passed"
+      }
+    ],
+    "verification": [
+      {
+        "command": "node --test test/cli-mailbox.test.js test/server.test.js",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787470464446-000000",
+  "baseRevision": "sha256:c3269b934b4c3a0e08d54a59665eedf8bbfc6ccf5b2db5a0343e0e15dbb09ce8",
+  "transactionId": "01M0PRNHE0Y1TXEYSA2BETP89H",
+  "transactionIndex": 0
+}

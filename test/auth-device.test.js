@@ -246,7 +246,7 @@ test('CLI auth poll stores the approved key without printing it', async () => {
     });
     assert.equal(run.status, 0, run.stderr || run.stdout);
     assert.doesNotMatch(run.stdout, /supersecret|sk_testid/);
-    assert.deepEqual(JSON.parse(run.stdout), {
+    assert.deepEqual(JSON.parse(run.stdout).data, {
       authenticated: true,
       remote,
       account_id: 'acct_bri',

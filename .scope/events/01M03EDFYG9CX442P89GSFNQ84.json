@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01M03EDFYG9CX442P89GSFNQ84",
+  "ts": "2026-08-15T19:29:40.816Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M03EDFYG9CX442P89GSFNQ83",
+    "number": 290,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Make persistence crash-safe and diagnosable",
+    "description": "Replace unsafe cache-first multi-event dual writes with committed event transactions; add integrity diagnostics, safe repair, failpoints, and recovery tests.",
+    "status": "in_progress",
+    "priority": "urgent",
+    "parentId": "01M03EDFYFN5BYG3Y2SX7RJS35",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

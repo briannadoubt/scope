@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "id": "01M063VKRAXMZ1R8W6M1RJ0JDG",
+  "ts": "2026-08-16T20:22:52.426Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01M06149C3DAW3N0E6N58RF1X2",
+    "commentId": "01M063VKRAXMZ1R8W6M1RJ0JDF",
+    "author": "codex",
+    "body": "Superseded before release: provider-specific dispatch packets duplicate native Codex/Claude harness behavior. Replaced by coordination features tracked under the next epic."
+  },
+  "hlc": "1786911772426-000000",
+  "baseRevision": "sha256:b0bbcfdc7bbbf0849f3ded8b8180a89f80320c26119f7caaa9e57c5cf31f93d1"
+}

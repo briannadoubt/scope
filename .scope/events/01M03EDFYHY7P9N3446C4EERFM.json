@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01M03EDFYHY7P9N3446C4EERFM",
+  "ts": "2026-08-15T19:29:40.817Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M03EDFYG9CX442P89GSFNQ85",
+    "number": 291,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Stabilize the machine protocol",
+    "description": "Add capability discovery, stable JSON success/error envelopes, machine error codes, idempotency receipts, revisions, and optimistic preconditions.",
+    "status": "todo",
+    "priority": "urgent",
+    "parentId": "01M03EDFYFN5BYG3Y2SX7RJS35",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

@@ -88,7 +88,7 @@ test('opening a v6 workspace creates the artifact projection table', () => {
         "SELECT name FROM sqlite_master WHERE type='table' AND name='ticket_artifacts'"
       ).get();
       assert.equal(table.name, 'ticket_artifacts');
-      assert.equal(migrated.prepare("SELECT value FROM meta WHERE key='schema_version'").get().value, '7');
+      assert.equal(migrated.prepare("SELECT value FROM meta WHERE key='schema_version'").get().value, '9');
     } finally {
       migrated.close();
     }
@@ -147,28 +147,29 @@ test('artifact CLI attaches, reads, lists, and removes an HTML file', () => {
     env,
     encoding: 'utf8',
   });
+  const data = (result) => JSON.parse(result.stdout).data;
   try {
     let result = run('init', '--key', 'ART', '--name', 'Artifacts');
     assert.equal(result.status, 0, result.stderr || result.stdout);
     result = run('ticket', 'create', 'Visual ticket');
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    const ticket = JSON.parse(result.stdout);
+    const ticket = data(result);
     const file = join(repo, 'visual.html');
     writeFileSync(file, '<!doctype html><h1>CLI visual</h1>');
 
     result = run('artifact', 'add', ticket.id, file, '--by', 'agent');
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    const artifact = JSON.parse(result.stdout);
+    const artifact = data(result);
     assert.equal(artifact.name, 'visual.html');
 
     result = run('artifact', 'list', ticket.id);
-    assert.equal(JSON.parse(result.stdout).length, 1);
+    assert.equal(data(result).length, 1);
     result = run('artifact', 'show', ticket.id, artifact.id);
-    assert.match(JSON.parse(result.stdout).content, /CLI visual/);
+    assert.match(data(result).content, /CLI visual/);
     result = run('artifact', 'remove', ticket.id, artifact.id, '--by', 'agent');
     assert.equal(result.status, 0, result.stderr || result.stdout);
     result = run('artifact', 'list', ticket.id);
-    assert.deepEqual(JSON.parse(result.stdout), []);
+    assert.deepEqual(data(result), []);
   } finally {
     rmSync(home, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });

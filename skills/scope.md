@@ -29,8 +29,13 @@ output:
 ```bash
 scope --json ticket list                 # current workspace, all tickets
 scope --json ticket show MA-3
-scope --json meta                        # legal enums (statuses/priorities/types)
+scope --json capabilities                # executable protocol + workspace vocabulary
 ```
+
+JSON output is a versioned envelope: consume `.data` when `ok` is true and
+inspect `.error.code`, `.error.retryable`, and `.error.details` otherwise.
+Before sharing a workspace across hosts, verify each host supports
+`.data.eventFormat.minimumReaderVersion` from `scope --json capabilities`.
 
 If the CLI isn't installed:
 
@@ -155,9 +160,60 @@ another agent's) pushes to all viewers via SSE within ~100ms. **Never pass
 invocations auto-discover the running hub and register their workspace with
 it.
 
-If multiple agents are working in parallel, **always read state before writing
-state** — there is no merge logic for conflicting `ticket edit` calls, last
-write wins.
+Agents should use the coordination protocol instead of simulating ownership
+with status/comments:
+
+```bash
+scope --json ready --capabilities node,postgres
+scope --json claim MA-2 --agent codex --files src/auth.js,test/auth.test.js
+scope --json context MA-2 --budget 3000
+scope --json discover MA-2 risk "Refresh-token migration needs rollback coverage" --by codex
+scope --json complete MA-2 --attempt <attempt-id> --agent codex \
+  --verification '[{"command":"npm test","ok":true}]'
+```
+
+Claims create expiring renewable leases and attempts atomically. Dependencies
+drive readiness; contracts can require capabilities, evidence, verification,
+or exclusive file intent. Use `--request-id` for exactly-once retries,
+`--if-revision` for compare-and-swap writes, `watch --since` for resumable
+updates, and `conflicts list/resolve` for concurrent sibling intent.
+
+For communication that must cross hosts or survive a restart, register stable
+agent ids and use the addressed mailbox:
+
+```bash
+scope --json agent register codex:sol --provider openai --ttl 2m
+scope --json message send --from codex:sol --to claude:opus \
+  --ticket MA-2 --kind review_request --body "Review commit abc123"
+scope --json message inbox claude:opus
+scope --json message ack MESSAGE_ID --agent claude:opus
+```
+
+Host adapters consume `scope message listen <agent>` or the addressed SSE
+stream. Delivery is at least once until acknowledgement; deduplicate by message
+id. Use native host messaging for siblings already running in the same harness.
+
+### Native subagents
+
+Leave spawning, prompting, model-session wakeup, waiting, cancellation,
+sandboxing, and worktrees to the host. Scope supplies durable shared state and
+cross-host message delivery:
+
+1. Run `scope --json ready --plan --capabilities <csv>`. Spawn children only
+   for tickets in a safe parallel group; unresolved intent stays sequential.
+2. Give each child one ticket. The child runs `claim --agent <unique-id>
+   --files <anticipated-files>`, then reads `context`; it claims no other work.
+3. Renew during long work. Renewal observes changed Git files when `--files` is
+   omitted, improving later overlap decisions.
+4. Use native messaging for live coordination. Persist facts and decisions with
+   `discover`; use `handoff create` for unfinished transfer; use `complete` with
+   verification/evidence only when actually done.
+5. Re-read the ticket's `execution` state after the child returns. Treat chat
+   output as advisory and durable attempt/evidence state as authoritative.
+
+Claims move conventional workflows to `in_progress`; successful attempts move
+to `in_review`, failures and handoffs to `todo`, and completion to `done`.
+`scope serve` is optional.
 
 ### Claude Code preview pane setup
 

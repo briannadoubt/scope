@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "id": "01M061S6BM75P9CB3VCZHC700Y",
+  "ts": "2026-08-16T19:46:36.020Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01M06149C3DAW3N0E6N58RF1X2",
+    "commentId": "01M061S6BKY6YM725ND3RKPWNZ",
+    "author": "codex",
+    "body": "Implemented scope dispatch across CLI, Node, REST, and MCP; dispatch atomically claims one ticket and returns a versioned prompt/context packet without launching an agent. Focused tests passed 23/23; full suite passed 330 with 70 environment-dependent Postgres skips (400 total)."
+  },
+  "hlc": "1786909596020-000000",
+  "baseRevision": "sha256:98a127a7ff02bf74a26f0de1a2fad8f59bf58bb88beee2393d2499a7171283f0"
+}

@@ -1,0 +1,35 @@
+{
+  "v": 1,
+  "id": "01M0PSC3YHGC0BADCV90BABNMX",
+  "ts": "2026-08-23T07:46:44.305Z",
+  "actor": "sol",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M0PSBY7RF363K8K9KAT94272",
+    "leaseId": "01M0PSC3YG4MZXAQ2JK4VT2BKQ",
+    "agent": "sol",
+    "capabilities": [],
+    "files": [
+      "src/event-schema.js",
+      "src/capabilities.js",
+      "src/protocol.js",
+      "docs/event-log-format.md",
+      "docs/agent-protocol.md",
+      "README.md",
+      "CHANGELOG.md",
+      "test/event-schema.test.js",
+      "test/protocol.test.js",
+      "test/event-store.test.js",
+      "test/replay.test.js"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "10b7fb43d899ee00333a32de4f871cad091ddde4",
+    "claimedAt": "2026-08-23T07:46:44.304Z",
+    "expiresAt": "2026-08-23T09:46:44.304Z"
+  },
+  "hlc": "1787471204305-000000",
+  "baseRevision": "sha256:e087091800edca84a3d6c899d6e57d0b51c4c3e5afe8eadfad9722b04a8b95c2",
+  "transactionId": "01M0PSC3YJHHCXMSB2E9RWEFD4",
+  "transactionIndex": 0
+}

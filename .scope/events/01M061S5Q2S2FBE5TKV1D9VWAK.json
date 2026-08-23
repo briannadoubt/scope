@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "id": "01M061S5Q2S2FBE5TKV1D9VWAK",
+  "ts": "2026-08-16T19:46:35.362Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01M06149YF65BZJSFS55M822AH",
+    "commentId": "01M061S5Q2S2FBE5TKV1D9VWAJ",
+    "author": "codex",
+    "body": "Added native Codex/Claude orchestration guidance: parents dispatch one independent ticket per child, host-native tools own live execution, and Scope owns durable leases/context/discoveries/evidence. Skill validation passed."
+  },
+  "hlc": "1786909595362-000000",
+  "baseRevision": "sha256:10e046d1ceeca8c0e4b174416cb64159910f12c21cab06cbb6ee02f49557ffa4"
+}

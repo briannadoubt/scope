@@ -18,7 +18,8 @@ import { bus, wsContext, emitChange } from './events.js';
 import { readAllEvents, appendEvent, eventsDirForDb } from './event-store.js';
 import { replayInto } from './replay.js';
 import { setMeta } from './db.js';
-import { validateEvent } from './event-schema.js';
+import { EVENT_FORMAT_VERSION, validateEvent } from './event-schema.js';
+import { startDogfoodSpan } from './dogfood-telemetry.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -48,6 +49,41 @@ import {
   SCHEMA_TICKET_TYPES,
   SCHEMA_RELATION_TYPES,
 } from './repo.js';
+import {
+  getContract,
+  setContract,
+  readiness,
+  listReady,
+  parallelPlan,
+  claimTicket,
+  claimNext,
+  renewLease,
+  releaseLease,
+  finishAttempt,
+  completeWork,
+  addDiscovery,
+  revisePlan,
+  contextPack,
+  createHandoff,
+  enrichTicketsWithExecution,
+  executionState,
+  getLatestHandoff,
+  agentMetrics,
+  listConflicts,
+  resolveConflict,
+} from './agent-runtime.js';
+import {
+  acknowledgeMessage,
+  getAgent,
+  getMessage,
+  heartbeatAgent,
+  listAgents,
+  listConversation,
+  listInbox,
+  registerAgent,
+  replyToMessage,
+  sendMessage,
+} from './agent-mailbox.js';
 import { WorkspaceManager } from './workspaces.js';
 import { loadOrCreateToken, authMiddleware, lanHosts } from './auth.js';
 import {
@@ -74,6 +110,8 @@ import { DEFAULT_CLOUD_URL, readCredential, readRemoteConfig, writeRemoteConfig,
 import { migrateEventsToLocal } from './workspace-storage.js';
 import { openColumns, terminalColumns } from './columns.js';
 import { startRemoteSync } from './remote-sync.js';
+import { AGENT_PROTOCOL_FEATURES } from './capabilities.js';
+import { PROTOCOL_VERSION } from './protocol.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
@@ -196,6 +234,32 @@ export async function startServer({
   const pairing = createPairingContext();
 
   app.use(express.json({ limit: '5mb' }));
+
+  // Temporary local dogfood instrumentation. It is inert unless
+  // SCOPE_DOGFOOD_LOG is set and records only route templates/outcomes — never
+  // request paths with ids, query values, bodies, headers, or response data.
+  app.use((req, res, next) => {
+    const span = startDogfoodSpan({
+      surface: 'http',
+      operation: 'HTTP pending',
+      workspace: req.get('x-scope-workspace') || req.query?.workspace || primaryScopeDir,
+      cliVersion: PKG.version,
+      protocolVersion: PROTOCOL_VERSION,
+      eventFormatVersion: EVENT_FORMAT_VERSION,
+    });
+    res.once('finish', () => {
+      const template = typeof req.route?.path === 'string' ? req.route.path : 'unmatched';
+      const operation = `${req.method} ${req.baseUrl || ''}${template}`
+        .replace(/[^A-Za-z0-9_ ./:-]/g, '_')
+        .slice(0, 200);
+      span.finish({
+        operation,
+        outcome: res.statusCode >= 400 ? 'error' : 'success',
+        statusCode: res.statusCode,
+      });
+    });
+    next();
+  });
 
   // POST /api/pair/begin — issue a fresh pairing code. Loopback only (so
   // only the local `scope pair` CLI can request one).
@@ -759,6 +823,10 @@ export async function startServer({
       priorities: SCHEMA_PRIORITIES,
       ticket_types: SCHEMA_TICKET_TYPES,
       relation_types: SCHEMA_RELATION_TYPES,
+      agent_protocol: {
+        version: PROTOCOL_VERSION,
+        features: AGENT_PROTOCOL_FEATURES,
+      },
       // Hosted: the hub's own volume workspaces are private plumbing — a
       // tenant's boards come from /api/workspaces (their projects) instead.
       hub: { port, workspaces: hostedAuth ? [] : enrichedWorkspaces() },
@@ -936,6 +1004,210 @@ export async function startServer({
 
   /* ---------- tickets ---------- */
 
+  /* ---------- agent coordination ---------- */
+
+  const csvQuery = (value) => typeof value === 'string'
+    ? value.split(',').map((item) => item.trim()).filter(Boolean)
+    : [];
+
+  app.get('/api/agent/ready', ws((req, res, w) => {
+    const options = {
+      capabilities: csvQuery(req.query.capabilities),
+      parentId: req.query.parent || null,
+    };
+    res.json(req.query.plan === 'true' ? parallelPlan(w.db, options) : listReady(w.db, options));
+  }));
+
+  app.get('/api/agent/tickets/:id/readiness', ws((req, res, w) => {
+    res.json(readiness(w.db, req.params.id, { capabilities: csvQuery(req.query.capabilities) }));
+  }));
+
+  app.post('/api/agent/claim', ws((req, res, w) => {
+    const body = cleanBody(req.body);
+    const options = {
+      agent: body.agent,
+      ttl: body.ttl,
+      capabilities: body.capabilities ?? [],
+      files: body.files ?? [],
+      worktree: body.worktree,
+      branch: body.branch,
+      baseSha: body.baseSha,
+      model: body.model,
+    };
+    const result = body.ticketId
+      ? claimTicket(w.db, body.ticketId, options)
+      : claimNext(w.db, { ...options, parentId: body.parentId ?? null });
+    res.status(201).json(result);
+  }));
+
+  app.post('/api/agent/leases/:id/renew', ws((req, res, w) => {
+    res.json(renewLease(w.db, req.params.id, cleanBody(req.body)));
+  }));
+
+  app.post('/api/agent/leases/:id/release', ws((req, res, w) => {
+    res.json(releaseLease(w.db, req.params.id, cleanBody(req.body)));
+  }));
+
+  app.post('/api/agent/attempts/:id/finish', ws((req, res, w) => {
+    res.json(finishAttempt(w.db, req.params.id, cleanBody(req.body)));
+  }));
+
+  app.get('/api/agent/tickets/:id/contract', ws((req, res, w) => {
+    res.json(getContract(w.db, req.params.id));
+  }));
+
+  app.put('/api/agent/tickets/:id/contract', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    res.json(setContract(w.db, req.params.id, cleanBody(req.body), by, model));
+  }));
+
+  app.post('/api/agent/tickets/:id/complete', ws((req, res, w) => {
+    res.json(completeWork(w.db, req.params.id, cleanBody(req.body)));
+  }));
+
+  app.post('/api/agent/tickets/:id/discoveries', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    res.status(201).json(addDiscovery(w.db, req.params.id, {
+      ...cleanBody(req.body), author: req.body.author ?? by, model,
+    }));
+  }));
+
+  app.post('/api/agent/tickets/:id/plans', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    res.status(201).json(revisePlan(w.db, req.params.id, {
+      ...cleanBody(req.body), actor: req.body.actor ?? by, model,
+    }));
+  }));
+
+  app.get('/api/agent/tickets/:id/context', ws((req, res, w) => {
+    res.json(contextPack(w.db, req.params.id, {
+      since: req.query.since || null,
+      budget: req.query.budget ? Number(req.query.budget) : undefined,
+    }));
+  }));
+
+  app.get('/api/agent/tickets/:id/handoff', ws((req, res, w) => {
+    res.json(getLatestHandoff(w.db, req.params.id));
+  }));
+
+  app.post('/api/agent/tickets/:id/handoffs', ws((req, res, w) => {
+    res.status(201).json(createHandoff(w.db, req.params.id, cleanBody(req.body)));
+  }));
+
+  app.get('/api/agent/agents', ws((req, res, w) => {
+    res.json(listAgents(w.db, { includeOffline: req.query.online !== 'true' }));
+  }));
+
+  app.get('/api/agent/agents/:id', ws((req, res, w) => {
+    const agent = getAgent(w.db, req.params.id);
+    if (!agent) return res.status(404).json({ error: 'agent not found' });
+    res.json(agent);
+  }));
+
+  app.put('/api/agent/agents/:id', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    res.json(registerAgent(w.db, req.params.id, { ...cleanBody(req.body), actor: by, model }));
+  }));
+
+  app.post('/api/agent/agents/:id/heartbeat', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    res.json(heartbeatAgent(w.db, req.params.id, { ...cleanBody(req.body), actor: by, model }));
+  }));
+
+  app.get('/api/agent/agents/:id/inbox', ws((req, res, w) => {
+    res.json(listInbox(w.db, req.params.id, {
+      includeAcknowledged: req.query.all === 'true',
+      includeExpired: req.query.expired === 'true',
+      since: req.query.since || null,
+      ticketId: req.query.ticket || null,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    }));
+  }));
+
+  // Provider-neutral wakeup stream. A host adapter keeps this open and resumes
+  // its runtime when an addressed message arrives. Pending messages are sent
+  // again after reconnect until the recipient acknowledges them (at-least-once).
+  app.get('/api/agent/agents/:id/events', ws((req, res, w) => {
+    const agentId = req.params.id;
+    if (!getAgent(w.db, agentId)) return res.status(404).json({ error: 'agent not found' });
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.write('retry: 2000\n');
+    res.write(`event: hello\ndata: ${JSON.stringify({ agentId, delivery: 'at-least-once' })}\n\n`);
+    const sent = new Set();
+    const flush = () => {
+      for (const message of listInbox(w.db, agentId, { limit: 1000 })) {
+        if (sent.has(message.messageId)) continue;
+        sent.add(message.messageId);
+        res.write(`id: ${message.messageId}\nevent: message\ndata: ${JSON.stringify(message)}\n\n`);
+      }
+    };
+    flush();
+    const send = (detail) => {
+      if (detail?.workspace && detail.workspace !== w.id) return;
+      if (detail?.type === 'agent.message.acknowledged' && detail.fromAgent === agentId) {
+        res.write(`event: acknowledgement\ndata: ${JSON.stringify(detail)}\n\n`);
+        return;
+      }
+      if (detail?.type === 'agent.message.sent' && detail.toAgent !== agentId) return;
+      if (detail?.type === 'agent.message.sent' || detail?.type === 'external' || detail?.type === 'sync.applied') flush();
+    };
+    bus.on('change', send);
+    const keepalive = setInterval(() => res.write(': keepalive\n\n'), 20000);
+    keepalive.unref?.();
+    req.on('close', () => {
+      bus.off('change', send);
+      clearInterval(keepalive);
+    });
+  }));
+
+  app.post('/api/agent/messages', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    res.status(201).json(sendMessage(w.db, { ...cleanBody(req.body), actor: by, model }));
+  }));
+
+  app.get('/api/agent/messages/:id', ws((req, res, w) => {
+    const message = getMessage(w.db, req.params.id);
+    if (!message) return res.status(404).json({ error: 'message not found' });
+    res.json(message);
+  }));
+
+  app.post('/api/agent/messages/:id/ack', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    res.json(acknowledgeMessage(w.db, req.params.id, { ...cleanBody(req.body), actor: by, model }));
+  }));
+
+  app.post('/api/agent/messages/:id/replies', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    res.status(201).json(replyToMessage(w.db, req.params.id, { ...cleanBody(req.body), actor: by, model }));
+  }));
+
+  app.get('/api/agent/conversations/:threadId', ws((req, res, w) => {
+    res.json(listConversation(w.db, req.params.threadId, { agentId: req.query.agent || null }));
+  }));
+
+  app.get('/api/agent/metrics', ws((_req, res, w) => {
+    res.json(agentMetrics(w.db));
+  }));
+
+  app.get('/api/agent/conflicts', ws((req, res, w) => {
+    res.json(listConflicts(w.db, {
+      ticketId: req.query.ticket || null,
+      unresolvedOnly: req.query.all !== 'true',
+    }));
+  }));
+
+  app.post('/api/agent/conflicts/:id/resolve', ws((req, res, w) => {
+    const { by, model } = actorCtx(req);
+    res.json(resolveConflict(w.db, req.params.id, {
+      value: req.body.value, actor: req.body.actor ?? by, model,
+    }));
+  }));
+
   app.get('/api/tickets', ws((req, res, w) => {
     const { type, status, parent, assignee } = req.query;
     const filter = { type, status, assignee };
@@ -959,6 +1231,7 @@ export async function startServer({
       comments: listComments(w.db, t.id),
       artifacts: listArtifacts(w.db, t.id),
       history: listHistory(w.db, t.id),
+      execution: executionState(w.db, t.id),
       children: t.type === 'epic' ? listEpicChildren(w.db, t.id) : [],
       progress: t.type === 'epic' ? epicProgress(w.db, t.id) : null,
     });
@@ -1164,7 +1437,7 @@ export async function startServer({
 
   app.get('/api/board', ws((req, res, w) => {
     const { epic } = req.query;
-    const tickets = listTickets(w.db, { parentId: epic });
+    const tickets = enrichTicketsWithExecution(w.db, listTickets(w.db, { parentId: epic }));
     const workspace = getWorkspace(w.db);
     const columns = openColumns(workspace.columns);
     const terminal = terminalColumns(workspace.columns);

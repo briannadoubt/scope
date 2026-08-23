@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M0PSBY7S48H62BWT7XR8FKHS",
+  "ts": "2026-08-23T07:46:38.457Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0PSBY7RF363K8K9KAT94272",
+    "number": 312,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Enforce event reader compatibility",
+    "description": "Version the expanded event vocabulary, preserve legacy event readability, reject unsupported newer logs with an actionable upgrade error, advertise reader/writer compatibility in capabilities, and document mixed-version migration requirements.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787471198457-000000",
+  "baseRevision": "sha256:9b45754054f81e9dea8de9d1b3398e394eb1e66647725175812d470b1f535bae"
+}

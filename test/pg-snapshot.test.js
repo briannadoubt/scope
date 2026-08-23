@@ -51,6 +51,8 @@ test('snapshot returns the materialized board + tail cursor; pull after cursor i
   assert.equal(snap.state.workspace.key, 'TST');
   assert.equal(snap.state.tickets.length, 2, 'board materialized in the snapshot');
   assert.equal(snap.state.artifacts.length, 1, 'HTML artifacts are present in the snapshot');
+  assert.deepEqual(Object.keys(snap.state.agent).sort(),
+    ['attempts', 'conflicts', 'contracts', 'discoveries', 'leases', 'messages', 'plans', 'registry']);
   assert.ok(snap.state.history.some((h) => h.changed_by === 'Opus 4.8 on behalf of bri'),
     'attribution present in snapshot history');
 

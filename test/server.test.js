@@ -13,11 +13,170 @@ test('GET /api/meta returns enums and hub info', async () => {
     assert.ok(Array.isArray(data.ticket_types) && data.ticket_types.includes('epic'));
     assert.ok(Array.isArray(data.relation_types) && data.relation_types.includes('blocks'));
     assert.ok(data.hub && Array.isArray(data.hub.workspaces));
+    assert.equal(data.agent_protocol.version, '1.0');
+    assert.equal(data.agent_protocol.features.leases, true);
     // SCP-57: security descriptor advertised on the API too (TXT and meta
     // carry the same info for clients that discover via different paths).
     assert.equal(data.security.scheme, 'http'); // tls:false in test helper
     assert.deepEqual(data.security.auth, ['bearer']);
   } finally {
+    await t.close();
+  }
+});
+
+test('agent HTTP workflow claims ready work and completes with policy evidence', async () => {
+  const t = await startTestServer();
+  try {
+    const ticket = await apiFetch(t.baseUrl, '/api/tickets', {
+      method: 'POST',
+      body: { type: 'story', title: 'Agent work', status: 'todo' },
+    });
+    const id = ticket.data.id;
+    const contract = await apiFetch(t.baseUrl, `/api/agent/tickets/${id}/contract`, {
+      method: 'PUT',
+      body: {
+        acceptance: ['tests pass'],
+        policy: { requireVerification: true },
+        __by: 'planner',
+      },
+    });
+    assert.equal(contract.status, 200);
+
+    const ready = await apiFetch(t.baseUrl, '/api/agent/ready');
+    assert.ok(ready.data.some((item) => item.ticket.id === id));
+
+    const claim = await apiFetch(t.baseUrl, '/api/agent/claim', {
+      method: 'POST',
+      body: { ticketId: id, agent: 'worker', files: ['src/a.js'] },
+    });
+    assert.equal(claim.status, 201);
+    assert.equal(claim.data.lease.agent, 'worker');
+    assert.equal(claim.data.ticket.status, 'in_progress');
+
+    const context = await apiFetch(t.baseUrl, `/api/agent/tickets/${id}/context`);
+    assert.equal(context.status, 200);
+    assert.equal(context.data.ticket.id, id);
+    assert.equal(context.data.readiness.state, 'claimed');
+    assert.equal(context.data.execution.phase, 'running');
+
+    const complete = await apiFetch(t.baseUrl, `/api/agent/tickets/${id}/complete`, {
+      method: 'POST',
+      body: {
+        attemptId: claim.data.attempt.attemptId,
+        agent: 'worker',
+        verification: [{ command: 'npm test', ok: true }],
+      },
+    });
+    assert.equal(complete.status, 200);
+    assert.equal(complete.data.ticket.status, 'done');
+  } finally {
+    await t.close();
+  }
+});
+
+test('agent HTTP exposes parallel planning, execution state, and durable handoff', async () => {
+  const t = await startTestServer();
+  try {
+    const first = await apiFetch(t.baseUrl, '/api/tickets', {
+      method: 'POST', body: { type: 'story', title: 'First child work', status: 'todo' },
+    });
+    const second = await apiFetch(t.baseUrl, '/api/tickets', {
+      method: 'POST', body: { type: 'story', title: 'Second child work', status: 'todo' },
+    });
+    await apiFetch(t.baseUrl, `/api/agent/tickets/${first.data.id}/contract`, {
+      method: 'PUT', body: { policy: { files: ['src/first.js'] }, __by: 'planner' },
+    });
+    await apiFetch(t.baseUrl, `/api/agent/tickets/${second.data.id}/contract`, {
+      method: 'PUT', body: { policy: { files: ['src/second.js'] }, __by: 'planner' },
+    });
+    const plan = await apiFetch(t.baseUrl, '/api/agent/ready?plan=true');
+    assert.equal(plan.status, 200);
+    assert.ok(plan.data.parallelGroups.some((group) => group.safe
+      && group.tickets.includes(first.data.id) && group.tickets.includes(second.data.id)));
+
+    const claim = await apiFetch(t.baseUrl, '/api/agent/claim', {
+      method: 'POST',
+      body: { ticketId: first.data.id, agent: 'claude:child-1', files: ['src/first.js'] },
+    });
+    const board = await apiFetch(t.baseUrl, '/api/board');
+    const activeTicket = Object.values(board.data.buckets).flat().find((item) => item.id === first.data.id);
+    assert.equal(activeTicket.execution.phase, 'running');
+    assert.equal(activeTicket.execution.agent, 'claude:child-1');
+
+    await apiFetch(t.baseUrl, `/api/agent/tickets/${first.data.id}/discoveries`, {
+      method: 'POST', body: { type: 'decision', body: 'Keep the boundary', author: 'claude:child-1' },
+    });
+    const handoff = await apiFetch(t.baseUrl, `/api/agent/tickets/${first.data.id}/handoffs`, {
+      method: 'POST',
+      body: {
+        agent: 'claude:child-1', attemptId: claim.data.attempt.attemptId,
+        summary: 'Ready for continuation', remaining: ['Run integration test'],
+      },
+    });
+    assert.equal(handoff.status, 201);
+    assert.equal(handoff.data.attempt.status, 'handed_off');
+    assert.equal(handoff.data.data.decisions[0], 'Keep the boundary');
+    const shown = await apiFetch(t.baseUrl, `/api/tickets/${first.data.id}`);
+    assert.equal(shown.data.execution.phase, 'handed_off');
+    assert.equal(shown.data.status, 'todo');
+  } finally {
+    await t.close();
+  }
+});
+
+test('agent HTTP mailbox delivers pending messages, replies, acknowledgements, and wakeup SSE', async () => {
+  const t = await startTestServer();
+  const abort = new AbortController();
+  try {
+    for (const [id, provider] of [['codex:sol', 'openai'], ['claude:opus', 'anthropic']]) {
+      const registered = await apiFetch(t.baseUrl, `/api/agent/agents/${encodeURIComponent(id)}`, {
+        method: 'PUT', body: { displayName: id.split(':')[1], provider, capabilities: ['review'] },
+      });
+      assert.equal(registered.status, 200);
+      assert.equal(registered.data.status, 'online');
+    }
+
+    const sent = await apiFetch(t.baseUrl, '/api/agent/messages', {
+      method: 'POST', body: {
+        fromAgent: 'codex:sol', toAgent: 'claude:opus', kind: 'review_request', body: 'Review commit abc123',
+      },
+    });
+    assert.equal(sent.status, 201);
+    const inbox = await apiFetch(t.baseUrl, `/api/agent/agents/${encodeURIComponent('claude:opus')}/inbox`);
+    assert.equal(inbox.data[0].messageId, sent.data.messageId);
+
+    const stream = await fetch(`${t.baseUrl}/api/agent/agents/${encodeURIComponent('claude:opus')}/events`, {
+      signal: abort.signal,
+    });
+    assert.equal(stream.status, 200);
+    const reader = stream.body.getReader();
+    let text = '';
+    while (!text.includes(sent.data.messageId)) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      text += new TextDecoder().decode(chunk.value);
+    }
+    assert.match(text, /event: message/);
+    assert.match(text, new RegExp(sent.data.messageId));
+    abort.abort();
+
+    const reply = await apiFetch(t.baseUrl, `/api/agent/messages/${sent.data.messageId}/replies`, {
+      method: 'POST', body: { fromAgent: 'claude:opus', body: 'Reviewed; replay is sound.' },
+    });
+    assert.equal(reply.status, 201);
+    assert.equal(reply.data.toAgent, 'codex:sol');
+    const conversation = await apiFetch(t.baseUrl,
+      `/api/agent/conversations/${sent.data.threadId}?agent=${encodeURIComponent('codex:sol')}`);
+    assert.equal(conversation.data.length, 2);
+
+    const ack = await apiFetch(t.baseUrl, `/api/agent/messages/${sent.data.messageId}/ack`, {
+      method: 'POST', body: { agent: 'claude:opus' },
+    });
+    assert.equal(ack.data.deliveryStatus, 'acknowledged');
+    const empty = await apiFetch(t.baseUrl, `/api/agent/agents/${encodeURIComponent('claude:opus')}/inbox`);
+    assert.deepEqual(empty.data, []);
+  } finally {
+    abort.abort();
     await t.close();
   }
 });

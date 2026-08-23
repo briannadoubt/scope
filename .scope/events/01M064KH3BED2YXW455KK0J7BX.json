@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "id": "01M064KH3BED2YXW455KK0J7BX",
+  "ts": "2026-08-16T20:35:56.139Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01M063VM47F4YD99KDPCB1B78D",
+    "commentId": "01M064KH3ABADQGWHJ07CZW574",
+    "author": "codex",
+    "body": "Implemented agent-native coordination without a Scope runner or UI dependency: conflict-aware parallel plans, derived lifecycle, agent-readable execution projections, observed repository intent, and durable structured handoffs across CLI/Node/REST/MCP. Removed dispatch/prompt/provider abstractions and taught packaged skills to use host-native Codex/Claude orchestration. Verified 401 tests: 331 pass, 70 PostgreSQL-only skips, 0 failures."
+  },
+  "hlc": "1786912556139-000000",
+  "baseRevision": "sha256:82259412bba725451e603668ea668a96f6c61bc1f9d2e754de4549e580b2bb1f"
+}

@@ -1,0 +1,42 @@
+{
+  "v": 1,
+  "id": "01M0PSEBTYTAFES1Q7P12V109G",
+  "ts": "2026-08-23T07:47:57.918Z",
+  "actor": "sol",
+  "kind": "agent.lease.renew",
+  "payload": {
+    "leaseId": "01M0PSC3YG4MZXAQ2JK4VT2BKQ",
+    "heartbeatAt": "2026-08-23T07:47:57.918Z",
+    "expiresAt": "2026-08-23T09:47:57.918Z",
+    "files": [
+      "CHANGELOG.md",
+      "README.md",
+      "docs/agent-messaging.md",
+      "docs/agent-protocol.md",
+      "docs/event-log-format.md",
+      "plugins/scope/references/guardrails.md",
+      "plugins/scope/skills/multi-agent/SKILL.md",
+      "plugins/scope/skills/scope/SKILL.md",
+      "scripts/generate-agent-docs.mjs",
+      "skills/claude/scope/SKILL.md",
+      "skills/codex/AGENTS.md",
+      "skills/cursor/scope.mdc",
+      "skills/scope.md",
+      "src/capabilities.js",
+      "src/cli.js",
+      "src/event-schema.js",
+      "src/event-store.js",
+      "src/protocol.js",
+      "test/capabilities.test.js",
+      "test/event-schema.test.js",
+      "test/event-store.test.js",
+      "test/protocol.test.js",
+      "test/replay.test.js"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "10b7fb43d899ee00333a32de4f871cad091ddde4"
+  },
+  "hlc": "1787471277918-000000",
+  "baseRevision": "sha256:4cc4cde4f6f17cf5585bc3b5ecc57ac054a7176825465adf35bb88b9d3a83940"
+}

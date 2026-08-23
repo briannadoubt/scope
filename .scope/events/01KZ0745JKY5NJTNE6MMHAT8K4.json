@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KZ0745JKY5NJTNE6MMHAT8K4",
+  "ts": "2026-08-02T03:08:50.131Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KZ02Z6DW956G2Y5HT8NC0798",
+    "commentId": "01KZ0745JKY5NJTNE6MMHAT8K3",
+    "author": "codex",
+    "body": "Verified actual Fly billing in dashboard. July 1-Aug 1 invoice YBA8PNEE-0007 was paid at .84. Main charges: gitruntime-db MPG .26 + .89 storage; chill-db MPG .37 + .27 storage; ordinary Machine CPU .42; additional RAM .45; app-scoped egress IP .72; volumes .93; Tigris /bin/zsh.46; bandwidth /bin/zsh.02. Current Jul 27-Aug 2 Cost Explorer total is .01 (.57/day, ~ /month). Both MPG clusters currently contribute .04/week each. Managed clusters: gitruntime-db (sjc, Shared x2, 1GB RAM, 10GB storage) and chill-db (lax, Shared x2, 1GB RAM, 10GB storage)."
+  }
+}

@@ -159,19 +159,116 @@ breaking change.
 
 ## Agent integration
 
-Agents call scope via the CLI — every command supports `--json` for
-machine-readable output. No extra config; if `scope` is on
-`$PATH` it works.
+Scope's primary API is an executable agent protocol. Start by discovering the
+runtime contract rather than assuming statuses, fields, or features:
 
-```jsonc
-// example tool use from an agent
-scope --json ticket list --status todo
-scope --json ticket create "Fix CSRF on /signup" -t bug --priority high
-scope --json status MA-7 in_progress --by claude
-scope artifact add MA-7 ./latency-dashboard.html --by claude
+```bash
+scope --json capabilities
+scope --json ready --capabilities node,postgres
+scope --json claim --agent codex --capabilities node,postgres --files src/auth.js,test/auth.test.js
 ```
 
-Ship the "how to use scope" skill into Claude Code, Codex, or Cursor:
+Every JSON response is a versioned envelope. Read `data`; on failure inspect
+`error.code`, `error.retryable`, and `error.details`. Mutations support two
+global reliability controls:
+
+```bash
+# Exactly-once retry: normally replays the original receipt; after an
+# interrupted receipt write, the event-carried request fence prevents a repeat.
+scope --json --request-id run-42 status MA-7 in_progress --by codex
+
+# Compare-and-swap: reject the write if state changed since the last read.
+scope --json --if-revision sha256:abc... ticket edit MA-7 --priority high
+```
+
+The normal execution lifecycle is `ready → claim → context → discover/plan →
+complete`. Claims atomically create a renewable lease and an attempt; completion
+atomically records verification/evidence, finishes the attempt, releases the
+lease, and moves the ticket to the workspace's done column. Contracts can make
+capabilities, evidence, or passing verification mandatory.
+
+```bash
+scope --json contract set MA-7 \
+  --acceptance '["token expires correctly"]' \
+  --verify '["npm test -- auth"]' \
+  --policy '{"requireVerification":true}' --by planner
+scope --json context MA-7 --budget 3000
+scope --json discover MA-7 fact "Expiry is enforced in middleware" --by codex
+scope --json complete MA-7 --attempt 01... --agent codex \
+  --verification '[{"command":"npm test -- auth","ok":true}]'
+```
+
+When Codex or Claude can spawn native subagents, the host remains the harness
+and Scope is the shared coordination state. Ask Scope for a conflict-aware
+parallel plan, then atomically claim one ticket for each native child:
+
+```bash
+scope --json ready --plan --capabilities node,postgres
+scope --json claim MA-7 --agent codex:worker-1 \
+  --files src/auth.js,test/auth.test.js
+```
+
+`ready --plan` groups tickets whose known repository intent is disjoint and
+defers work that overlaps an active lease. Each child reads `context`, owns one
+claimed ticket, and uses its native prompt from the parent. The host handles
+spawning, model-session wakeup, waiting, cancellation, sandboxing, and worktrees.
+Scope records the durable lease, attempt, observed files, discoveries,
+verification, outcome, structured handoff, and addressed messages:
+
+```bash
+scope --json handoff create MA-7 --agent codex:worker-1 \
+  --summary "Middleware updated; expiry test still needed" \
+  --remaining '["add the regression test"]'
+```
+
+Agents can register heartbeat presence and exchange durable threaded messages.
+Unacknowledged delivery is retried when a CLI listener or addressed SSE stream
+reconnects:
+
+```bash
+scope --json agent register codex:sol --provider openai --ttl 2m
+scope --json message send --from codex:sol --to claude:opus \
+  --ticket MA-7 --kind review_request --body "Review commit abc123"
+scope message listen claude:opus
+scope --json message ack 01... --agent claude:opus
+```
+
+The provider-neutral host adapter contract is documented in
+[docs/agent-messaging.md](docs/agent-messaging.md).
+
+For pre-release local calibration, the dogfood build records privacy-bounded
+command and route outcomes locally by default. It never records arguments,
+ticket/message content, credentials, or raw paths. Inspection, disabling,
+reporting, and removal are documented in
+[docs/dogfood-telemetry.md](docs/dogfood-telemetry.md).
+
+Claims and attempt outcomes derive ticket lifecycle automatically. Agent-readable
+ticket, board, context, and readiness JSON include a coherent `execution`
+projection, so a parent can verify durable state instead of trusting a child's
+final chat message.
+
+Dependencies determine readiness; file/worktree/branch/base-SHA intent warns or
+blocks overlapping claims; expired leases are reclaimable; causal sibling
+writes become explicit conflicts; and `scope watch --since <event-id>` provides
+a resumable JSONL changefeed. `scope doctor --json` verifies the authoritative
+event log and cache, while `--repair` rebuilds only the disposable cache.
+
+The same coordination methods are available from the published Node workspace
+handle and under `/api/agent/*` on the hub. The generated command reference is
+[docs/agent-protocol.md](docs/agent-protocol.md).
+
+### Mixed-version agents
+
+All agents sharing a workspace must use a compatible Scope reader. Check
+`scope --json capabilities`: current builds write event format 2, read formats
+1 and 2, and expose the requirement under
+`data.eventFormat.minimumReaderVersion`. Upgrading preserves and reads existing
+format-1 history without rewriting it. After a format-2 event is written, do
+not reopen or sync that workspace with a format-1-only binary; `scope doctor`
+reports the mismatch as an incompatible reader requirement rather than log
+corruption. See [docs/event-log-format.md](docs/event-log-format.md#reader-compatibility-and-upgrades).
+
+Ship the agent skill into Claude Code, Codex, or Cursor:
 
 ```bash
 scope skills install                      # uses bundled copy from your install
@@ -185,10 +282,9 @@ scope skills install --tool claude
 scope skills install --tool cursor --project /path/to/repo
 ```
 
-The skill teaches the agent **when** to reach for Scope (multi-step work,
-status updates, bug tracking), **how** to invoke it (CLI with `--json`), the
-data model, and a handful of guardrails (e.g. *read state before writing
-state* when multiple agents share a board).
+The skill teaches agents to discover capabilities, claim leases, use compact
+context packs, publish typed discoveries, attach verification, and recover from
+stale revisions or contention.
 
 ### Previewing in Claude Code
 

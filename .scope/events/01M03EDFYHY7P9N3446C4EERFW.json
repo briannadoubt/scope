@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01M03EDFYHY7P9N3446C4EERFW",
+  "ts": "2026-08-15T19:29:40.817Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M03EDFYHY7P9N3446C4EERFV",
+    "number": 295,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Surface conflicts, plan history, and agent metrics",
+    "description": "Introduce causal revision metadata, visible conflicts, versioned plan changes, and agent-oriented stuckness/contention/rework metrics.",
+    "status": "todo",
+    "priority": "medium",
+    "parentId": "01M03EDFYFN5BYG3Y2SX7RJS35",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

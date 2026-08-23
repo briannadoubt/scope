@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M063VMTYJPCQGW1RJY94Z2N5",
+  "ts": "2026-08-16T20:22:53.534Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M063VMTX5M9ZZMKP31NX632M",
+    "number": 305,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Add durable structured handoffs",
+    "description": "Create a compact event-sourced handoff record containing summary, decisions, changed files, verification, remaining work, blockers, and source attempt for cross-session or cross-harness continuation.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M063VM47F4YD99KDPCB1B78D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1786911773534-000000",
+  "baseRevision": "sha256:606e31ea821e48d9345668d9c467eb1d7d24b1140622ead8880453010e1d8fac"
+}

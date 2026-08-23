@@ -13,16 +13,17 @@ next Scope item.
 Start with:
 
 ```bash
-scope --json board
-scope --json ticket list
+scope --json capabilities
+scope --json ready --capabilities <agent-capabilities>
+scope --json metrics
 ```
 
 Summarize:
 
-- work in progress
-- blocked or related tickets
-- urgent and high-priority todo items
-- recently completed work if it affects what to do next
+- ready and capability-eligible work
+- active or expired leases and repeated failed attempts
+- dependency blockers and explicit causal conflicts
+- typed discoveries and the latest plan revision from `scope context <ticket>`
 
 If the user asks for a visual surface, use the Scope MCP render tools when
 available: `scope_render_board` for inline UI or `scope_render_sidebar` for a

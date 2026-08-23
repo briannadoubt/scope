@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "id": "01KZ08XV7G940J346ASREFTC6Y",
+  "ts": "2026-08-02T03:40:20.080Z",
+  "actor": "codex",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01KZ02Z6DW956G2Y5HT8NC0798",
+    "commentId": "01KZ08XV7G940J346ASREFTC6X",
+    "author": "codex",
+    "body": "Savings correction: the four deleted targets accounted for .27 of the latest 7-day .01 total, implying about /month at that run rate (not ). Remaining current Fly spend should trend toward roughly /month, subject to billing lag and other resources."
+  }
+}

@@ -24,7 +24,13 @@ Shell out to the `scope` CLI. Every command supports `--json`:
 ```bash
 scope --json ticket list -p MA
 scope --json ticket show MA-3
+scope --json capabilities
 ```
+
+Parse the versioned envelope: results are in `.data`; failures provide stable
+`.error.code`, `.error.retryable`, and `.error.details`.
+Before sharing a workspace across hosts, verify each host supports
+`.data.eventFormat.minimumReaderVersion` from `scope --json capabilities`.
 
 Install if needed: `brew install briannadoubt/tap/scope`
 
@@ -82,6 +88,24 @@ If the user previews scope from Claude Code, each project's
 two projects both registering `port: 4321` stop each other across panes.
 `scope preview` is a tiny per-pane reverse proxy forwarding a unique port
 (4322, 4323, ...) to the shared hub.
+
+Coordinate agents with `ready`, atomic `claim --agent <id>`, renewable leases,
+`context`, typed `discover` records, and evidence-bearing `complete`. Include
+file/worktree/branch/base intent when claiming. Use `--request-id` for retries,
+`--if-revision` for compare-and-swap writes, and `conflicts list/resolve` for
+concurrent sibling intent.
+
+For cross-host or restart-safe communication, register agents and use the
+addressed mailbox:
+
+```bash
+scope --json agent register cursor:worker --provider cursor --ttl 2m
+scope --json message inbox cursor:worker
+scope --json message ack MESSAGE_ID --agent cursor:worker
+```
+
+`scope message listen <agent>` emits an at-least-once JSONL wakeup stream for
+host adapters. Deduplicate by message id and acknowledge after durable receipt.
 
 ## Source
 

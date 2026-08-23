@@ -1,0 +1,41 @@
+{
+  "v": 1,
+  "id": "01M0PRYN74H4CECJKXQCYAZDYA",
+  "ts": "2026-08-23T07:39:23.236Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0PRNHNN69R1T9D9Z975SGC7",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T07:39:23.236Z",
+    "summary": "Documented the provider-neutral mailbox and wakeup adapter contract and verified replay, idempotency, authorization, CLI, REST/SSE, Node, MCP, and request-reply behavior.",
+    "failure": null,
+    "evidence": [
+      {
+        "tests": "406 total: 336 passed, 70 PostgreSQL-dependent skipped, 0 failed"
+      },
+      {
+        "docs": "docs/agent-messaging.md"
+      }
+    ],
+    "verification": [
+      {
+        "command": "npm test",
+        "ok": true,
+        "summary": "336 passed, 70 PostgreSQL-dependent skipped, 0 failed"
+      },
+      {
+        "command": "npm run docs:agent:check",
+        "ok": true
+      },
+      {
+        "command": "git diff --check",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787470763236-000000",
+  "baseRevision": "sha256:bf921593c0a30999ce080c95900ea67a33129940f5857d62704087d50e1cb432",
+  "transactionId": "01M0PRYN757AHVS6SFVNT35WG7",
+  "transactionIndex": 0
+}

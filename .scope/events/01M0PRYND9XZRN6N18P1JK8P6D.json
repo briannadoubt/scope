@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "id": "01M0PRYND9XZRN6N18P1JK8P6D",
+  "ts": "2026-08-23T07:39:23.433Z",
+  "actor": "sol",
+  "kind": "comment.add",
+  "payload": {
+    "ticketId": "01M0PQRJ1AF64PKTFKJR3TV3T9",
+    "commentId": "01M0PRYND9XZRN6N18P1JK8P6C",
+    "author": "sol",
+    "body": "Implemented durable agent identities/presence, ticket-linked addressed messages, threads/replies, acknowledgements, REST and MCP operations, and realtime CLI/SSE delivery for host wakeup adapters. Full test suite: 336 passed, 70 PostgreSQL-dependent skipped, 0 failed."
+  },
+  "hlc": "1787470763433-000000",
+  "baseRevision": "sha256:514747aa999afbc84afc23bc7a95bc48d528b846f8fff4a25ad701d6b7af4baa"
+}

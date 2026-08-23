@@ -1,0 +1,32 @@
+{
+  "v": 2,
+  "id": "01M0PTG7E8VY89H21GEXNT8RZ5",
+  "ts": "2026-08-23T08:06:27.528Z",
+  "actor": "sol",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M0PT4MQBPHPX0CB53Q37CMVM",
+    "leaseId": "01M0PTG7E7G3PWQK1S9C7QA0D1",
+    "agent": "sol",
+    "capabilities": [],
+    "files": [
+      "src/dogfood-telemetry.js",
+      "src/cli.js",
+      "test/dogfood-telemetry.test.js",
+      "scripts/summarize-dogfood-log.mjs",
+      "docs/dogfood-telemetry.md",
+      "README.md",
+      "CHANGELOG.md",
+      "package.json"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "10b7fb43d899ee00333a32de4f871cad091ddde4",
+    "claimedAt": "2026-08-23T08:06:27.527Z",
+    "expiresAt": "2026-08-23T10:06:27.527Z"
+  },
+  "hlc": "1787472387528-000000",
+  "baseRevision": "sha256:7cf2b5106acf2f4f57450912aa7a0d07cd26a3744bdfb5ec364f835f12414b7f",
+  "transactionId": "01M0PTG7E8VY89H21GEXNT8RZ8",
+  "transactionIndex": 0
+}

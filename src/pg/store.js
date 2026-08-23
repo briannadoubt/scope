@@ -21,6 +21,7 @@
  * database itself refuses cross-tenant rows.
  */
 import { validateEvent } from '../event-schema.js';
+import { committedEvents } from '../event-store.js';
 import { resolveDisplayNumbers } from '../identity.js';
 import { replayWithinTx, applyIncrementalWithinTx } from './replay.js';
 import { isTailAppend, canonicalMax } from './incremental.js';
@@ -79,10 +80,18 @@ export async function uploadEvents(pool, tenantId, events) {
       // the tail-append invariant. We need the existing rows anyway for the full
       // replay fallback, so this read isn't extra work on the slow path.
       const acceptedIds = new Set(accepted.map((e) => e.id));
-      const all = (
+      const allRaw = (
         await client.query('SELECT body FROM events WHERE tenant_id=$1', [tenantId])
       ).rows.map((row) => row.body);
-      const existing = all.filter((row) => !acceptedIds.has(row.id));
+      const all = committedEvents(allRaw);
+      const existing = committedEvents(allRaw.filter((row) => !acceptedIds.has(row.id)));
+
+      // Transaction members may have arrived before their commit marker. When
+      // the marker lands, previously stored members become newly effective, so
+      // use a full replay. Legacy standalone tail-appends retain the fast path.
+      const hasTransactionData = accepted.some(
+        (event) => event.transactionId || event.kind === 'transaction.commit'
+      );
 
       // SCP-219: only fast-path onto a POPULATED existing log. From an empty log
       // the full replay is already cheap AND it wipes the tenant's cache rows
@@ -90,7 +99,15 @@ export async function uploadEvents(pool, tenantId, events) {
       // an empty log (incremental assumes the cache already reflects `existing`).
       // Half 1 (ordering): every accepted event must sort strictly after the
       // canonical max of the existing log.
-      let fastPath = existing.length > 0 && isTailAppend(canonicalMax(existing), accepted);
+      let fastPath = !hasTransactionData && existing.length > 0 && isTailAppend(canonicalMax(existing), accepted);
+
+      if (fastPath) {
+        const siblingKeys = new Set(existing
+          .filter((event) => event.kind === 'ticket.set_field' && event.baseRevision)
+          .map((event) => `${event.baseRevision}\n${event.payload.ticketId}\n${event.payload.field}`));
+        if (accepted.some((event) => event.kind === 'ticket.set_field' && event.baseRevision
+          && siblingKeys.has(`${event.baseRevision}\n${event.payload.ticketId}\n${event.payload.field}`))) fastPath = false;
+      }
 
       // Half 2 (collision): a new ticket.create whose claimed number duplicates
       // one already assigned to an existing ticket forces SCP-110 renumbering of
@@ -197,10 +214,19 @@ export async function snapshotState(pool, tenantId) {
     const comments = await q('SELECT ticket_id, author, body, created_at FROM ticket_comments WHERE tenant_id=$1 ORDER BY id');
     const history = await q('SELECT ticket_id, field, old_value, new_value, changed_by, changed_at FROM ticket_history WHERE tenant_id=$1 ORDER BY id');
     const artifacts = await q('SELECT id, ticket_id, name, mime_type, content, size_bytes, created_at, updated_at FROM ticket_artifacts WHERE tenant_id=$1 ORDER BY updated_at, id');
+    const contracts = await q('SELECT * FROM agent_contracts WHERE tenant_id=$1');
+    const leases = await q('SELECT * FROM agent_leases WHERE tenant_id=$1');
+    const attempts = await q('SELECT * FROM agent_attempts WHERE tenant_id=$1');
+    const discoveries = await q('SELECT * FROM agent_discoveries WHERE tenant_id=$1');
+    const plans = await q('SELECT * FROM agent_plans WHERE tenant_id=$1');
+    const conflicts = await q('SELECT * FROM agent_conflicts WHERE tenant_id=$1');
+    const registry = await q('SELECT * FROM agent_registry WHERE tenant_id=$1');
+    const messages = await q('SELECT * FROM agent_messages WHERE tenant_id=$1');
     return {
       cursor: agg.rows[0].cursor != null ? String(agg.rows[0].cursor) : null,
       count: agg.rows[0].count,
-      state: { workspace: workspace[0] ?? null, tickets, relations, comments, history, artifacts },
+      state: { workspace: workspace[0] ?? null, tickets, relations, comments, history, artifacts,
+        agent: { contracts, leases, attempts, discoveries, plans, conflicts, registry, messages } },
     };
   });
 }

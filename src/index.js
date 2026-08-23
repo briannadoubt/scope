@@ -46,6 +46,44 @@ import {
   listEpicChildren,
   epicProgress,
 } from './repo.js';
+import {
+  getContract,
+  setContract,
+  activeLease,
+  readiness,
+  listReady,
+  parallelPlan,
+  claimTicket,
+  claimNext,
+  renewLease,
+  releaseLease,
+  getAttempt,
+  finishAttempt,
+  completeWork,
+  addDiscovery,
+  revisePlan,
+  contextPack,
+  executionState,
+  enrichTicketsWithExecution,
+  createHandoff,
+  getLatestHandoff,
+  agentMetrics,
+  listConflicts,
+  resolveConflict,
+} from './agent-runtime.js';
+import { buildCapabilities } from './capabilities.js';
+import {
+  acknowledgeMessage,
+  getAgent,
+  getMessage,
+  heartbeatAgent,
+  listAgents,
+  listConversation,
+  listInbox,
+  registerAgent,
+  replyToMessage,
+  sendMessage,
+} from './agent-mailbox.js';
 
 /* ---------------- domain vocabulary ---------------- */
 
@@ -59,6 +97,10 @@ export {
   RELATION_TYPES,
 } from './enums.js';
 export { DEFAULT_COLUMNS } from './columns.js';
+export { DISCOVERY_TYPES, ATTEMPT_OUTCOMES } from './agent-runtime.js';
+export { AGENT_PRESENCE_STATUSES, MESSAGE_KINDS } from './agent-mailbox.js';
+export { PROTOCOL_VERSION } from './protocol.js';
+export { buildCapabilities, AGENT_PROTOCOL_FEATURES, BATCH_OPERATION_SCHEMAS } from './capabilities.js';
 
 /* ---------------- stateful facade ---------------- */
 
@@ -117,6 +159,7 @@ function openAt(dir) {
   return {
     scopeDir: dir,
     close: () => db.close(),
+    capabilities: () => buildCapabilities({ workspace: getWorkspace(db) }),
     applyBatch: bind(applyBatch),
     getWorkspace: bind(getWorkspace),
     updateWorkspace: bind(updateWorkspace),
@@ -135,5 +178,38 @@ function openAt(dir) {
     listHistory: bind(listHistory),
     listEpicChildren: bind(listEpicChildren),
     epicProgress: bind(epicProgress),
+    getContract: bind(getContract),
+    setContract: bind(setContract),
+    activeLease: bind(activeLease),
+    readiness: bind(readiness),
+    listReady: bind(listReady),
+    parallelPlan: bind(parallelPlan),
+    claimTicket: bind(claimTicket),
+    claimNext: bind(claimNext),
+    renewLease: bind(renewLease),
+    releaseLease: bind(releaseLease),
+    getAttempt: bind(getAttempt),
+    finishAttempt: bind(finishAttempt),
+    completeWork: bind(completeWork),
+    addDiscovery: bind(addDiscovery),
+    revisePlan: bind(revisePlan),
+    contextPack: bind(contextPack),
+    executionState: bind(executionState),
+    enrichTicketsWithExecution: bind(enrichTicketsWithExecution),
+    createHandoff: bind(createHandoff),
+    getLatestHandoff: bind(getLatestHandoff),
+    agentMetrics: bind(agentMetrics),
+    listConflicts: bind(listConflicts),
+    resolveConflict: bind(resolveConflict),
+    registerAgent: bind(registerAgent),
+    heartbeatAgent: bind(heartbeatAgent),
+    getAgent: bind(getAgent),
+    listAgents: bind(listAgents),
+    sendMessage: bind(sendMessage),
+    replyToMessage: bind(replyToMessage),
+    getMessage: bind(getMessage),
+    listInbox: bind(listInbox),
+    listConversation: bind(listConversation),
+    acknowledgeMessage: bind(acknowledgeMessage),
   };
 }

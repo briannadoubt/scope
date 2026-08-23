@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01M03EDFYHY7P9N3446C4EERFY",
+  "ts": "2026-08-15T19:29:40.817Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M03EDFYHY7P9N3446C4EERFX",
+    "number": 296,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Harden verification and generated agent docs",
+    "description": "Run complete Postgres integration CI, crash/convergence fuzzing and property tests; eliminate listener leaks; generate skills/reference docs from the executable protocol.",
+    "status": "todo",
+    "priority": "urgent",
+    "parentId": "01M03EDFYFN5BYG3Y2SX7RJS35",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

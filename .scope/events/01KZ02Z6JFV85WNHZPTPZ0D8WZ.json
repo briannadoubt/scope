@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "01KZ02Z6JFV85WNHZPTPZ0D8WZ",
+  "ts": "2026-08-02T01:56:13.007Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01KZ02Z6JFV85WNHZPTPZ0D8WY",
+    "number": 287,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Inventory and decommission Firebase and Google Cloud",
+    "description": "Enumerate accessible Firebase/GCP projects and billable services, including compute, serverless, databases, storage, networking, schedulers, registries, and Firebase products; delete exact targets or projects; verify absence.",
+    "status": "todo",
+    "priority": "urgent",
+    "parentId": "01KZ02Z699HTT6Z8622SARS2WN",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  }
+}

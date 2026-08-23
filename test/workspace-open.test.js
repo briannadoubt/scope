@@ -64,3 +64,40 @@ test('the library facade shares the sequence (rebuilds a cache that is behind)',
     rmSync(scopeDir, { recursive: true, force: true });
   }
 });
+
+test('the library facade exposes the agent coordination workflow', () => {
+  const scopeDir = mkdtempSync(join(tmpdir(), 'scope-open-agent-'));
+  try {
+    const ws = openWorkspace(scopeDir, { create: true });
+    ws.updateWorkspace({ key: 'AGT', name: 'Agents' });
+    assert.equal(ws.capabilities().features.leases, true);
+    assert.equal(ws.capabilities().features.addressedMessaging, true);
+    ws.registerAgent('codex:sol', { provider: 'openai' });
+    ws.registerAgent('claude:opus', { provider: 'anthropic' });
+    const message = ws.sendMessage({
+      fromAgent: 'codex:sol', toAgent: 'claude:opus', body: 'Check the Node facade',
+    });
+    assert.equal(ws.listInbox('claude:opus')[0].messageId, message.messageId);
+    assert.equal(ws.acknowledgeMessage(message.messageId, { agent: 'claude:opus' }).deliveryStatus, 'acknowledged');
+    const ticket = ws.createTicket({ type: 'story', title: 'Coordinate me', status: 'todo' });
+    ws.setContract(ticket.id, {
+      acceptance: ['verified'],
+      policy: { requireVerification: true },
+    }, 'planner');
+    assert.equal(ws.readiness(ticket.id).state, 'ready');
+    const claimed = ws.claimTicket(ticket.id, { agent: 'worker', ttl: '5m', files: ['src/a.js'] });
+    assert.equal(claimed.lease.agent, 'worker');
+    assert.equal(claimed.ticket.status, 'in_progress');
+    assert.equal(ws.executionState(ticket.id).phase, 'running');
+    const completed = ws.completeWork(ticket.id, {
+      attemptId: claimed.attempt.attemptId,
+      agent: 'worker',
+      verification: [{ command: 'npm test', ok: true }],
+    });
+    assert.equal(completed.ticket.status, 'done');
+    assert.equal(ws.activeLease(ticket.id), null);
+    ws.close();
+  } finally {
+    rmSync(scopeDir, { recursive: true, force: true });
+  }
+});

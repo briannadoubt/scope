@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "id": "01M064002VXMG1WJHA0FRRF8WJ",
+  "ts": "2026-08-16T20:25:16.123Z",
+  "actor": "unknown",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M063VMA1GJD68ZMV29AQCB5B",
+    "field": "title",
+    "value": "Expose execution state in agent-readable views"
+  },
+  "hlc": "1786911916123-000000",
+  "baseRevision": "sha256:a2a9fbb45ce4a79b9517c0aba6339d66f93d7add8439cf8baba5e1d351d637f6",
+  "transactionId": "01M064002VXMG1WJHA0FRRF8WM",
+  "transactionIndex": 0
+}

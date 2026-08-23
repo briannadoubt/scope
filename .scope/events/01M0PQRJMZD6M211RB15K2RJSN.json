@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M0PQRJMZD6M211RB15K2RJSN",
+  "ts": "2026-08-23T07:18:35.423Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0PQRJMZD6M211RB15K2RJSM",
+    "number": 310,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Add realtime wakeup delivery contract",
+    "description": "Publish addressed mailbox events through Scope watch/SSE and define a provider-neutral host adapter contract for waking or resuming idle agent runtimes without embedding provider-specific runners.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M0PQRJ1AF64PKTFKJR3TV3T9",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787469515423-000000",
+  "baseRevision": "sha256:890457fa837c163c553544592514266ba90020d7c6850deaf83cad82c23d434f"
+}

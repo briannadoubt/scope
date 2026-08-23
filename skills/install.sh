@@ -51,7 +51,7 @@ fetch() {
     curl -fsSL "$RAW/$rel" -o "$out"
   fi
 }
-# Stream a skill file (for append-mode codex install).
+# Stream a skill file (for managed-block Codex guidance install).
 fetch_cat() {
   local rel="$1"
   if [[ -n "${SCOPE_SKILLS_DIR:-}" && -f "$SCOPE_SKILLS_DIR/$rel" ]]; then
@@ -75,24 +75,40 @@ install_claude() {
 
 install_codex() {
   if ! want codex; then return 0; fi
-  local dest="$HOME/.codex/AGENTS.md"
-  if [[ -z "$TOOLS" && ! -d "$HOME/.codex" ]]; then
-    yellow "  skip codex (no ~/.codex directory)"; return 0
+  local skill_dest="$HOME/.agents/skills/scope"
+  local guidance_dest="$HOME/.codex/AGENTS.md"
+  if [[ -z "$TOOLS" && ! -d "$HOME/.codex" && ! -d "$HOME/.agents" ]]; then
+    yellow "  skip codex (no ~/.codex or ~/.agents directory)"; return 0
   fi
-  mkdir -p "$(dirname "$dest")"
-  if [[ -f "$dest" ]]; then
-    step "Appending Scope guidance → $dest (backed up to $dest.bak)"
-    cp "$dest" "$dest.bak"
-    {
-      printf '\n\n<!-- BEGIN scope kanban guidance -->\n'
-      fetch_cat "codex/AGENTS.md"
-      printf '\n<!-- END scope kanban guidance -->\n'
-    } >> "$dest"
+  step "Installing Codex user skill → $skill_dest"
+  mkdir -p "$skill_dest"
+  fetch "claude/scope/SKILL.md" "$skill_dest/SKILL.md"
+
+  # Keep the legacy global AGENTS.md surface current for existing Codex hosts,
+  # but replace our managed block instead of appending duplicates on every run.
+  mkdir -p "$(dirname "$guidance_dest")"
+  local tmp
+  tmp="$(mktemp "${TMPDIR:-/tmp}/scope-agents.XXXXXX")"
+  if [[ -f "$guidance_dest" ]]; then
+    step "Refreshing managed Scope guidance → $guidance_dest (backup: $guidance_dest.bak)"
+    cp "$guidance_dest" "$guidance_dest.bak"
+    awk '
+      /<!-- BEGIN scope kanban guidance -->/ { skip=1; next }
+      /<!-- END scope kanban guidance -->/ { skip=0; next }
+      !skip { print }
+    ' "$guidance_dest" > "$tmp"
   else
-    step "Installing Codex guidance → $dest"
-    fetch "codex/AGENTS.md" "$dest"
+    step "Installing managed Scope guidance → $guidance_dest"
+    : > "$tmp"
   fi
-  green "  ✓ Codex guidance installed."
+  {
+    cat "$tmp"
+    printf '\n<!-- BEGIN scope kanban guidance -->\n'
+    fetch_cat "codex/AGENTS.md"
+    printf '\n<!-- END scope kanban guidance -->\n'
+  } > "$guidance_dest"
+  rm -f "$tmp"
+  green "  ✓ Codex skill + global guidance installed. Restart Codex only if the update is not detected."
 }
 
 install_cursor() {

@@ -1,0 +1,29 @@
+{
+  "v": 1,
+  "id": "01M0PRF240FMHTG2D7Q5D2KVW3",
+  "ts": "2026-08-23T07:30:52.160Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0PQRWB9ZQ0VHCFGSHC4W43X",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T07:30:52.159Z",
+    "summary": "Added event-sourced agent registry, heartbeat presence, addressed threaded messages, expiry, retry-until-ack, acknowledgements, SQLite/Postgres projection, replay, and tests.",
+    "failure": null,
+    "evidence": [
+      {
+        "tests": "31 focused tests passed"
+      }
+    ],
+    "verification": [
+      {
+        "command": "node --test test/agent-mailbox.test.js test/event-schema.test.js test/workspace-open.test.js test/mcp-agent.test.js test/codex-plugin.test.js test/server.test.js",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787470252160-000000",
+  "baseRevision": "sha256:bc40a05a6771daecd67dc82837f1255801ec382f3de0da611c9c4e9a087b7519",
+  "transactionId": "01M0PRF240FMHTG2D7Q5D2KVW6",
+  "transactionIndex": 0
+}

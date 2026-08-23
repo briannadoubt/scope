@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "id": "01M0PRF240FMHTG2D7Q5D2KVW4",
+  "ts": "2026-08-23T07:30:52.160Z",
+  "actor": "sol",
+  "kind": "agent.lease.release",
+  "payload": {
+    "leaseId": "01M0PQRWB9ZQ0VHCFGSHC4W43W",
+    "releasedAt": "2026-08-23T07:30:52.159Z",
+    "reason": "succeeded"
+  },
+  "hlc": "1787470252160-000001",
+  "baseRevision": "sha256:bc40a05a6771daecd67dc82837f1255801ec382f3de0da611c9c4e9a087b7519",
+  "transactionId": "01M0PRF240FMHTG2D7Q5D2KVW6",
+  "transactionIndex": 1
+}

@@ -66,21 +66,21 @@ test('CLI accepts workspace-defined status ids', async () => {
       env: { ...process.env, HOME: home },
     });
     assert.equal(run.status, 0, run.stderr || run.stdout);
-    assert.equal(JSON.parse(run.stdout).status, 'building');
+    assert.equal(JSON.parse(run.stdout).data.status, 'building');
 
     run = await runCli(['--json', 'ticket', 'edit', 'STA-1', '--status', 'shipped'], {
       cwd: repo,
       env: { ...process.env, HOME: home },
     });
     assert.equal(run.status, 0, run.stderr || run.stdout);
-    assert.equal(JSON.parse(run.stdout).status, 'shipped');
+    assert.equal(JSON.parse(run.stdout).data.status, 'shipped');
 
     run = await runCli(['--json', 'ticket', 'list', '--status', 'shipped'], {
       cwd: repo,
       env: { ...process.env, HOME: home },
     });
     assert.equal(run.status, 0, run.stderr || run.stdout);
-    const tickets = JSON.parse(run.stdout);
+    const tickets = JSON.parse(run.stdout).data;
     assert.equal(tickets.length, 1);
     assert.equal(tickets[0].id, 'STA-1');
   } finally {

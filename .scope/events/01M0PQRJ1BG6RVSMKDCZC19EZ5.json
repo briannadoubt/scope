@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M0PQRJ1BG6RVSMKDCZC19EZ5",
+  "ts": "2026-08-23T07:18:34.795Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0PQRJ1AF64PKTFKJR3TV3T9",
+    "number": 307,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Live agent messaging and wakeups",
+    "description": "Add a durable addressed mailbox to Scope so Codex, Claude, and other agent hosts can exchange ticket-linked requests and replies with acknowledgements, presence, retries, and provider-neutral wakeup notifications while Scope remains separate from the model runtime.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787469514795-000000",
+  "baseRevision": "sha256:9f38a5b980232853f6267f9a1b401d8a12997770f1dd457101f88cba0b3e87a4"
+}

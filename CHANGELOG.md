@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Agent execution protocol 1.0.** Versioned JSON envelopes, stable error
+  codes, executable capability discovery, durable idempotency receipts,
+  optimistic revisions, batch assertions, and a resumable JSONL watch stream.
+- **Coordination kernel.** Dependency-derived readiness, atomic claims,
+  renewable leases, execution attempts, capability-aware contracts,
+  completion policies, typed discoveries, versioned plans, compact context
+  packs, repository intent/overlap detection, metrics, and explicit causal
+  conflict resolution across CLI, Node, REST, SQLite replay, and Postgres.
+- **Crash-safe event transactions.** Mutations persist the authoritative log
+  before committing the cache; compound writes become visible only after a
+  durable commit marker. `scope doctor --repair` safely rebuilds cache state.
+- **Generated agent reference.** `npm run docs:agent` derives the protocol and
+  command catalog from executable code; CI rejects stale generated docs and
+  now runs the full suite against Postgres.
+- **Native-agent coordination.** `ready --plan` derives safe parallel groups,
+  claims and attempt outcomes derive ticket lifecycle, agent-readable views
+  expose coherent execution state, lease renewal records observed repository
+  intent, and structured handoffs preserve unfinished work. Codex, Claude, or
+  another host still owns spawning, model-session wakeup, waiting,
+  cancellation, sandboxing, and worktree isolation.
+- **Addressed agent mailbox.** Agent registration and heartbeat presence,
+  durable ticket-linked messages, threaded replies, expiry, idempotent
+  acknowledgements, at-least-once reconnect delivery, CLI JSONL listeners,
+  addressed SSE wakeups, and matching Node/REST/MCP operations.
+- **Opt-in local dogfood telemetry.** `SCOPE_DOGFOOD_LOG` records redacted CLI
+  and HTTP operation outcomes and latency for pre-release calibration, with a
+  local summary script and no arguments, content, credentials, or raw paths.
+
+### Changed
+
+- Event format 2 now declares the minimum reader boundary for transaction and
+  agent events. Current Scope keeps read compatibility with immutable format-1
+  history, advertises read/write versions through `capabilities`, and reports
+  newer events as an actionable compatibility failure instead of corruption.
+- SQLite schema version 9 adds disposable projections for agent contracts,
+  leases, attempts, discoveries, plans, conflicts, registry presence, and
+  addressed messages.
+- Events carry hybrid logical clocks and base revisions so concurrent sibling
+  field writes can be detected without sacrificing deterministic replay.
+
 ## 0.9.0
 
 ### Added

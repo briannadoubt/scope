@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M0PTG7F2YFV41KVZQDRRA829",
+  "ts": "2026-08-23T08:06:27.554Z",
+  "actor": "sol",
+  "kind": "transaction.commit",
+  "payload": {
+    "transactionId": "01M0PTG7E8VY89H21GEXNT8RZ8",
+    "eventIds": [
+      "01M0PTG7E8VY89H21GEXNT8RZ5",
+      "01M0PTG7E8VY89H21GEXNT8RZ6",
+      "01M0PTG7E8VY89H21GEXNT8RZ7"
+    ]
+  },
+  "hlc": "1787472387554-000000"
+}

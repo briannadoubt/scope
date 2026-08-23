@@ -124,6 +124,64 @@ CREATE TABLE IF NOT EXISTS ticket_artifacts (
   PRIMARY KEY (tenant_id, id)
 );
 CREATE INDEX IF NOT EXISTS idx_artifacts_ticket ON ticket_artifacts (tenant_id, ticket_id, updated_at);
+
+-- replayed cache: agent execution coordination ---------------------------
+CREATE TABLE IF NOT EXISTS agent_contracts (
+  tenant_id text NOT NULL, ticket_id text NOT NULL, acceptance jsonb NOT NULL DEFAULT '[]',
+  constraints jsonb NOT NULL DEFAULT '[]', verification_commands jsonb NOT NULL DEFAULT '[]',
+  required_capabilities jsonb NOT NULL DEFAULT '[]', policy jsonb NOT NULL DEFAULT '{}',
+  plan_version integer NOT NULL DEFAULT 0, updated_at text NOT NULL,
+  PRIMARY KEY (tenant_id,ticket_id)
+);
+CREATE TABLE IF NOT EXISTS agent_leases (
+  tenant_id text NOT NULL, lease_id text NOT NULL, ticket_id text NOT NULL, agent text NOT NULL,
+  capabilities jsonb NOT NULL DEFAULT '[]', worktree text, branch text, base_sha text,
+  files jsonb NOT NULL DEFAULT '[]', claimed_at text NOT NULL, heartbeat_at text NOT NULL,
+  expires_at text NOT NULL, released_at text, release_reason text,
+  PRIMARY KEY (tenant_id,lease_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_leases_ticket ON agent_leases (tenant_id,ticket_id,expires_at);
+CREATE TABLE IF NOT EXISTS agent_attempts (
+  tenant_id text NOT NULL, attempt_id text NOT NULL, ticket_id text NOT NULL, lease_id text,
+  agent text NOT NULL, status text NOT NULL, started_at text NOT NULL, finished_at text,
+  summary text, failure text, evidence jsonb NOT NULL DEFAULT '[]', verification jsonb NOT NULL DEFAULT '[]',
+  PRIMARY KEY (tenant_id,attempt_id)
+);
+CREATE TABLE IF NOT EXISTS agent_discoveries (
+  tenant_id text NOT NULL, discovery_id text NOT NULL, ticket_id text NOT NULL, type text NOT NULL,
+  body text NOT NULL, data jsonb NOT NULL DEFAULT '{}', author text, created_at text NOT NULL,
+  PRIMARY KEY (tenant_id,discovery_id)
+);
+CREATE TABLE IF NOT EXISTS agent_plans (
+  tenant_id text NOT NULL, ticket_id text NOT NULL, version integer NOT NULL, body text NOT NULL,
+  reason text, actor text, created_at text NOT NULL, PRIMARY KEY (tenant_id,ticket_id,version)
+);
+CREATE TABLE IF NOT EXISTS agent_conflicts (
+  tenant_id text NOT NULL, conflict_id text NOT NULL, ticket_id text NOT NULL, field text NOT NULL,
+  base_revision text NOT NULL, event_ids jsonb NOT NULL, values_json jsonb NOT NULL,
+  detected_at text NOT NULL, resolved_at text, resolution jsonb,
+  PRIMARY KEY (tenant_id,conflict_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_conflicts_ticket ON agent_conflicts (tenant_id,ticket_id,resolved_at);
+CREATE TABLE IF NOT EXISTS agent_registry (
+  tenant_id text NOT NULL, agent_id text NOT NULL, display_name text NOT NULL, provider text,
+  capabilities jsonb NOT NULL DEFAULT '[]', metadata jsonb NOT NULL DEFAULT '{}',
+  status text NOT NULL DEFAULT 'online', registered_at text NOT NULL,
+  last_seen_at text NOT NULL, expires_at text NOT NULL,
+  PRIMARY KEY (tenant_id,agent_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_registry_presence ON agent_registry (tenant_id,expires_at,status);
+CREATE TABLE IF NOT EXISTS agent_messages (
+  tenant_id text NOT NULL, message_id text NOT NULL, ticket_id text,
+  from_agent text NOT NULL, to_agent text NOT NULL, kind text NOT NULL, body text NOT NULL,
+  artifact_refs jsonb NOT NULL DEFAULT '[]', thread_id text NOT NULL, reply_to text,
+  correlation_id text, created_at text NOT NULL, expires_at text, acked_at text, acked_by text,
+  PRIMARY KEY (tenant_id,message_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_inbox
+  ON agent_messages (tenant_id,to_agent,acked_at,expires_at,created_at,message_id);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_thread
+  ON agent_messages (tenant_id,thread_id,created_at,message_id);
 `;
 
 /**
@@ -153,6 +211,9 @@ export async function ensureSchema(clientOrPool) {
          AND to_regclass('public.ticket_comments')  IS NOT NULL
          AND to_regclass('public.ticket_history')   IS NOT NULL
          AND to_regclass('public.ticket_artifacts') IS NOT NULL
+         AND to_regclass('public.agent_conflicts') IS NOT NULL
+         AND to_regclass('public.agent_messages') IS NOT NULL
+         AND to_regclass('public.idx_agent_messages_inbox') IS NOT NULL
          AND to_regclass('public.idx_history_ticket') IS NOT NULL
          AND to_regclass('public.idx_events_seq')   IS NOT NULL
          AND EXISTS (
@@ -194,7 +255,8 @@ export async function ensureSchema(clientOrPool) {
 /** Drop everything (tests only). */
 export async function dropSchema(clientOrPool) {
   await clientOrPool.query(`
-    DROP TABLE IF EXISTS ticket_artifacts, ticket_history, ticket_comments, ticket_relations,
+    DROP TABLE IF EXISTS agent_messages, agent_registry, agent_conflicts, agent_plans, agent_discoveries, agent_attempts, agent_leases, agent_contracts,
+                         ticket_artifacts, ticket_history, ticket_comments, ticket_relations,
                          tickets, workspace, events CASCADE;
   `);
 }

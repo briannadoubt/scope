@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M0PT4N5RZHWB46CC03BP96D8",
+  "ts": "2026-08-23T08:00:08.376Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0PT4N5QZ4BS0FST18XZ5K7Y",
+    "number": 316,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Refresh system-wide Scope skills",
+    "description": "Update the canonical installer and refresh Codex user skills/global guidance, Claude skill, packaged plugin guidance, and discovered Cursor project rules from this checkout.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M0PT4BRYSRW7B9DR7RMH8C5D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787472008376-000000",
+  "baseRevision": "sha256:b9752adc3d0da1957c8bbc717f6f26bdf470696b10734757d45147c06d9939ba"
+}

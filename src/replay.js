@@ -10,11 +10,12 @@
  */
 
 import { existsSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 import { nowIso, openDb, defaultScopeDir, findScopeDir, getMeta, setMeta } from './db.js';
 import { compareEvents, formatActor } from './event-schema.js';
 import { resolveDisplayNumbers, nextNumberSeed } from './identity.js';
-import { readAllEvents, eventsDir, logHasInit } from './event-store.js';
+import { committedEvents, readAllEvents, eventsDir, logHasInit } from './event-store.js';
 import { COLUMN_TO_FIELD, RELATION_INVERSE } from './enums.js';
 import { normalizeColumns } from './columns.js';
 // SCP-219: tail-append decision helpers shared with the PG fast path.
@@ -24,7 +25,7 @@ import { isTailAppend, canonicalMax } from './pg/incremental.js';
 export function countEventFiles(scopeDir) {
   const dir = eventsDir(scopeDir);
   if (!existsSync(dir)) return 0;
-  return readdirSync(dir).filter((f) => f.endsWith('.json') && !f.startsWith('.')).length;
+  return readAllEvents(dir).length;
 }
 
 /**
@@ -119,13 +120,21 @@ function applyEventLoop(db, ordered, human, assignments) {
  * @returns {{ applied: number, renumbered: Array }}
  */
 export function replayInto(db, events) {
-  const ordered = events.slice().sort(compareEvents);
+  const ordered = committedEvents(events).slice().sort(compareEvents);
   const { assignments, renumbered, human } = resolveProjection(ordered);
 
   db.pragma('foreign_keys = OFF');
   const tx = db.transaction(() => {
     // Clear derived state. The workspace row (singleton) is updated in place.
     db.exec(`
+      DELETE FROM agent_messages;
+      DELETE FROM agent_registry;
+      DELETE FROM agent_plans;
+      DELETE FROM agent_discoveries;
+      DELETE FROM agent_attempts;
+      DELETE FROM agent_leases;
+      DELETE FROM agent_contracts;
+      DELETE FROM agent_conflicts;
       DELETE FROM ticket_history;
       DELETE FROM ticket_comments;
       DELETE FROM ticket_relations;
@@ -134,6 +143,7 @@ export function replayInto(db, events) {
     `);
 
     const { applied, wsKey } = applyEventLoop(db, ordered, human, assignments);
+    materializeConflicts(db, ordered, human);
 
     // Orphan cleanup mirrors the FK CASCADE the live path relies on: a delete
     // event removes the ticket, so its comments/relations must go too even if
@@ -145,6 +155,14 @@ export function replayInto(db, events) {
            OR to_ticket_id   NOT IN (SELECT id FROM tickets);
       DELETE FROM ticket_history WHERE ticket_id NOT IN (SELECT id FROM tickets);
       DELETE FROM ticket_artifacts WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_contracts WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_leases WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_attempts WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_discoveries WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_plans WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_conflicts WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      UPDATE agent_messages SET ticket_id=NULL
+        WHERE ticket_id IS NOT NULL AND ticket_id NOT IN (SELECT id FROM tickets);
     `);
 
     // Advance the local allocator past every assigned number.
@@ -216,6 +234,16 @@ export function applyEvents(db, allEvents, newEvents) {
   // to append to.
   let fastPath = existing.length > 0 && isTailAppend(existingMax, newEvents);
 
+  // A sibling write from the same causal base must be compared with its peer
+  // and materialized as a visible conflict, which requires the full log view.
+  if (fastPath) {
+    const siblingKeys = new Set(existing
+      .filter((event) => event.kind === 'ticket.set_field' && event.baseRevision)
+      .map((event) => `${event.baseRevision}\n${event.payload.ticketId}\n${event.payload.field}`));
+    if (newEvents.some((event) => event.kind === 'ticket.set_field' && event.baseRevision
+      && siblingKeys.has(`${event.baseRevision}\n${event.payload.ticketId}\n${event.payload.field}`))) fastPath = false;
+  }
+
   // Collision half: a new ticket.create whose resolved number duplicates a
   // number already assigned to an existing ticket forces a renumber → NOT a
   // clean append. Compare the canonical assignment of the existing set against
@@ -261,6 +289,14 @@ export function applyEvents(db, allEvents, newEvents) {
            OR to_ticket_id   NOT IN (SELECT id FROM tickets);
       DELETE FROM ticket_history WHERE ticket_id NOT IN (SELECT id FROM tickets);
       DELETE FROM ticket_artifacts WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_contracts WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_leases WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_attempts WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_discoveries WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_plans WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      DELETE FROM agent_conflicts WHERE ticket_id NOT IN (SELECT id FROM tickets);
+      UPDATE agent_messages SET ticket_id=NULL
+        WHERE ticket_id IS NOT NULL AND ticket_id NOT IN (SELECT id FROM tickets);
     `);
 
     // Advance the allocator past every assigned number (resolved over the full
@@ -432,8 +468,143 @@ function applyEvent(db, e, human, assignments) {
       return 1;
     }
 
+    case 'agent.contract.set': {
+      const id = human.get(p.ticketId);
+      if (!id) return 0;
+      const c = p.contract;
+      db.prepare(`INSERT INTO agent_contracts
+        (ticket_id,acceptance,constraints,verification_commands,required_capabilities,policy,plan_version,updated_at)
+        VALUES (?,?,?,?,?,?,0,?) ON CONFLICT(ticket_id) DO UPDATE SET
+          acceptance=excluded.acceptance,constraints=excluded.constraints,
+          verification_commands=excluded.verification_commands,required_capabilities=excluded.required_capabilities,
+          policy=excluded.policy,updated_at=excluded.updated_at`).run(
+        id, JSON.stringify(c.acceptance ?? []), JSON.stringify(c.constraints ?? []),
+        JSON.stringify(c.verificationCommands ?? []), JSON.stringify(c.requiredCapabilities ?? []),
+        JSON.stringify(c.policy ?? {}), e.ts
+      );
+      return 1;
+    }
+    case 'agent.lease.claim': {
+      const id = human.get(p.ticketId);
+      if (!id) return 0;
+      db.prepare(`INSERT OR REPLACE INTO agent_leases
+        (lease_id,ticket_id,agent,capabilities,worktree,branch,base_sha,files,claimed_at,heartbeat_at,expires_at,released_at,release_reason)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,NULL)`).run(
+        p.leaseId,id,p.agent,JSON.stringify(p.capabilities ?? []),p.worktree ?? null,p.branch ?? null,
+        p.baseSha ?? null,JSON.stringify(p.files ?? []),p.claimedAt ?? e.ts,p.claimedAt ?? e.ts,p.expiresAt
+      );
+      return 1;
+    }
+    case 'agent.lease.renew':
+      db.prepare(`UPDATE agent_leases SET heartbeat_at=?,expires_at=?,files=COALESCE(?,files),
+        worktree=COALESCE(?,worktree),branch=COALESCE(?,branch),base_sha=COALESCE(?,base_sha) WHERE lease_id=?`)
+        .run(p.heartbeatAt ?? e.ts,p.expiresAt,p.files ? JSON.stringify(p.files) : null,
+          p.worktree ?? null,p.branch ?? null,p.baseSha ?? null,p.leaseId);
+      return 1;
+    case 'agent.lease.release':
+      db.prepare('UPDATE agent_leases SET released_at=?,release_reason=? WHERE lease_id=?')
+        .run(p.releasedAt ?? e.ts,p.reason ?? 'released',p.leaseId);
+      return 1;
+    case 'agent.attempt.start': {
+      const id = human.get(p.ticketId);
+      if (!id) return 0;
+      db.prepare(`INSERT OR REPLACE INTO agent_attempts
+        (attempt_id,ticket_id,lease_id,agent,status,started_at,evidence,verification)
+        VALUES (?,?,?,?,?,?,?,?)`).run(p.attemptId,id,p.leaseId ?? null,p.agent,'running',p.startedAt ?? e.ts,'[]','[]');
+      return 1;
+    }
+    case 'agent.attempt.finish':
+      db.prepare(`UPDATE agent_attempts SET status=?,finished_at=?,summary=?,failure=?,evidence=?,verification=? WHERE attempt_id=?`)
+        .run(p.outcome,p.finishedAt ?? e.ts,p.summary ?? null,p.failure ?? null,
+          JSON.stringify(p.evidence ?? []),JSON.stringify(p.verification ?? []),p.attemptId);
+      return 1;
+    case 'agent.discovery.add': {
+      const id = human.get(p.ticketId);
+      if (!id) return 0;
+      db.prepare(`INSERT OR REPLACE INTO agent_discoveries
+        (discovery_id,ticket_id,type,body,data,author,created_at) VALUES (?,?,?,?,?,?,?)`)
+        .run(p.discoveryId,id,p.discoveryType,p.body,JSON.stringify(p.data ?? {}),p.author ?? null,p.createdAt ?? e.ts);
+      return 1;
+    }
+    case 'agent.plan.revise': {
+      const id = human.get(p.ticketId);
+      if (!id) return 0;
+      db.prepare(`INSERT OR REPLACE INTO agent_plans
+        (ticket_id,version,body,reason,actor,created_at) VALUES (?,?,?,?,?,?)`)
+        .run(id,p.version,p.body,p.reason ?? null,e.actor,p.createdAt ?? e.ts);
+      db.prepare(`INSERT INTO agent_contracts (ticket_id,updated_at,plan_version) VALUES (?,?,?)
+        ON CONFLICT(ticket_id) DO UPDATE SET plan_version=excluded.plan_version,updated_at=excluded.updated_at`)
+        .run(id,p.createdAt ?? e.ts,p.version);
+      return 1;
+    }
+    case 'agent.conflict.resolve':
+      return 1; // Applied after sibling detection by materializeConflicts().
+    case 'agent.register':
+      db.prepare(`INSERT INTO agent_registry
+        (agent_id,display_name,provider,capabilities,metadata,status,registered_at,last_seen_at,expires_at)
+        VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(agent_id) DO UPDATE SET
+          display_name=excluded.display_name,provider=excluded.provider,
+          capabilities=excluded.capabilities,metadata=excluded.metadata,status=excluded.status,
+          last_seen_at=excluded.last_seen_at,expires_at=excluded.expires_at`).run(
+        p.agentId,p.displayName,p.provider??null,JSON.stringify(p.capabilities??[]),JSON.stringify(p.metadata??{}),
+        p.status,p.registeredAt,p.seenAt,p.expiresAt
+      );
+      return 1;
+    case 'agent.heartbeat':
+      db.prepare(`UPDATE agent_registry SET status=?,capabilities=?,metadata=?,last_seen_at=?,expires_at=?
+        WHERE agent_id=?`).run(
+        p.status,JSON.stringify(p.capabilities??[]),JSON.stringify(p.metadata??{}),p.seenAt,p.expiresAt,p.agentId
+      );
+      return 1;
+    case 'agent.message.send': {
+      const ticketId = p.ticketId ? human.get(p.ticketId) ?? null : null;
+      db.prepare(`INSERT OR IGNORE INTO agent_messages
+        (message_id,ticket_id,from_agent,to_agent,kind,body,artifact_refs,thread_id,reply_to,correlation_id,created_at,expires_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        p.messageId,ticketId,p.fromAgent,p.toAgent,p.kind,p.body,JSON.stringify(p.artifactRefs??[]),
+        p.threadId,p.replyTo??null,p.correlationId??null,p.createdAt,p.expiresAt??null
+      );
+      return 1;
+    }
+    case 'agent.message.ack':
+      db.prepare('UPDATE agent_messages SET acked_at=?,acked_by=? WHERE message_id=? AND acked_at IS NULL')
+        .run(p.acknowledgedAt,p.agent,p.messageId);
+      return 1;
+
     default:
       return 0;
+  }
+}
+
+function materializeConflicts(db, ordered, human) {
+  const groups = new Map();
+  const resolutions = [];
+  for (const event of ordered) {
+    if (event.kind === 'agent.conflict.resolve') { resolutions.push(event); continue; }
+    if (event.kind !== 'ticket.set_field' || !event.baseRevision) continue;
+    const key = `${event.baseRevision}\n${event.payload.ticketId}\n${event.payload.field}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(event);
+  }
+  for (const [key, events] of groups) {
+    const values = new Set(events.map((event) => JSON.stringify(event.payload.value)));
+    const actors = new Set(events.map((event) => event.actor));
+    if (events.length < 2 || values.size < 2 || actors.size < 2) continue;
+    const [baseRevision, uid, field] = key.split('\n');
+    const ticketId = human.get(uid);
+    if (!ticketId) continue;
+    const conflictId = createHash('sha256').update(key).digest('hex');
+    db.prepare(`INSERT OR REPLACE INTO agent_conflicts
+      (conflict_id,ticket_id,field,base_revision,event_ids,values_json,detected_at)
+      VALUES (?,?,?,?,?,?,?)`).run(
+      conflictId,ticketId,field,baseRevision,JSON.stringify(events.map((event) => event.id)),
+      JSON.stringify(events.map((event) => ({ eventId: event.id, actor: event.actor, value: event.payload.value }))),
+      events.map((event) => event.ts).sort()[0]
+    );
+  }
+  for (const event of resolutions) {
+    db.prepare('UPDATE agent_conflicts SET resolved_at=?,resolution=? WHERE conflict_id=?')
+      .run(event.payload.resolvedAt ?? event.ts,JSON.stringify(event.payload.resolution ?? null),event.payload.conflictId);
   }
 }
 

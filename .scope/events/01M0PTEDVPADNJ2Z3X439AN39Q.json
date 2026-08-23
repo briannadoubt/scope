@@ -1,0 +1,31 @@
+{
+  "v": 2,
+  "id": "01M0PTEDVPADNJ2Z3X439AN39Q",
+  "ts": "2026-08-23T08:05:28.566Z",
+  "actor": "sol",
+  "kind": "agent.lease.renew",
+  "payload": {
+    "leaseId": "01M0PTDX09W777R002SPCGJZQ9",
+    "heartbeatAt": "2026-08-23T08:05:28.565Z",
+    "expiresAt": "2026-08-23T10:05:28.565Z",
+    "files": [
+      ".github/workflows/ci.yml",
+      ".scope/events",
+      "CHANGELOG.md",
+      "README.md",
+      "docs",
+      "package-lock.json",
+      "package.json",
+      "plugins",
+      "scripts",
+      "skills",
+      "src",
+      "test"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "10b7fb43d899ee00333a32de4f871cad091ddde4"
+  },
+  "hlc": "1787472328566-000000",
+  "baseRevision": "sha256:9424be22bce6f1ccd3c34f45546bf577b98c344adf94c47262d883a4df68d613"
+}

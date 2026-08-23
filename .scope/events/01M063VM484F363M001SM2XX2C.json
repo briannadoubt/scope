@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M063VM484F363M001SM2XX2C",
+  "ts": "2026-08-16T20:22:52.808Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M063VM47F4YD99KDPCB1B78D",
+    "number": 301,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Observable native-agent coordination",
+    "description": "Make Scope valuable to native Codex and Claude subagents without becoming a harness: observable active work, derived lifecycle, parallel scheduling guidance, durable handoffs, and repository-aware conflict signals.",
+    "status": "backlog",
+    "priority": "urgent",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1786911772808-000000",
+  "baseRevision": "sha256:f43904f9a04891a49f35973ea27ed5b110c33d55f78a51018ace316a61e31cc5"
+}

@@ -330,7 +330,113 @@ export function ensureSearchIndex(db) {
   }
 }
 
-const CURRENT_SCHEMA_VERSION = '7';
+const CURRENT_SCHEMA_VERSION = '9';
+
+const CREATE_AGENT_TABLES = `
+  CREATE TABLE IF NOT EXISTS agent_contracts (
+    ticket_id TEXT PRIMARY KEY REFERENCES tickets(id) ON DELETE CASCADE,
+    acceptance TEXT NOT NULL DEFAULT '[]',
+    constraints TEXT NOT NULL DEFAULT '[]',
+    verification_commands TEXT NOT NULL DEFAULT '[]',
+    required_capabilities TEXT NOT NULL DEFAULT '[]',
+    policy TEXT NOT NULL DEFAULT '{}',
+    plan_version INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS agent_leases (
+    lease_id TEXT PRIMARY KEY,
+    ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    agent TEXT NOT NULL,
+    capabilities TEXT NOT NULL DEFAULT '[]',
+    worktree TEXT,
+    branch TEXT,
+    base_sha TEXT,
+    files TEXT NOT NULL DEFAULT '[]',
+    claimed_at TEXT NOT NULL,
+    heartbeat_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    released_at TEXT,
+    release_reason TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_leases_ticket ON agent_leases(ticket_id, expires_at);
+  CREATE TABLE IF NOT EXISTS agent_attempts (
+    attempt_id TEXT PRIMARY KEY,
+    ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    lease_id TEXT,
+    agent TEXT NOT NULL,
+    status TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    summary TEXT,
+    failure TEXT,
+    evidence TEXT NOT NULL DEFAULT '[]',
+    verification TEXT NOT NULL DEFAULT '[]'
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_attempts_ticket ON agent_attempts(ticket_id, started_at);
+  CREATE TABLE IF NOT EXISTS agent_discoveries (
+    discovery_id TEXT PRIMARY KEY,
+    ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    body TEXT NOT NULL,
+    data TEXT NOT NULL DEFAULT '{}',
+    author TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_discoveries_ticket ON agent_discoveries(ticket_id, created_at);
+  CREATE TABLE IF NOT EXISTS agent_plans (
+    ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    reason TEXT,
+    actor TEXT,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(ticket_id, version)
+  );
+  CREATE TABLE IF NOT EXISTS agent_conflicts (
+    conflict_id TEXT PRIMARY KEY,
+    ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    field TEXT NOT NULL,
+    base_revision TEXT NOT NULL,
+    event_ids TEXT NOT NULL,
+    values_json TEXT NOT NULL,
+    detected_at TEXT NOT NULL,
+    resolved_at TEXT,
+    resolution TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_conflicts_ticket ON agent_conflicts(ticket_id, resolved_at);
+  CREATE TABLE IF NOT EXISTS agent_registry (
+    agent_id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    provider TEXT,
+    capabilities TEXT NOT NULL DEFAULT '[]',
+    metadata TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'online',
+    registered_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_registry_presence ON agent_registry(expires_at, status);
+  CREATE TABLE IF NOT EXISTS agent_messages (
+    message_id TEXT PRIMARY KEY,
+    ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+    from_agent TEXT NOT NULL,
+    to_agent TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    body TEXT NOT NULL,
+    artifact_refs TEXT NOT NULL DEFAULT '[]',
+    thread_id TEXT NOT NULL,
+    reply_to TEXT,
+    correlation_id TEXT,
+    created_at TEXT NOT NULL,
+    expires_at TEXT,
+    acked_at TEXT,
+    acked_by TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_messages_inbox
+    ON agent_messages(to_agent, acked_at, expires_at, created_at, message_id);
+  CREATE INDEX IF NOT EXISTS idx_agent_messages_thread
+    ON agent_messages(thread_id, created_at, message_id);
+`;
 
 function tableExists(db, name) {
   const row = db
@@ -542,6 +648,7 @@ function migrate(db, scopeDir) {
       db.exec(CREATE_WORKSPACE);
       db.exec(CREATE_TICKETS);
       db.exec(CREATE_AUX_TABLES);
+      db.exec(CREATE_AGENT_TABLES);
       const now = nowIso();
       db.prepare(
         `INSERT INTO workspace
@@ -677,6 +784,7 @@ function migrate(db, scopeDir) {
       ensureWorkspaceColumnsColumn(db);
       ensureDynamicStatusColumn(db);
       db.exec(CREATE_ARTIFACTS);
+      db.exec(CREATE_AGENT_TABLES);
 
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
@@ -710,6 +818,7 @@ function migrate(db, scopeDir) {
       ensureWorkspaceColumnsColumn(db);
       ensureDynamicStatusColumn(db);
       db.exec(CREATE_ARTIFACTS);
+      db.exec(CREATE_AGENT_TABLES);
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
@@ -736,6 +845,7 @@ function migrate(db, scopeDir) {
   ensureWorkspaceColumnsColumn(db);
   ensureDynamicStatusColumn(db);
   db.exec(CREATE_ARTIFACTS);
+  db.exec(CREATE_AGENT_TABLES);
   const existing = db.prepare('SELECT id FROM workspace WHERE id = 1').get();
   if (!existing) {
     const now = nowIso();

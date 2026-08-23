@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "01M0PRYNJ4XZPQMME8Q63GV5ZZ",
+  "ts": "2026-08-23T07:39:23.588Z",
+  "actor": "sol",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M0PQRJ1AF64PKTFKJR3TV3T9",
+    "field": "status",
+    "value": "done"
+  },
+  "hlc": "1787470763588-000000",
+  "baseRevision": "sha256:e1d5a99fb1b2239136f4f4a8833d544c3aa3dd09fcda5c27892b07fdec7379a5"
+}

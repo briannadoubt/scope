@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "id": "01M063VMNAFBCZSVJ53PXENE0E",
+  "ts": "2026-08-16T20:22:53.354Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M063VMNAFBCZSVJ53PXENE0D",
+    "number": 304,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Return safe parallel scheduling groups",
+    "description": "Extend readiness output with deterministic parallel groups and explicit dependency/repository overlap reasons so parent agents can choose native subagents intelligently.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M063VM47F4YD99KDPCB1B78D",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1786911773354-000000",
+  "baseRevision": "sha256:050cfc71b37bf32863741d9298abdce77c561c22b95aab490d69054d8bd7727d"
+}
