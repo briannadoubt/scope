@@ -77,6 +77,27 @@ Replies inherit the original thread, ticket, and correlation id. Durable
 project conclusions should still be promoted to ticket discoveries or comments;
 the mailbox is operational communication, not the canonical project record.
 
+## Visual inspection and intervention
+
+Run `scope serve` and use the connected-agents button in the topbar to open the
+Agent coordination center. The browser view exposes:
+
+- registered agents, heartbeat presence, and pending delivery counts;
+- sent and received conversations for the selected agent, newest first;
+- ticket filters and links between a thread and its work item;
+- message kind, expiry/delivery state, acknowledgements, replies, and new
+  messages; and
+- workspace-wide active lease, attempt, and unresolved conflict metrics.
+
+Ticket cards also identify the active execution phase and agent. The ticket
+drawer expands that state with lease expiry, attempt and verification status,
+evidence, observed repository intent, recent handoffs, and conflicts, and can
+open the coordination center already filtered to that ticket.
+
+The UI uses the same durable REST/SQLite projections as the CLI; it is an
+operator surface, not a second mailbox implementation. Browser acknowledgements
+have the same idempotent semantics as `scope message ack`.
+
 ## Host wakeup payload
 
 Adapters should resume a runtime with a bounded prompt such as:

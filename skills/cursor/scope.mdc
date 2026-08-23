@@ -107,6 +107,13 @@ scope --json message ack MESSAGE_ID --agent cursor:worker
 `scope message listen <agent>` emits an at-least-once JSONL wakeup stream for
 host adapters. Deduplicate by message id and acknowledge after durable receipt.
 
+Humans can inspect and operate the same coordination state from the
+connected-agents button in the `scope serve` web UI. It shows presence, pending
+delivery, ticket-linked conversations, acknowledgements/replies, leases,
+attempts, and conflicts. Ticket cards and drawers show the active agent and
+execution details. Keep messages free of credentials because bodies are durable
+workspace data.
+
 ## Source
 
 https://github.com/briannadoubt/scope

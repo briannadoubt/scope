@@ -13,3 +13,11 @@ served with `text/html;profile=mcp-app`.
 The widget treats Scope as the source of truth. It renders from
 `structuredContent`, keeps local UI state cosmetic, and uses `window.openai`
 only when available for optional host conveniences.
+
+The local `scope serve` web UI also includes a first-party Agent coordination
+center, opened from the connected-agents button in the topbar. It renders agent
+presence, pending delivery, durable ticket-linked conversations,
+acknowledgements and replies, active leases, attempt metrics, and conflicts.
+Board cards identify the active execution phase and agent; ticket drawers show
+lease expiry, verification, evidence, observed repository intent, handoffs, and
+conflicts and can jump into a ticket-filtered conversation view.

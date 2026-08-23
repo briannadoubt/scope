@@ -68,8 +68,11 @@ trusted by the keychain.
 - **CLI** — `workspace / ticket / epic / artifact / link / status / branch / pr / board`
   with `--json` output on every command for agent consumption.
 - **Web UI** — configurable kanban columns, drag-and-drop, ticket drawer with
-  inline edit and sandboxed agent-authored HTML visualizations, workspace overview, epic filter, **swimlanes** (group by epic /
-  assignee / priority / type), live updates via SSE.
+  inline edit, agent execution state, and sandboxed agent-authored HTML
+  visualizations; a visual coordination center for agent presence, durable
+  conversations, delivery state, leases, attempts, and conflicts; workspace
+  overview, epic filter, **swimlanes** (group by epic / assignee / priority /
+  type), and live updates via SSE.
 - **`scope serve` hub** — one long-lived process that serves the UI, the REST
   API, and the SSE event stream on `https://localhost:4321` (loopback HTTP
   also bound for CLI traffic). Multiple agents and a human in the browser all
@@ -104,6 +107,15 @@ The little dot next to the refresh button is your live indicator:
 **gray** = paused (drawer/modal/input/drag), **red** = disconnected.
 Clicking refresh during a red indicator triggers an active hub re-probe
 and rebuilds the SSE connection.
+
+The connected-agents button in the topbar opens **Agent coordination**. It
+shows heartbeat presence, pending delivery counts, active leases, attempt and
+conflict health, and every durable conversation available to the selected
+agent. Threads can be filtered by ticket, acknowledged, replied to, or started
+from the browser. Ticket cards show the current execution phase and agent;
+ticket drawers expand that into lease expiry, attempt status, verification,
+evidence, repository intent, handoffs, and conflicts. Message bodies remain
+workspace data and are never included in dogfood telemetry.
 
 ## Programmatic API
 
@@ -235,6 +247,12 @@ scope --json message ack 01... --agent claude:opus
 
 The provider-neutral host adapter contract is documented in
 [docs/agent-messaging.md](docs/agent-messaging.md).
+
+Humans can inspect the same state visually from the connected-agents button in
+the `scope serve` topbar. The coordination center shows agent presence,
+ticket-linked threads, pending/acknowledged delivery, active leases, attempts,
+and conflicts; execution badges and details also appear on ticket cards and in
+the ticket drawer.
 
 For pre-release local calibration, the dogfood build records privacy-bounded
 command and route outcomes locally by default. It never records arguments,

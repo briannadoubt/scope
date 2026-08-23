@@ -1,0 +1,26 @@
+{
+  "v": 2,
+  "id": "01M0QW30SJ3EEFV36V6BB2RAWW",
+  "ts": "2026-08-23T17:53:26.322Z",
+  "actor": "sol",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0QW30SJ3EEFV36V6BB2RAWV",
+    "number": 321,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Test and document coordination UI",
+    "description": "Add regression coverage, update user-facing documentation, and visually verify the live dogfood hub at desktop and narrow widths.",
+    "status": "todo",
+    "priority": "high",
+    "parentId": "01M0QW30SHHKBKDFKHY02RKG58",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787507606322-000003",
+  "baseRevision": "sha256:d80b83f5f23a8f248bdf49a388fc11028b98146403b427cd935dd6b9b23a8b5f",
+  "transactionId": "01M0QW30SJ3EEFV36V6BB2RAWX",
+  "transactionIndex": 3
+}

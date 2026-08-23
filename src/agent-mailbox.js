@@ -120,6 +120,14 @@ export function listAgents(db, { includeOffline = true, now = new Date() } = {})
   return includeOffline ? agents : agents.filter((agent) => agent.status !== 'offline');
 }
 
+export function pendingMessageCounts(db, { now = new Date() } = {}) {
+  const counts = db.prepare(`SELECT to_agent AS agent_id, COUNT(*) AS count
+    FROM agent_messages
+    WHERE acked_at IS NULL AND (expires_at IS NULL OR expires_at>?)
+    GROUP BY to_agent`).all(nowDate(now).toISOString());
+  return Object.fromEntries(counts.map((row) => [row.agent_id, Number(row.count)]));
+}
+
 export function registerAgent(db, agentId, options = {}) {
   const id = assertAgentId(agentId);
   const status = assertStatus(options.status);
@@ -281,6 +289,64 @@ export function listConversation(db, threadId, options = {}) {
     }
   }
   return rows.map((row) => messageRow(row, nowDate(options.now)));
+}
+
+/**
+ * Conversation summaries for one participant, newest activity first. This is
+ * the read model used by human-facing coordination UIs: it includes threads
+ * initiated by the agent as well as messages addressed to it, without making
+ * the client fetch every inbox and reconstruct threads itself.
+ */
+export function listAgentConversations(db, agentId, options = {}) {
+  const agent = assertAgentId(agentId);
+  const now = nowDate(options.now);
+  const where = ['(from_agent=? OR to_agent=?)'];
+  const params = [agent, agent];
+  if (!options.includeExpired) {
+    where.push('(expires_at IS NULL OR expires_at>?)');
+    params.push(now.toISOString());
+  }
+  if (options.ticketId) {
+    const ticket = resolveTicket(db, options.ticketId);
+    where.push('ticket_id=?');
+    params.push(ticket.id);
+  }
+  const rows = db.prepare(`SELECT * FROM agent_messages WHERE ${where.join(' AND ')}
+    ORDER BY created_at DESC,message_id DESC LIMIT 1000`).all(...params);
+  const threads = new Map();
+  for (const row of rows) {
+    const message = messageRow(row, now);
+    let thread = threads.get(message.threadId);
+    if (!thread) {
+      thread = {
+        threadId: message.threadId,
+        ticketId: message.ticketId,
+        participants: [],
+        messageCount: 0,
+        pendingCount: 0,
+        startedAt: message.createdAt,
+        updatedAt: message.createdAt,
+        lastMessage: message,
+      };
+      threads.set(message.threadId, thread);
+    }
+    thread.messageCount += 1;
+    if (message.toAgent === agent && message.deliveryStatus === 'pending') thread.pendingCount += 1;
+    if (message.createdAt < thread.startedAt) thread.startedAt = message.createdAt;
+    if (!thread.ticketId && message.ticketId) thread.ticketId = message.ticketId;
+    for (const participant of [message.fromAgent, message.toAgent]) {
+      if (!thread.participants.includes(participant)) thread.participants.push(participant);
+    }
+  }
+  const limit = Math.max(1, Math.min(Number(options.limit) || 100, 500));
+  return [...threads.values()]
+    .map((thread) => ({
+      ...thread,
+      participants: thread.participants.sort(),
+      peerAgents: thread.participants.filter((participant) => participant !== agent),
+    }))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.threadId.localeCompare(a.threadId))
+    .slice(0, limit);
 }
 
 export function acknowledgeMessage(db, messageId, options = {}) {

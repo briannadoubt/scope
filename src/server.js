@@ -77,9 +77,11 @@ import {
   getAgent,
   getMessage,
   heartbeatAgent,
+  listAgentConversations,
   listAgents,
   listConversation,
   listInbox,
+  pendingMessageCounts,
   registerAgent,
   replyToMessage,
   sendMessage,
@@ -1018,6 +1020,18 @@ export async function startServer({
     res.json(req.query.plan === 'true' ? parallelPlan(w.db, options) : listReady(w.db, options));
   }));
 
+  app.get('/api/agent/overview', ws((_req, res, w) => {
+    const pending = pendingMessageCounts(w.db);
+    res.json({
+      agents: listAgents(w.db).map((agent) => ({
+        ...agent,
+        pendingMessages: pending[agent.agentId] ?? 0,
+      })),
+      metrics: agentMetrics(w.db),
+      conflicts: listConflicts(w.db, { unresolvedOnly: true }),
+    });
+  }));
+
   app.get('/api/agent/tickets/:id/readiness', ws((req, res, w) => {
     res.json(readiness(w.db, req.params.id, { capabilities: csvQuery(req.query.capabilities) }));
   }));
@@ -1119,6 +1133,14 @@ export async function startServer({
       includeAcknowledged: req.query.all === 'true',
       includeExpired: req.query.expired === 'true',
       since: req.query.since || null,
+      ticketId: req.query.ticket || null,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    }));
+  }));
+
+  app.get('/api/agent/agents/:id/conversations', ws((req, res, w) => {
+    res.json(listAgentConversations(w.db, req.params.id, {
+      includeExpired: req.query.expired === 'true',
       ticketId: req.query.ticket || null,
       limit: req.query.limit ? Number(req.query.limit) : undefined,
     }));

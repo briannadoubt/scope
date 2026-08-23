@@ -62,3 +62,7 @@ derive `in_progress`; success derives `in_review`; failure or handoff derives
 
 If `scope serve` is running, CLI updates appear in the web UI via SSE. Never
 pass `--port` to `scope serve`; the hub auto-discovers the running instance.
+The connected-agents button opens the coordination center for presence,
+pending messages, durable ticket threads, delivery state, lease/attempt health,
+and conflicts. Ticket cards and drawers expose the active agent and execution
+details, with direct navigation into ticket-filtered conversations.

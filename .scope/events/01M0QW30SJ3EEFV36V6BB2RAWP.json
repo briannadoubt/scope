@@ -1,0 +1,26 @@
+{
+  "v": 2,
+  "id": "01M0QW30SJ3EEFV36V6BB2RAWP",
+  "ts": "2026-08-23T17:53:26.322Z",
+  "actor": "sol",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0QW30SHHKBKDFKHY02RKG58",
+    "number": 318,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Visualize agent coordination",
+    "description": "Add a first-class web UI for agent presence, addressed inboxes, threaded conversations, acknowledgement state, ticket-linked communication, and ticket execution visibility before release.",
+    "status": "in_progress",
+    "priority": "urgent",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787507606322-000000",
+  "baseRevision": "sha256:d80b83f5f23a8f248bdf49a388fc11028b98146403b427cd935dd6b9b23a8b5f",
+  "transactionId": "01M0QW30SJ3EEFV36V6BB2RAWX",
+  "transactionIndex": 0
+}

@@ -39,6 +39,24 @@ test('local: / serves the kanban app SPA (not a landing page)', async () => {
   } finally { await hub.close(); }
 });
 
+test('local: coordination center assets are shipped with the kanban app', async () => {
+  const hub = await startHub({ cloud: false });
+  try {
+    const [html, app, css] = await Promise.all([
+      fetch(`${hub.base}/`).then((r) => r.text()),
+      fetch(`${hub.base}/app.js`).then((r) => r.text()),
+      fetch(`${hub.base}/style.css`).then((r) => r.text()),
+    ]);
+    assert.match(html, /id="coordination-trigger"/);
+    assert.match(html, /aria-label="Agent coordination"/);
+    assert.match(app, /\/api\/agent\/overview/);
+    assert.match(app, /\/conversations/);
+    assert.match(app, /Open linked conversations/);
+    assert.match(css, /\.coordination-grid/);
+    assert.match(css, /\.card-meta \.chip\.execution/);
+  } finally { await hub.close(); }
+});
+
 test('local: loopback bypass still authenticates same-machine requests (no token)', async () => {
   const hub = await startHub({ cloud: false });
   try {

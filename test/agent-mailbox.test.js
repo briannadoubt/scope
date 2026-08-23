@@ -11,9 +11,11 @@ import {
   getAgent,
   getMessage,
   heartbeatAgent,
+  listAgentConversations,
   listAgents,
   listConversation,
   listInbox,
+  pendingMessageCounts,
   registerAgent,
   replyToMessage,
   sendMessage,
@@ -101,6 +103,42 @@ test('expired messages leave the pending inbox but remain auditable', () => {
     const audit = listInbox(db, 'claude:opus', { now: later, includeExpired: true });
     assert.equal(audit[0].messageId, sent.messageId);
     assert.equal(audit[0].deliveryStatus, 'expired');
+  } finally {
+    cleanup();
+  }
+});
+
+test('conversation summaries include sent threads, pending counts, and ticket filters', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const ticket = createTicket(db, { type: 'story', title: 'Review the UI', actor: 'planner' });
+    const first = sendMessage(db, {
+      fromAgent: 'codex:sol', toAgent: 'claude:opus', body: 'Can you review this?', ticketId: ticket.id,
+    });
+    const reply = replyToMessage(db, first.messageId, {
+      fromAgent: 'claude:opus', body: 'Yes, looking now.',
+    });
+    sendMessage(db, {
+      fromAgent: 'codex:sol', toAgent: 'other:reviewer', body: 'A second direct thread.',
+    });
+
+    const sol = listAgentConversations(db, 'codex:sol');
+    assert.equal(sol.length, 2, 'threads initiated by the agent are visible before any reply');
+    const review = sol.find((thread) => thread.threadId === first.threadId);
+    assert.equal(review.messageCount, 2);
+    assert.equal(review.pendingCount, 1, 'the reply addressed to sol remains pending');
+    assert.deepEqual(review.participants, ['claude:opus', 'codex:sol']);
+    assert.deepEqual(review.peerAgents, ['claude:opus']);
+    assert.equal(review.lastMessage.messageId, reply.messageId);
+
+    const filtered = listAgentConversations(db, 'codex:sol', { ticketId: ticket.id });
+    assert.deepEqual(filtered.map((thread) => thread.threadId), [first.threadId]);
+    assert.equal(pendingMessageCounts(db)['codex:sol'], 1);
+    acknowledgeMessage(db, reply.messageId, { agent: 'codex:sol' });
+    const updated = listAgentConversations(db, 'codex:sol')
+      .find((thread) => thread.threadId === first.threadId);
+    assert.equal(updated.pendingCount, 0);
+    assert.equal(pendingMessageCounts(db)['codex:sol'], undefined);
   } finally {
     cleanup();
   }

@@ -28,7 +28,13 @@
   durable ticket-linked messages, threaded replies, expiry, idempotent
   acknowledgements, at-least-once reconnect delivery, CLI JSONL listeners,
   addressed SSE wakeups, and matching Node/REST/MCP operations.
-- **Opt-in local dogfood telemetry.** `SCOPE_DOGFOOD_LOG` records redacted CLI
+- **Visual agent coordination.** The web UI now has a coordination center for
+  agent presence, pending delivery, durable ticket-linked conversations,
+  acknowledgements and replies, lease/attempt/conflict health, and direct
+  ticket navigation. Board cards and ticket drawers surface the active agent,
+  execution phase, lease, verification, evidence, repository intent, handoffs,
+  and conflicts.
+- **Default-on local dogfood telemetry.** Dogfood builds record redacted CLI
   and HTTP operation outcomes and latency for pre-release calibration, with a
   local summary script and no arguments, content, credentials, or raw paths.
 

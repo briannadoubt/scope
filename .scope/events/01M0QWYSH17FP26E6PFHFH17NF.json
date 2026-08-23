@@ -1,0 +1,41 @@
+{
+  "v": 2,
+  "id": "01M0QWYSH17FP26E6PFHFH17NF",
+  "ts": "2026-08-23T18:08:36.385Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0QWTJ4EVYB1C9N7BKZ7Z3PF",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T18:08:36.385Z",
+    "summary": null,
+    "failure": null,
+    "evidence": [],
+    "verification": [
+      {
+        "command": "npm test",
+        "ok": true
+      },
+      {
+        "command": "npm run docs:agent:check",
+        "ok": true
+      },
+      {
+        "command": "npm pack --dry-run",
+        "ok": true
+      },
+      {
+        "command": "scope doctor --json",
+        "ok": true
+      },
+      {
+        "command": "browser visual QA at desktop and compact breakpoints",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787508516385-000000",
+  "baseRevision": "sha256:d41adbd5e5824dc1c2bb71f9983415f9215bb2ddeaece4b7c88333885a2a238f",
+  "transactionId": "01M0QWYSH24VXSDJF69XQYR9TY",
+  "transactionIndex": 0
+}

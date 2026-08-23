@@ -36,6 +36,12 @@ agent ids and use `message send`, `message inbox`, `message reply`, and
 addressed SSE stream. Delivery is at least once until acknowledgement, so
 deduplicate by message id.
 
+When `scope serve` is running, the connected-agents button opens the visual
+coordination center. Humans can inspect presence, pending delivery,
+ticket-linked conversations, acknowledgements/replies, leases, attempts, and
+conflicts there. Ticket cards and drawers show the active agent and execution
+details. Message bodies are durable workspace data, so never include secrets.
+
 Use global `--request-id` when retrying mutations and `--if-revision` when a
 write depends on previously read state. Never unwrap JSON by guessing: success
 is in `data`; failures are in `error` with stable codes and retryability.

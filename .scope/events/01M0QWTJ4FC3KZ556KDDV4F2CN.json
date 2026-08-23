@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M0QWTJ4FC3KZ556KDDV4F2CN",
+  "ts": "2026-08-23T18:06:17.743Z",
+  "actor": "sol",
+  "kind": "agent.attempt.start",
+  "payload": {
+    "attemptId": "01M0QWTJ4EVYB1C9N7BKZ7Z3PF",
+    "ticketId": "01M0QW30SJ3EEFV36V6BB2RAWV",
+    "leaseId": "01M0QWTJ4EVYB1C9N7BKZ7Z3PE",
+    "agent": "sol",
+    "startedAt": "2026-08-23T18:06:17.742Z"
+  },
+  "hlc": "1787508377743-000001",
+  "baseRevision": "sha256:35ce51355728eaf1624cd5267e45836743e1e40c265af145323f2c16f3f227ce",
+  "transactionId": "01M0QWTJ4G9T8YWVWVHP22B3NJ",
+  "transactionIndex": 1
+}

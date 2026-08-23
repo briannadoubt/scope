@@ -1,0 +1,29 @@
+{
+  "v": 2,
+  "id": "01M0QWTHTT0XRYA3MTYV6R885V",
+  "ts": "2026-08-23T18:06:17.434Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0QWHHJWSGWS09X1CY0XMNKC",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T18:06:17.434Z",
+    "summary": null,
+    "failure": null,
+    "evidence": [],
+    "verification": [
+      {
+        "command": "node --test --import=./test/setup.js test/agent-mailbox.test.js test/server.test.js",
+        "ok": true
+      },
+      {
+        "command": "browser visual QA: desktop, compact, ticket drawer, ticket-filter navigation, console",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787508377434-000000",
+  "baseRevision": "sha256:c0bb6b248b899b67e460dda5f36b250dcb3c51418458d49c1538fc30c375dd2e",
+  "transactionId": "01M0QWTHTV6KD0DES8MG7TN1QH",
+  "transactionIndex": 0
+}

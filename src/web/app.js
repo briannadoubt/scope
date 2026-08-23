@@ -6,7 +6,7 @@ const state = {
   workspaces: [],
   currentWorkspace: localStorage.getItem('scope.workspace') || null,
   epicFilter: '',
-  view: 'board', // 'board' | 'overview' | 'history' | 'graph'
+  view: 'board', // 'board' | 'overview' | 'history' | 'graph' | 'coordination'
   history: null, // { entries: [...] } for the history view
   board: null,
   graphData: null, // { tickets, edges } cached while the graph view is open
@@ -15,6 +15,9 @@ const state = {
     JSON.parse(localStorage.getItem('scope.graphCollapsed') || '[]')
   ),
   drawerTicketId: null,
+  coordinationAgent: localStorage.getItem('scope.coordinationAgent') || null,
+  coordinationThread: null,
+  coordinationTicket: null,
   groupBy: localStorage.getItem('scope.groupBy') || 'none',
   showDoneEpics: localStorage.getItem('scope.showDoneEpics') === 'true',
   hideDoneTickets: localStorage.getItem('scope.hideDoneTickets') === 'true',
@@ -319,6 +322,7 @@ function updateViewTrigger() {
   if (state.hideDoneTickets) bits.push('Done hidden');
   label.textContent = bits.length ? bits.join(' · ') : 'View';
   document.getElementById('view-trigger').classList.toggle('active', bits.length > 0);
+  document.getElementById('coordination-trigger')?.classList.toggle('active', state.view === 'coordination');
 }
 
 function setHideDoneTickets(on) {
@@ -344,9 +348,11 @@ function rerenderBoardIfActive() {
 async function refresh() {
   if (!state.currentWorkspace) return renderEmpty();
   refreshPresence(); // SCP-225: keep the online-roster pill in step with the board
+  refreshCoordinationBadge();
   // The graph view repurposes #board with its own host class; clear it on every
   // refresh so non-graph views aren't constrained by the graph's layout rules.
-  document.getElementById('board').classList.remove('graph-host');
+  document.getElementById('board').classList.remove('graph-host', 'coordination-host');
+  if (state.view === 'coordination') return renderCoordination();
   await loadEpicsForFilter();
   if (state.view === 'overview') return renderOverview();
   if (state.view === 'history') return renderHistory();
@@ -489,6 +495,9 @@ function bindTopbar() {
   document.getElementById('breadcrumb-trigger').addEventListener('click', openBreadcrumbPopover);
   document.getElementById('view-trigger').addEventListener('click', openViewPopover);
   document.getElementById('overflow-trigger').addEventListener('click', openOverflowMenu);
+  document.getElementById('coordination-trigger').addEventListener('click', () => {
+    openCoordination();
+  });
   document.getElementById('search-trigger').addEventListener('click', () => openSearchModal());
   bindSearchShortcuts();
   const autoInput = document.getElementById('autoscroll-toggle');
@@ -907,6 +916,7 @@ function openOverflowMenu() {
   }
   pop.innerHTML = `
     <button type="button" class="menu-item" data-act="refresh"><span class="mi-icon">↻</span> Refresh</button>
+    <button type="button" class="menu-item" data-act="coordination"><span class="mi-icon">◎</span> ${state.view === 'coordination' ? 'Back to board' : 'Agent coordination'}</button>
     <button type="button" class="menu-item" data-act="graph"><span class="mi-icon">⛓</span> ${state.view === 'graph' ? 'Back to board' : 'Relationship graph'}</button>
     <button type="button" class="menu-item" data-act="overview"><span class="mi-icon">☰</span> ${state.view === 'overview' ? 'Back to board' : 'Workspace overview'}</button>
     <button type="button" class="menu-item" data-act="history"><span class="mi-icon">⏱</span> ${state.view === 'history' ? 'Back to board' : 'History'}</button>
@@ -917,6 +927,15 @@ function openOverflowMenu() {
       const act = b.dataset.act;
       closePopover();
       if (act === 'refresh') { flashIndicator('tick'); await repairHubConnection(); }
+      else if (act === 'coordination') {
+        if (state.view === 'coordination') {
+          state.view = 'board';
+          state.coordinationTicket = null;
+          await refresh();
+        } else {
+          await openCoordination();
+        }
+      }
       else if (act === 'graph') {
         state.view = state.view === 'graph' ? 'board' : 'graph';
         if (state.view === 'graph') state.graphData = null; // force a fresh fetch
@@ -1726,6 +1745,9 @@ let lastBoardHash = '';
 
 function applyPaused() {
   if (state.view === 'history') return false;     // history view handles its own SSE refresh
+  if (state.view === 'coordination') {
+    return !!(document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName));
+  }
   if (state.view !== 'board') return true;       // overview / other view — re-renders on its own
   if (state.drawerTicketId) return true;          // user is editing
   if (document.querySelector('.modal-backdrop')) return true;
@@ -1970,6 +1992,11 @@ function scheduleRefresh(_detail) {
     }
     if (!state.currentWorkspace) return;
     try {
+      if (state.view === 'coordination') {
+        await renderCoordination();
+        flashIndicator('tick');
+        return;
+      }
       const params = new URLSearchParams();
       if (state.epicFilter) params.set('epic', state.epicFilter);
       const q = params.toString();
@@ -2000,7 +2027,8 @@ function hashBoard(board) {
   const parts = [];
   for (const status of Object.keys(board.buckets).sort()) {
     for (const t of board.buckets[status]) {
-      parts.push(`${t.id}:${t.status}:${t.updated_at}:${t.title}:${t.branch ?? ''}:${t.pr_url ?? ''}:${t.priority}:${t.parent_id ?? ''}:${t.assignee ?? ''}`);
+      const execution = t.execution || {};
+      parts.push(`${t.id}:${t.status}:${t.updated_at}:${t.title}:${t.branch ?? ''}:${t.pr_url ?? ''}:${t.priority}:${t.parent_id ?? ''}:${t.assignee ?? ''}:${execution.phase ?? ''}:${execution.agent ?? ''}:${execution.lease?.expiresAt ?? ''}:${execution.attempt?.status ?? ''}`);
     }
   }
   return parts.join('|');
@@ -2889,6 +2917,53 @@ function laneSorter(groupBy) {
   };
 }
 
+function executionLabel(execution) {
+  const phase = execution?.phase || 'idle';
+  if (phase === 'running') return execution.agent ? `● ${execution.agent}` : '● running';
+  if (phase === 'stale') return execution.agent ? `◷ ${execution.agent}` : '◷ stale claim';
+  if (phase === 'succeeded') return execution.agent ? `✓ ${execution.agent}` : '✓ completed';
+  if (phase === 'handed_off') return '↗ handed off';
+  if (phase === 'failed') return '! failed';
+  if (phase === 'cancelled') return '× cancelled';
+  return '';
+}
+
+function executionDetailsHtml(execution, conflicts = []) {
+  if (!execution || execution.phase === 'idle') {
+    return `
+      <div class="execution-empty">No agent has claimed this ticket.</div>
+      <button type="button" class="btn ghost" id="open-ticket-coordination">Open agent coordination</button>`;
+  }
+  const verification = execution.verification || {};
+  const attempt = execution.attempt || null;
+  const latest = execution.latestHandoff || execution.latestDiscovery || null;
+  const lease = execution.lease || null;
+  return `
+    <div class="execution-summary">
+      <span class="execution-phase ${escapeHtml(execution.phase)}">${escapeHtml(execution.phase.replaceAll('_', ' '))}</span>
+      ${execution.agent ? `<span class="execution-agent">${escapeHtml(execution.agent)}</span>` : ''}
+      ${execution.reclaimable ? '<span class="execution-warning">reclaimable</span>' : ''}
+    </div>
+    <div class="execution-grid">
+      ${lease ? `<div><span>Lease</span><strong>${escapeHtml(lease.state)}</strong></div>` : ''}
+      ${lease?.expiresAt ? `<div><span>Expires</span><strong title="${escapeHtml(lease.expiresAt)}">${escapeHtml(relativeTime(lease.expiresAt))}</strong></div>` : ''}
+      ${attempt ? `<div><span>Attempt</span><strong>${escapeHtml(attempt.status)}</strong></div>` : ''}
+      <div><span>Verification</span><strong class="${verification.satisfied ? 'ok' : 'warn'}">${verification.satisfied ? 'satisfied' : `${(verification.missing || []).length} missing`}</strong></div>
+      <div><span>Evidence</span><strong>${Number(verification.evidenceCount || 0)}</strong></div>
+      <div><span>Conflicts</span><strong class="${conflicts.length ? 'warn' : 'ok'}">${conflicts.length}</strong></div>
+    </div>
+    ${attempt?.summary ? `<div class="execution-note"><span>Summary</span>${escapeHtml(attempt.summary)}</div>` : ''}
+    ${attempt?.failure ? `<div class="execution-note failure"><span>Failure</span>${escapeHtml(attempt.failure)}</div>` : ''}
+    ${latest ? `<div class="execution-note"><span>${escapeHtml(latest.type)}</span>${escapeHtml(latest.body || '')}</div>` : ''}
+    ${(execution.files || []).length ? `<div class="execution-files">${execution.files.map((file) => `<code>${escapeHtml(file)}</code>`).join('')}</div>` : ''}
+    ${(verification.results || []).length ? `
+      <div class="verification-list">${verification.results.map((result) => `
+        <div class="verification-row ${result?.ok ? 'ok' : 'failed'}">
+          <span>${result?.ok ? '✓' : '×'}</span><code>${escapeHtml(result?.command || 'verification')}</code>
+        </div>`).join('')}</div>` : ''}
+    <button type="button" class="btn ghost" id="open-ticket-coordination">Open linked conversations</button>`;
+}
+
 function renderCard(t) {
   const tpl = document.getElementById('card-template');
   const node = tpl.content.cloneNode(true);
@@ -2946,6 +3021,15 @@ function renderCard(t) {
     a.className = 'chip';
     a.textContent = `@${t.assignee}`;
     meta.appendChild(a);
+  }
+  const executionText = executionLabel(t.execution);
+  if (executionText) {
+    const execution = document.createElement('span');
+    execution.className = `chip execution ${t.execution.phase}`;
+    execution.textContent = executionText;
+    execution.title = `Agent execution: ${t.execution.phase}`;
+    meta.appendChild(execution);
+    card.classList.add(`execution-${t.execution.phase}`);
   }
   if (!meta.children.length) meta.remove();
 
@@ -3088,7 +3172,11 @@ async function openDrawer(id) {
   const drawer = document.getElementById('drawer');
   drawer.hidden = false;
   state.drawerTicketId = id;
-  const data = await api(`/api/tickets/${encodeURIComponent(id)}`);
+  const [data, conflicts] = await Promise.all([
+    api(`/api/tickets/${encodeURIComponent(id)}`),
+    api(`/api/agent/conflicts?ticket=${encodeURIComponent(id)}`).catch(() => []),
+  ]);
+  data.coordinationConflicts = conflicts;
   renderDrawer(data);
 }
 function closeDrawer() {
@@ -3158,6 +3246,14 @@ function renderDrawer(t) {
       <input type="text" data-field="labels" value="${escapeHtml((t.labels || []).join(', '))}" placeholder="frontend, infra" />
     </div>
     ${epicProgress}
+
+    <div class="section execution-section">
+      <div class="execution-head">
+        <h3>Agent execution</h3>
+        <span>${escapeHtml(t.execution?.phase || 'idle')}</span>
+      </div>
+      ${executionDetailsHtml(t.execution, t.coordinationConflicts || [])}
+    </div>
 
     <div class="section description-section">
       <div class="description-head">
@@ -3275,6 +3371,10 @@ function renderDrawer(t) {
   el.querySelector('.close').addEventListener('click', closeDrawer);
   el.querySelector('#save-ticket').addEventListener('click', () => saveDrawer(t));
   el.querySelector('#delete-ticket').addEventListener('click', () => deleteDrawer(t));
+  el.querySelector('#open-ticket-coordination')?.addEventListener('click', async () => {
+    closeDrawer();
+    await openCoordination({ ticketId: t.id, agentId: t.execution?.agent || null });
+  });
 
   // Description: click preview or "Edit" toggles to textarea; "Preview" goes back.
   const preview = el.querySelector('.description-preview');
@@ -3784,6 +3884,311 @@ async function openTicketModal({ status = 'backlog', parent = '' } = {}) {
       await refresh();
     } catch (e) {
       modal.querySelector('#t-err').textContent = e.message;
+    }
+  });
+}
+
+/* ------------- agent coordination ------------- */
+
+async function openCoordination({ ticketId = null, agentId = null, threadId = null } = {}) {
+  closePopover();
+  closeDrawer();
+  state.view = state.view === 'coordination' && !ticketId && !agentId && !threadId ? 'board' : 'coordination';
+  if (state.view === 'coordination') {
+    state.coordinationTicket = ticketId;
+    if (agentId) {
+      state.coordinationAgent = agentId;
+      localStorage.setItem('scope.coordinationAgent', agentId);
+    }
+    state.coordinationThread = threadId;
+  } else {
+    state.coordinationTicket = null;
+    state.coordinationThread = null;
+  }
+  updateViewTrigger();
+  await refresh();
+}
+
+async function refreshCoordinationBadge() {
+  const badge = document.getElementById('coordination-badge');
+  if (!badge || !state.currentWorkspace) return;
+  try {
+    const overview = await api('/api/agent/overview');
+    const pending = (overview.agents || []).reduce((sum, agent) => sum + Number(agent.pendingMessages || 0), 0);
+    badge.hidden = pending === 0;
+    badge.textContent = pending > 99 ? '99+' : String(pending);
+    badge.title = `${pending} pending agent message${pending === 1 ? '' : 's'}`;
+  } catch {
+    badge.hidden = true;
+  }
+}
+
+function coordinationMetric(label, value, tone = '') {
+  return `<div class="coord-metric ${tone}"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`;
+}
+
+function agentAvatar(agent) {
+  const label = agent.displayName || agent.agentId || '?';
+  const initials = label.split(/[:\s._/-]+/).filter(Boolean).slice(-2).map((part) => part[0]).join('').toUpperCase().slice(0, 2);
+  return `<span class="agent-avatar ${escapeHtml(agent.status || 'offline')}">${escapeHtml(initials || '?')}</span>`;
+}
+
+function messageStatusLabel(message) {
+  if (message.deliveryStatus === 'acknowledged') return '✓ acknowledged';
+  if (message.deliveryStatus === 'expired') return 'expired';
+  return '○ pending';
+}
+
+async function renderCoordination() {
+  updateViewTrigger();
+  const root = document.getElementById('board');
+  root.style.display = 'block';
+  root.classList.add('coordination-host');
+  root.innerHTML = '<div class="coordination-loading">Loading agent coordination…</div>';
+
+  let overview;
+  try {
+    overview = await api('/api/agent/overview');
+  } catch (error) {
+    root.innerHTML = `<div class="coordination-empty"><h2>Agent coordination is unavailable</h2><p>${escapeHtml(error.message)}</p></div>`;
+    return;
+  }
+  const agents = overview.agents || [];
+  const metrics = overview.metrics || {};
+  const conflicts = overview.conflicts || [];
+  const totalPending = agents.reduce((sum, agent) => sum + Number(agent.pendingMessages || 0), 0);
+  const activeAgents = agents.filter((agent) => agent.status !== 'offline').length;
+  const badge = document.getElementById('coordination-badge');
+  if (badge) {
+    badge.hidden = totalPending === 0;
+    badge.textContent = totalPending > 99 ? '99+' : String(totalPending);
+  }
+
+  if (!agents.some((agent) => agent.agentId === state.coordinationAgent)) {
+    state.coordinationAgent = agents.find((agent) => agent.status !== 'offline')?.agentId || agents[0]?.agentId || null;
+  }
+  if (state.coordinationAgent) localStorage.setItem('scope.coordinationAgent', state.coordinationAgent);
+
+  let threads = [];
+  let messages = [];
+  if (state.coordinationAgent) {
+    const params = new URLSearchParams();
+    if (state.coordinationTicket) params.set('ticket', state.coordinationTicket);
+    threads = await api(`/api/agent/agents/${encodeURIComponent(state.coordinationAgent)}/conversations${params.size ? `?${params}` : ''}`);
+    if (!threads.some((thread) => thread.threadId === state.coordinationThread)) {
+      state.coordinationThread = threads[0]?.threadId || null;
+    }
+    if (state.coordinationThread) {
+      messages = await api(`/api/agent/conversations/${encodeURIComponent(state.coordinationThread)}?agent=${encodeURIComponent(state.coordinationAgent)}`);
+    }
+  }
+
+  const attempts = Object.values(metrics.attempts || {}).reduce((sum, count) => sum + Number(count || 0), 0);
+  root.innerHTML = `
+    <div class="coordination-page">
+      <header class="coordination-head">
+        <div>
+          <span class="coordination-kicker">Workspace operations</span>
+          <h1>Agent coordination</h1>
+          <p>Presence, durable conversations, delivery state, and execution health in one place.</p>
+        </div>
+        <div class="coordination-actions">
+          ${state.coordinationTicket ? `<button type="button" class="filter-chip" id="coord-clear-ticket">${escapeHtml(state.coordinationTicket)} ×</button>` : ''}
+          <button type="button" class="btn" id="coord-new-message" ${agents.length < 2 ? 'disabled' : ''}>＋ New message</button>
+          <button type="button" class="btn ghost" id="coord-back">← Board</button>
+        </div>
+      </header>
+      <div class="coordination-metrics">
+        ${coordinationMetric('agents online', `${activeAgents}/${agents.length}`, activeAgents ? 'good' : '')}
+        ${coordinationMetric('pending messages', totalPending, totalPending ? 'attention' : 'good')}
+        ${coordinationMetric('active leases', metrics.activeLeases || 0, metrics.activeLeases ? 'active' : '')}
+        ${coordinationMetric('attempts observed', attempts)}
+        ${coordinationMetric('unresolved conflicts', conflicts.length, conflicts.length ? 'danger' : 'good')}
+      </div>
+      <div class="coordination-grid">
+        <section class="coord-pane agent-pane">
+          <div class="coord-pane-head"><span>Agents</span><small>${agents.length}</small></div>
+          <div class="agent-list">
+            ${agents.length ? agents.map((agent) => `
+              <button type="button" class="agent-row ${agent.agentId === state.coordinationAgent ? 'selected' : ''}" data-agent="${escapeHtml(agent.agentId)}">
+                ${agentAvatar(agent)}
+                <span class="agent-copy"><strong>${escapeHtml(agent.displayName || agent.agentId)}</strong><small>${escapeHtml(agent.provider || 'provider unknown')} · ${escapeHtml(relativeTime(agent.lastSeenAt))}</small></span>
+                <span class="agent-presence ${escapeHtml(agent.status)}">${escapeHtml(agent.status)}</span>
+                ${agent.pendingMessages ? `<span class="agent-unread">${agent.pendingMessages}</span>` : ''}
+              </button>`).join('') : `
+              <div class="coord-pane-empty"><strong>No registered agents</strong><span>Agents appear here after <code>scope agent register</code>.</span></div>`}
+          </div>
+        </section>
+        <section class="coord-pane thread-pane">
+          <div class="coord-pane-head"><span>Conversations</span><small>${threads.length}</small></div>
+          <div class="thread-list">
+            ${threads.length ? threads.map((thread) => {
+              const last = thread.lastMessage;
+              const peers = thread.peerAgents.length ? thread.peerAgents.join(', ') : 'Conversation';
+              return `
+                <button type="button" class="thread-row ${thread.threadId === state.coordinationThread ? 'selected' : ''}" data-thread="${escapeHtml(thread.threadId)}">
+                  <span class="thread-top"><strong>${escapeHtml(peers)}</strong><time>${escapeHtml(relativeTime(thread.updatedAt))}</time></span>
+                  <span class="thread-preview">${escapeHtml(last?.body || '')}</span>
+                  <span class="thread-meta">
+                    ${thread.ticketId ? `<span class="ticket-link" data-ticket="${escapeHtml(thread.ticketId)}">${escapeHtml(thread.ticketId)}</span>` : ''}
+                    <span>${thread.messageCount} message${thread.messageCount === 1 ? '' : 's'}</span>
+                    ${thread.pendingCount ? `<span class="pending-pill">${thread.pendingCount} pending</span>` : `<span>${escapeHtml(messageStatusLabel(last))}</span>`}
+                  </span>
+                </button>`;
+            }).join('') : `
+              <div class="coord-pane-empty"><strong>No conversations${state.coordinationTicket ? ` for ${escapeHtml(state.coordinationTicket)}` : ''}</strong><span>Send a message to start a durable agent thread.</span></div>`}
+          </div>
+        </section>
+        <section class="coord-pane conversation-pane">
+          ${state.coordinationThread ? renderConversationHtml(messages, state.coordinationAgent) : `
+            <div class="conversation-empty"><span class="conversation-empty-mark">◎</span><strong>Select a conversation</strong><span>Threaded messages and acknowledgement state will appear here.</span></div>`}
+        </section>
+      </div>
+    </div>`;
+
+  root.querySelector('#coord-back').addEventListener('click', async () => {
+    state.view = 'board';
+    state.coordinationTicket = null;
+    updateViewTrigger();
+    await refresh();
+  });
+  root.querySelector('#coord-clear-ticket')?.addEventListener('click', async () => {
+    state.coordinationTicket = null;
+    state.coordinationThread = null;
+    await renderCoordination();
+  });
+  root.querySelector('#coord-new-message')?.addEventListener('click', () => openNewAgentMessageModal(agents));
+  root.querySelectorAll('.agent-row').forEach((row) => row.addEventListener('click', async () => {
+    state.coordinationAgent = row.dataset.agent;
+    state.coordinationThread = null;
+    localStorage.setItem('scope.coordinationAgent', state.coordinationAgent);
+    await renderCoordination();
+  }));
+  root.querySelectorAll('.thread-row').forEach((row) => row.addEventListener('click', async (event) => {
+    const ticket = event.target.closest('[data-ticket]')?.dataset.ticket;
+    if (ticket) return openDrawer(ticket);
+    state.coordinationThread = row.dataset.thread;
+    await renderCoordination();
+  }));
+  bindConversationActions(root, messages);
+}
+
+function renderConversationHtml(messages, selectedAgent) {
+  const first = messages[0] || null;
+  const peers = [...new Set(messages.flatMap((message) => [message.fromAgent, message.toAgent]))]
+    .filter((agent) => agent !== selectedAgent);
+  return `
+    <div class="conversation-head">
+      <div><span class="conversation-label">Thread</span><strong>${escapeHtml(peers.join(', ') || 'Conversation')}</strong></div>
+      ${first?.ticketId ? `<button type="button" class="ticket-link" data-open-ticket="${escapeHtml(first.ticketId)}">${escapeHtml(first.ticketId)} ↗</button>` : ''}
+    </div>
+    <div class="message-list">
+      ${messages.map((message) => {
+        const mine = message.fromAgent === selectedAgent;
+        return `<article class="message ${mine ? 'mine' : 'theirs'}">
+          <div class="message-meta"><strong>${escapeHtml(message.fromAgent)}</strong><time title="${escapeHtml(message.createdAt)}">${escapeHtml(relativeTime(message.createdAt))}</time></div>
+          <div class="message-kind">${escapeHtml(message.kind.replaceAll('_', ' '))}</div>
+          <div class="message-body">${escapeHtml(message.body)}</div>
+          <div class="message-foot">
+            <span class="delivery ${escapeHtml(message.deliveryStatus)}">${escapeHtml(messageStatusLabel(message))}</span>
+            ${!mine && message.deliveryStatus === 'pending' ? `<button type="button" class="ack-message" data-ack="${escapeHtml(message.messageId)}">Acknowledge</button>` : ''}
+          </div>
+        </article>`;
+      }).join('')}
+    </div>
+    <form class="reply-composer" id="coord-reply-form">
+      <textarea id="coord-reply-body" placeholder="Reply as ${escapeHtml(selectedAgent)}" rows="2"></textarea>
+      <button type="submit" class="btn primary">Reply</button>
+    </form>`;
+}
+
+function bindConversationActions(root, messages) {
+  root.querySelector('[data-open-ticket]')?.addEventListener('click', (event) => openDrawer(event.currentTarget.dataset.openTicket));
+  root.querySelectorAll('[data-ack]').forEach((button) => button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      await api(`/api/agent/messages/${encodeURIComponent(button.dataset.ack)}/ack`, {
+        method: 'POST', body: { agent: state.coordinationAgent, __by: 'ui' },
+      });
+      await renderCoordination();
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message);
+    }
+  }));
+  root.querySelector('#coord-reply-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const body = root.querySelector('#coord-reply-body').value.trim();
+    if (!body || !messages.length) return;
+    const button = event.currentTarget.querySelector('button');
+    button.disabled = true;
+    try {
+      await api(`/api/agent/messages/${encodeURIComponent(messages.at(-1).messageId)}/replies`, {
+        method: 'POST', body: { fromAgent: state.coordinationAgent, body, kind: 'reply', __by: 'ui' },
+      });
+      await renderCoordination();
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message);
+    }
+  });
+}
+
+function openNewAgentMessageModal(agents) {
+  if (agents.length < 2) return;
+  const from = agents.find((agent) => agent.agentId === state.coordinationAgent)?.agentId || agents[0].agentId;
+  const modal = openModal(`
+    <h3>New agent message</h3>
+    <label>From
+      <select id="agent-message-from">${agents.map((agent) => `<option value="${escapeHtml(agent.agentId)}" ${agent.agentId === from ? 'selected' : ''}>${escapeHtml(agent.displayName || agent.agentId)}</option>`).join('')}</select>
+    </label>
+    <label>To
+      <select id="agent-message-to">${agents.filter((agent) => agent.agentId !== from).map((agent) => `<option value="${escapeHtml(agent.agentId)}">${escapeHtml(agent.displayName || agent.agentId)}</option>`).join('')}</select>
+    </label>
+    <label>Kind
+      <select id="agent-message-kind">
+        ${['question','task_request','review_request','evidence','result','challenge','handoff','blocked','status'].map((kind) => `<option value="${kind}">${kind.replaceAll('_', ' ')}</option>`).join('')}
+      </select>
+    </label>
+    <label>Ticket <input id="agent-message-ticket" placeholder="SCP-123 (optional)" value="${escapeHtml(state.coordinationTicket || '')}" /></label>
+    <label>Message <textarea id="agent-message-body" placeholder="What does the other agent need to know?"></textarea></label>
+    <div class="error" id="agent-message-error"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" id="agent-message-cancel">Cancel</button>
+      <button type="button" class="btn primary" id="agent-message-send">Send</button>
+    </div>`);
+  const fromSelect = modal.querySelector('#agent-message-from');
+  const toSelect = modal.querySelector('#agent-message-to');
+  fromSelect.addEventListener('change', () => {
+    toSelect.innerHTML = agents.filter((agent) => agent.agentId !== fromSelect.value)
+      .map((agent) => `<option value="${escapeHtml(agent.agentId)}">${escapeHtml(agent.displayName || agent.agentId)}</option>`).join('');
+  });
+  modal.querySelector('#agent-message-cancel').addEventListener('click', closeModal);
+  modal.querySelector('#agent-message-send').addEventListener('click', async () => {
+    const body = modal.querySelector('#agent-message-body').value.trim();
+    if (!body) return modal.querySelector('#agent-message-error').textContent = 'Message is required.';
+    const button = modal.querySelector('#agent-message-send');
+    button.disabled = true;
+    try {
+      const message = await api('/api/agent/messages', {
+        method: 'POST',
+        body: {
+          fromAgent: fromSelect.value,
+          toAgent: toSelect.value,
+          kind: modal.querySelector('#agent-message-kind').value,
+          ticketId: modal.querySelector('#agent-message-ticket').value.trim() || null,
+          body,
+          __by: 'ui',
+        },
+      });
+      state.coordinationAgent = fromSelect.value;
+      state.coordinationThread = message.threadId;
+      localStorage.setItem('scope.coordinationAgent', state.coordinationAgent);
+      closeModal();
+      await renderCoordination();
+    } catch (error) {
+      button.disabled = false;
+      modal.querySelector('#agent-message-error').textContent = error.message;
     }
   });
 }
@@ -4434,7 +4839,18 @@ function relativeTime(iso) {
   if (!iso) return '';
   const then = new Date(iso).getTime();
   if (!Number.isFinite(then)) return iso;
-  const diff = Math.max(0, Date.now() - then);
+  const rawDiff = Date.now() - then;
+  if (rawDiff < -1000) {
+    const future = Math.abs(rawDiff);
+    const seconds = Math.ceil(future / 1000);
+    if (seconds < 60) return `in ${seconds}s`;
+    const minutes = Math.ceil(seconds / 60);
+    if (minutes < 60) return `in ${minutes}m`;
+    const hours = Math.ceil(minutes / 60);
+    if (hours < 24) return `in ${hours}h`;
+    return `in ${Math.ceil(hours / 24)}d`;
+  }
+  const diff = Math.max(0, rawDiff);
   const s = Math.floor(diff / 1000);
   if (s < 5) return 'just now';
   if (s < 60) return `${s}s ago`;

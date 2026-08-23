@@ -80,6 +80,11 @@ the topbar lets you pick which board to look at. If the hub-owning process
 dies, a watchdog in any sibling `scope serve` instance promotes itself within
 ~30s — no manual intervention.
 
+The connected-agents button opens the visual coordination center: live agent
+presence, pending messages, durable ticket-linked conversations, delivery
+state, leases, attempts, and conflicts. Active execution also appears directly
+on board cards and in the ticket drawer.
+
 ### Claude Code preview pane
 
 For Claude Code's preview pane, use `scope preview --port <unique>` in

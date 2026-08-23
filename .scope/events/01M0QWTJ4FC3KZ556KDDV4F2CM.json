@@ -1,0 +1,33 @@
+{
+  "v": 2,
+  "id": "01M0QWTJ4FC3KZ556KDDV4F2CM",
+  "ts": "2026-08-23T18:06:17.743Z",
+  "actor": "sol",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M0QW30SJ3EEFV36V6BB2RAWV",
+    "leaseId": "01M0QWTJ4EVYB1C9N7BKZ7Z3PE",
+    "agent": "sol",
+    "capabilities": [],
+    "files": [
+      "README.md",
+      "CHANGELOG.md",
+      "docs/agent-messaging.md",
+      "skills/README.md",
+      "skills/claude/scope/SKILL.md",
+      "skills/codex/AGENTS.md",
+      "skills/cursor/scope.mdc",
+      "skills/scope.md",
+      "test/local-parity.test.js"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "2a5e66e3746032bb1d0a3aa1a7e9af951f5cb1a9",
+    "claimedAt": "2026-08-23T18:06:17.742Z",
+    "expiresAt": "2026-08-23T18:26:17.742Z"
+  },
+  "hlc": "1787508377743-000000",
+  "baseRevision": "sha256:35ce51355728eaf1624cd5267e45836743e1e40c265af145323f2c16f3f227ce",
+  "transactionId": "01M0QWTJ4G9T8YWVWVHP22B3NJ",
+  "transactionIndex": 0
+}

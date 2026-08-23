@@ -142,6 +142,10 @@ test('agent HTTP mailbox delivers pending messages, replies, acknowledgements, a
       },
     });
     assert.equal(sent.status, 201);
+    const overview = await apiFetch(t.baseUrl, '/api/agent/overview');
+    assert.equal(overview.status, 200);
+    assert.equal(overview.data.agents.find((agent) => agent.agentId === 'claude:opus').pendingMessages, 1);
+    assert.equal(overview.data.metrics.activeLeases, 0);
     const inbox = await apiFetch(t.baseUrl, `/api/agent/agents/${encodeURIComponent('claude:opus')}/inbox`);
     assert.equal(inbox.data[0].messageId, sent.data.messageId);
 
@@ -168,6 +172,12 @@ test('agent HTTP mailbox delivers pending messages, replies, acknowledgements, a
     const conversation = await apiFetch(t.baseUrl,
       `/api/agent/conversations/${sent.data.threadId}?agent=${encodeURIComponent('codex:sol')}`);
     assert.equal(conversation.data.length, 2);
+    const summaries = await apiFetch(t.baseUrl,
+      `/api/agent/agents/${encodeURIComponent('codex:sol')}/conversations`);
+    assert.equal(summaries.status, 200);
+    assert.equal(summaries.data[0].threadId, sent.data.threadId);
+    assert.equal(summaries.data[0].messageCount, 2);
+    assert.equal(summaries.data[0].pendingCount, 1);
 
     const ack = await apiFetch(t.baseUrl, `/api/agent/messages/${sent.data.messageId}/ack`, {
       method: 'POST', body: { agent: 'claude:opus' },

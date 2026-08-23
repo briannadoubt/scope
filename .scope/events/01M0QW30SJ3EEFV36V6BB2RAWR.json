@@ -1,0 +1,26 @@
+{
+  "v": 2,
+  "id": "01M0QW30SJ3EEFV36V6BB2RAWR",
+  "ts": "2026-08-23T17:53:26.322Z",
+  "actor": "sol",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0QW30SJ3EEFV36V6BB2RAWQ",
+    "number": 319,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Build the coordination center",
+    "description": "Add an Agents surface showing presence, inboxes, sent/acknowledged state, ticket links, and threaded conversations using the existing REST adapter.",
+    "status": "in_progress",
+    "priority": "high",
+    "parentId": "01M0QW30SHHKBKDFKHY02RKG58",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787507606322-000001",
+  "baseRevision": "sha256:d80b83f5f23a8f248bdf49a388fc11028b98146403b427cd935dd6b9b23a8b5f",
+  "transactionId": "01M0QW30SJ3EEFV36V6BB2RAWX",
+  "transactionIndex": 1
+}

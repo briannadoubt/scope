@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M0QWTJ4G9T8YWVWVHP22B3NH",
+  "ts": "2026-08-23T18:06:17.744Z",
+  "actor": "sol",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M0QW30SJ3EEFV36V6BB2RAWV",
+    "field": "status",
+    "value": "in_progress"
+  },
+  "hlc": "1787508377744-000000",
+  "baseRevision": "sha256:35ce51355728eaf1624cd5267e45836743e1e40c265af145323f2c16f3f227ce",
+  "transactionId": "01M0QWTJ4G9T8YWVWVHP22B3NJ",
+  "transactionIndex": 2
+}

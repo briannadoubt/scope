@@ -1,0 +1,26 @@
+{
+  "v": 2,
+  "id": "01M0QW30SJ3EEFV36V6BB2RAWT",
+  "ts": "2026-08-23T17:53:26.322Z",
+  "actor": "sol",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0QW30SJ3EEFV36V6BB2RAWS",
+    "number": 320,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Show execution state on tickets",
+    "description": "Surface active claims, lease state, attempts, verification, handoffs, and conflicts in cards and the ticket drawer without overwhelming the main workflow.",
+    "status": "todo",
+    "priority": "high",
+    "parentId": "01M0QW30SHHKBKDFKHY02RKG58",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787507606322-000002",
+  "baseRevision": "sha256:d80b83f5f23a8f248bdf49a388fc11028b98146403b427cd935dd6b9b23a8b5f",
+  "transactionId": "01M0QW30SJ3EEFV36V6BB2RAWX",
+  "transactionIndex": 2
+}

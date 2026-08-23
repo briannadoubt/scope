@@ -1,0 +1,30 @@
+{
+  "v": 2,
+  "id": "01M0QWHHBMCTHTZNZRK9EH1KST",
+  "ts": "2026-08-23T18:01:22.036Z",
+  "actor": "sol",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0QW38CGKCZ60CA909418Y2N",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-23T18:01:22.036Z",
+    "summary": "Added the web coordination center with agent presence, pending counts, conversation summaries, threaded messages, new-message/reply flows, acknowledgements, and ticket filters.",
+    "failure": null,
+    "evidence": [],
+    "verification": [
+      {
+        "command": "node --check src/web/app.js",
+        "ok": true
+      },
+      {
+        "command": "node --test --import=./test/setup.js test/agent-mailbox.test.js test/server.test.js",
+        "ok": true,
+        "passed": 18
+      }
+    ]
+  },
+  "hlc": "1787508082036-000000",
+  "baseRevision": "sha256:9f15324d93e1ca8678a3256af328db59e3e36c50af8c2f1b6b44bbbe51962d3e",
+  "transactionId": "01M0QWHHBMCTHTZNZRK9EH1KSX",
+  "transactionIndex": 0
+}

@@ -193,6 +193,13 @@ Host adapters consume `scope message listen <agent>` or the addressed SSE
 stream. Delivery is at least once until acknowledgement; deduplicate by message
 id. Use native host messaging for siblings already running in the same harness.
 
+Humans can inspect and operate the same coordination state from the
+connected-agents button in the `scope serve` web UI. It shows presence, pending
+delivery, ticket-linked conversations, acknowledgements/replies, leases,
+attempts, and conflicts. Ticket cards and drawers show the active agent and
+execution details. Keep messages free of credentials because bodies are durable
+workspace data.
+
 ### Native subagents
 
 Leave spawning, prompting, model-session wakeup, waiting, cancellation,

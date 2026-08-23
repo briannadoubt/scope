@@ -1,0 +1,26 @@
+{
+  "v": 2,
+  "id": "01M0QWHHJXSB03R3B93N0S0JBJ",
+  "ts": "2026-08-23T18:01:22.269Z",
+  "actor": "sol",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M0QW30SJ3EEFV36V6BB2RAWS",
+    "leaseId": "01M0QWHHJWSGWS09X1CY0XMNKB",
+    "agent": "sol",
+    "capabilities": [],
+    "files": [
+      "src/web/app.js",
+      "src/web/style.css"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "2a5e66e",
+    "claimedAt": "2026-08-23T18:01:22.268Z",
+    "expiresAt": "2026-08-23T20:01:22.268Z"
+  },
+  "hlc": "1787508082269-000000",
+  "baseRevision": "sha256:7e1d94adf7fb898877c472420cbdc0a43c38ba4f571e5ba5abc46fafaae16361",
+  "transactionId": "01M0QWHHJXSB03R3B93N0S0JBN",
+  "transactionIndex": 0
+}
