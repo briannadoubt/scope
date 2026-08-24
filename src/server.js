@@ -19,7 +19,11 @@ import { readAllEvents, appendEvent, eventsDirForDb } from './event-store.js';
 import { replayInto } from './replay.js';
 import { setMeta } from './db.js';
 import { EVENT_FORMAT_VERSION, validateEvent } from './event-schema.js';
-import { startDogfoodSpan } from './dogfood-telemetry.js';
+import {
+  DOGFOOD_INTERNAL_PROBE_HEADER,
+  DOGFOOD_INTERNAL_PROBE_VALUE,
+  startDogfoodSpan,
+} from './dogfood-telemetry.js';
 import {
   getWorkspace,
   setWorkspace,
@@ -237,10 +241,15 @@ export async function startServer({
 
   app.use(express.json({ limit: '5mb' }));
 
-  // Temporary local dogfood instrumentation. It is inert unless
-  // SCOPE_DOGFOOD_LOG is set and records only route templates/outcomes — never
-  // request paths with ids, query values, bodies, headers, or response data.
+  // Temporary local dogfood instrumentation. Dogfood builds enable it by
+  // default and record only route templates/outcomes — never request paths
+  // with ids, query values, bodies, headers, or response data. Internal hub
+  // watchdog probes are omitted so they cannot dominate the usage sample.
   app.use((req, res, next) => {
+    if (req.get(DOGFOOD_INTERNAL_PROBE_HEADER) === DOGFOOD_INTERNAL_PROBE_VALUE) {
+      next();
+      return;
+    }
     const span = startDogfoodSpan({
       surface: 'http',
       operation: 'HTTP pending',

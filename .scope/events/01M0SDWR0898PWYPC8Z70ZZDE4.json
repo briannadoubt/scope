@@ -1,0 +1,25 @@
+{
+  "v": 2,
+  "id": "01M0SDWR0898PWYPC8Z70ZZDE4",
+  "ts": "2026-08-24T08:23:49.512Z",
+  "actor": "codex:dogfood-monitor",
+  "kind": "agent.lease.renew",
+  "payload": {
+    "leaseId": "01M0SDT803331EM8G5Y59GDZZ0",
+    "heartbeatAt": "2026-08-24T08:23:49.511Z",
+    "expiresAt": "2026-08-24T08:43:49.511Z",
+    "files": [
+      "CHANGELOG.md",
+      "docs/dogfood-telemetry.md",
+      "src/dogfood-telemetry.js",
+      "src/hub.js",
+      "src/server.js",
+      "test/dogfood-telemetry.test.js"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "5267151c4bbef340952ed30c1572e456ccf36ea4"
+  },
+  "hlc": "1787559829512-000000",
+  "baseRevision": "sha256:41e55254d2cb27b9f23ee8c85fffe62c735ad4e79c313fb57501c23a8e542a17"
+}

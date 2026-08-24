@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M0SDT815KF1CD9VE1NKFVTKT",
+  "ts": "2026-08-24T08:22:27.621Z",
+  "actor": "codex:dogfood-monitor",
+  "kind": "transaction.commit",
+  "payload": {
+    "transactionId": "01M0SDT80BDH3HEQKCMRWYVYGG",
+    "eventIds": [
+      "01M0SDT80AYPA3X5B7TWC75FVF",
+      "01M0SDT80AYPA3X5B7TWC75FVG",
+      "01M0SDT80BDH3HEQKCMRWYVYGF"
+    ]
+  },
+  "hlc": "1787559747621-000000"
+}

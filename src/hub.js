@@ -22,6 +22,10 @@ import { homedir } from 'node:os';
  */
 
 import https from 'node:https';
+import {
+  DOGFOOD_INTERNAL_PROBE_HEADER,
+  DOGFOOD_INTERNAL_PROBE_VALUE,
+} from './dogfood-telemetry.js';
 
 const HUB_DIR = join(homedir(), '.scope-hub');
 const HUB_FILE = join(HUB_DIR, 'hub.json');
@@ -37,14 +41,24 @@ async function probeOne(url, timeoutMs) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const opts = { signal: ac.signal };
+    // Hub discovery/watchdog traffic is operational noise rather than dogfood
+    // usage. Mark it so the temporary telemetry middleware can omit it while
+    // still recording ordinary browser and CLI requests to /api/meta.
+    const headers = {
+      [DOGFOOD_INTERNAL_PROBE_HEADER]: DOGFOOD_INTERNAL_PROBE_VALUE,
+    };
+    const opts = { signal: ac.signal, headers };
     if (url.startsWith('https://')) opts.dispatcher = undefined; // node's undici
     // node:fetch picks up custom https agents via the `agent` option in
     // node-fetch, but the global fetch uses undici. We need a different
     // approach for HTTPS — fall back to https.get for self-signed probes.
     if (url.startsWith('https://')) {
       return await new Promise((resolve) => {
-        const req = https.get(url, { agent: loopbackInsecureAgent, signal: ac.signal }, (res) => {
+        const req = https.get(url, {
+          agent: loopbackInsecureAgent,
+          signal: ac.signal,
+          headers,
+        }, (res) => {
           let data = '';
           res.setEncoding('utf8');
           res.on('data', (c) => { data += c; });

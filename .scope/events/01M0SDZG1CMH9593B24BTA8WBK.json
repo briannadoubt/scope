@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M0SDZG1CMH9593B24BTA8WBK",
+  "ts": "2026-08-24T08:25:19.660Z",
+  "actor": "codex:dogfood-monitor",
+  "kind": "agent.discovery.add",
+  "payload": {
+    "discoveryId": "01M0SDZG1878SD6E13T3STMWVQ",
+    "ticketId": "01M0SDT3RHTQ8JH81JE5SQCEP1",
+    "discoveryType": "fact",
+    "body": "New hub probes are excluded immediately; one already-running sibling serve process will keep emitting legacy unmarked probes until that active process restarts, so it was left undisturbed.",
+    "data": {},
+    "author": "codex:dogfood-monitor",
+    "createdAt": "2026-08-24T08:25:19.656Z"
+  },
+  "hlc": "1787559919660-000000",
+  "baseRevision": "sha256:592afa5e2610c9543e89ade1341bb0e89ae60a42a75305e0da5385fbf5ff0fdb"
+}

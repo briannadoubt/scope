@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M0SDT80BDH3HEQKCMRWYVYGF",
+  "ts": "2026-08-24T08:22:27.595Z",
+  "actor": "codex:dogfood-monitor",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M0SDT3RHTQ8JH81JE5SQCEP1",
+    "field": "status",
+    "value": "in_progress"
+  },
+  "hlc": "1787559747595-000000",
+  "baseRevision": "sha256:ed89420ad7fe06eaa7b3d469c4583d88db9953dea6230355c48581db50dd4aca",
+  "transactionId": "01M0SDT80BDH3HEQKCMRWYVYGG",
+  "transactionIndex": 2
+}

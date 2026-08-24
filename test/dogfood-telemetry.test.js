@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,7 @@ import {
   recordDogfoodTelemetry,
   startDogfoodSpan,
 } from '../src/dogfood-telemetry.js';
+import { probeHub } from '../src/hub.js';
 import { apiFetch, startTestServer } from './helpers.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -156,7 +157,7 @@ test('CLI dogfood records command paths and outcomes without arguments or conten
   }
 });
 
-test('hub dogfood records route templates without ids, queries, or bodies', async () => {
+test('hub dogfood omits internal probes and records safe route templates', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'scope-dogfood-http-'));
   const log = join(dir, 'usage.ndjson');
   const previous = process.env.SCOPE_DOGFOOD_LOG;
@@ -164,12 +165,24 @@ test('hub dogfood records route templates without ids, queries, or bodies', asyn
   let server;
   try {
     server = await startTestServer();
+    const port = Number(new URL(server.baseUrl).port);
+    const probed = await probeHub(port);
+    assert.ok(probed?.hub, 'the watchdog-style probe reaches the hub');
+    assert.equal(existsSync(log), false, 'internal hub probes do not create telemetry noise');
+
+    const meta = await apiFetch(server.baseUrl, '/api/meta');
+    assert.equal(meta.status, 200);
     const secretId = 'SENSITIVE-CUSTOMER-ID';
     const response = await apiFetch(server.baseUrl, `/api/tickets/${secretId}?token=SECRET-TOKEN`);
     assert.equal(response.status, 404);
     const raw = readFileSync(log, 'utf8');
     assert.doesNotMatch(raw, /SENSITIVE|SECRET-TOKEN/);
-    const record = raw.trim().split('\n').map(JSON.parse).at(-1);
+    const records = raw.trim().split('\n').map(JSON.parse);
+    assert.deepEqual(records.map((record) => record.operation), [
+      'GET /api/meta',
+      'GET /api/tickets/:id',
+    ]);
+    const record = records.at(-1);
     assert.equal(record.surface, 'http');
     assert.equal(record.operation, 'GET /api/tickets/:id');
     assert.equal(record.outcome, 'error');

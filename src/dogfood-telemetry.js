@@ -5,6 +5,8 @@ import { dirname, join, resolve } from 'node:path';
 
 export const DOGFOOD_LOG_ENV = 'SCOPE_DOGFOOD_LOG';
 export const DOGFOOD_SCHEMA_VERSION = 1;
+export const DOGFOOD_INTERNAL_PROBE_HEADER = 'x-scope-internal-probe';
+export const DOGFOOD_INTERNAL_PROBE_VALUE = 'hub-watchdog';
 
 const SAFE_OPERATION = /^[A-Za-z0-9_ ./:-]{1,200}$/;
 const SAFE_ERROR_CODE = /^[A-Z0-9_]{1,80}$/;

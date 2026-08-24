@@ -1,0 +1,33 @@
+{
+  "v": 2,
+  "id": "01M0SDZG6JEMRRCXPVAERFVJMH",
+  "ts": "2026-08-24T08:25:19.826Z",
+  "actor": "codex:dogfood-monitor",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M0SDT803331EM8G5Y59GDZZ1",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-24T08:25:19.826Z",
+    "summary": null,
+    "failure": null,
+    "evidence": [],
+    "verification": [
+      {
+        "command": "node --test --import=./test/setup.js test/dogfood-telemetry.test.js test/server.test.js test/tls.test.js",
+        "ok": true
+      },
+      {
+        "command": "20 live probeHub calls added zero telemetry records",
+        "ok": true
+      },
+      {
+        "command": "git diff --check",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787559919826-000000",
+  "baseRevision": "sha256:d39c56a5979b042151b0912c167b8e2d4b586428f9b96be65378dd31633357a2",
+  "transactionId": "01M0SDZG6KGX6R5ZZF2M1Q2SC1",
+  "transactionIndex": 0
+}

@@ -28,6 +28,10 @@ credentials, response data, or raw filesystem paths. The directory and file
 are created with user-only permissions. Logging errors are swallowed so
 telemetry cannot break a Scope operation.
 
+Internal hub discovery and sibling-watchdog probes are excluded from the log.
+They run every ten seconds while a secondary `scope serve` process is attached
+and would otherwise overwhelm the real agent, CLI, and browser usage sample.
+
 Summarize command frequency, failures, average latency, and p95 latency:
 
 ```bash

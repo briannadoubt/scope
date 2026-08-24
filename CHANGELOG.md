@@ -40,6 +40,9 @@
 
 ### Changed
 
+- Temporary dogfood telemetry excludes internal hub discovery and watchdog
+  probes, preventing ten-second liveness traffic from dominating usage and
+  latency reports while preserving ordinary `/api/meta` observations.
 - Event format 2 now declares the minimum reader boundary for transaction and
   agent events. Current Scope keeps read compatibility with immutable format-1
   history, advertises read/write versions through `capabilities`, and reports

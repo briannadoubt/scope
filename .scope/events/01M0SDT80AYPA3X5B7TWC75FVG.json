@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M0SDT80AYPA3X5B7TWC75FVG",
+  "ts": "2026-08-24T08:22:27.594Z",
+  "actor": "codex:dogfood-monitor",
+  "kind": "agent.attempt.start",
+  "payload": {
+    "attemptId": "01M0SDT803331EM8G5Y59GDZZ1",
+    "ticketId": "01M0SDT3RHTQ8JH81JE5SQCEP1",
+    "leaseId": "01M0SDT803331EM8G5Y59GDZZ0",
+    "agent": "codex:dogfood-monitor",
+    "startedAt": "2026-08-24T08:22:27.587Z"
+  },
+  "hlc": "1787559747594-000001",
+  "baseRevision": "sha256:ed89420ad7fe06eaa7b3d469c4583d88db9953dea6230355c48581db50dd4aca",
+  "transactionId": "01M0SDT80BDH3HEQKCMRWYVYGG",
+  "transactionIndex": 1
+}

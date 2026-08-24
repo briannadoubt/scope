@@ -1,0 +1,27 @@
+{
+  "v": 2,
+  "id": "01M0SDT80AYPA3X5B7TWC75FVF",
+  "ts": "2026-08-24T08:22:27.594Z",
+  "actor": "codex:dogfood-monitor",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M0SDT3RHTQ8JH81JE5SQCEP1",
+    "leaseId": "01M0SDT803331EM8G5Y59GDZZ0",
+    "agent": "codex:dogfood-monitor",
+    "capabilities": [],
+    "files": [
+      "src/hub.js",
+      "src/server.js",
+      "test/dogfood-telemetry.test.js"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "5267151c4bbef340952ed30c1572e456ccf36ea4",
+    "claimedAt": "2026-08-24T08:22:27.587Z",
+    "expiresAt": "2026-08-24T08:42:27.587Z"
+  },
+  "hlc": "1787559747594-000000",
+  "baseRevision": "sha256:ed89420ad7fe06eaa7b3d469c4583d88db9953dea6230355c48581db50dd4aca",
+  "transactionId": "01M0SDT80BDH3HEQKCMRWYVYGG",
+  "transactionIndex": 0
+}

@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M0SDT3RJAFJ9HN3XJ01C5SF3",
+  "ts": "2026-08-24T08:22:23.250Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M0SDT3RHTQ8JH81JE5SQCEP1",
+    "number": 322,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Exclude watchdog probes from dogfood telemetry",
+    "description": "Internal sibling-hub watchdog probes hit /api/meta every 10 seconds and dominate the temporary usage log, obscuring real agent and UI behavior. Mark those probes internally and skip only those requests in dogfood instrumentation.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787559743250-000000",
+  "baseRevision": "sha256:75933d15f93e7b6fb512105ce2bf25461354a12cc51d718b705eae000e65a580"
+}
