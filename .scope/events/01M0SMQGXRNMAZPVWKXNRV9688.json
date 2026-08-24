@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M0SMQGXRNMAZPVWKXNRV9688",
+  "ts": "2026-08-24T10:23:18.456Z",
+  "actor": "codex:dogfood-monitor",
+  "kind": "agent.discovery.add",
+  "payload": {
+    "discoveryId": "01M0SMQGXRNMAZPVWKXNRV9687",
+    "ticketId": "01M0SDT3RHTQ8JH81JE5SQCEP1",
+    "discoveryType": "fact",
+    "body": "The server now recognizes legacy unmarked loopback Node watchdog probes; after restart, the still-running older sibling produced zero /api/meta telemetry records across two probe intervals without being disrupted.",
+    "data": {},
+    "author": "codex:dogfood-monitor",
+    "createdAt": "2026-08-24T10:23:18.456Z"
+  },
+  "hlc": "1787566998456-000000",
+  "baseRevision": "sha256:87e009b6c44e049e5d63154f6e384a249a6379ea70149412b4051dfe68b73d89"
+}

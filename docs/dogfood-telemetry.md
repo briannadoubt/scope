@@ -31,6 +31,9 @@ telemetry cannot break a Scope operation.
 Internal hub discovery and sibling-watchdog probes are excluded from the log.
 They run every ten seconds while a secondary `scope serve` process is attached
 and would otherwise overwhelm the real agent, CLI, and browser usage sample.
+The dogfood server also recognizes the loopback request shape emitted by an
+already-running pre-fix watchdog, so active sessions do not need to be stopped
+to clean up the sample.
 
 Summarize command frequency, failures, average latency, and p95 latency:
 

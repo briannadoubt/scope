@@ -246,7 +246,20 @@ export async function startServer({
   // with ids, query values, bodies, headers, or response data. Internal hub
   // watchdog probes are omitted so they cannot dominate the usage sample.
   app.use((req, res, next) => {
-    if (req.get(DOGFOOD_INTERNAL_PROBE_HEADER) === DOGFOOD_INTERNAL_PROBE_VALUE) {
+    const ip = req.socket?.remoteAddress || '';
+    const loopback = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    // Compatibility for a sibling scope serve process that was already alive
+    // before the explicit marker shipped. Node's built-in fetch supplies this
+    // stable header shape; ordinary browser requests keep being measured.
+    const legacyUnmarkedProbe = req.method === 'GET'
+      && req.path === '/api/meta'
+      && loopback
+      && req.get('user-agent') === 'node'
+      && req.get('accept') === '*/*'
+      && req.get('accept-language') === '*'
+      && req.get('sec-fetch-mode') === 'cors';
+    if (legacyUnmarkedProbe
+      || req.get(DOGFOOD_INTERNAL_PROBE_HEADER) === DOGFOOD_INTERNAL_PROBE_VALUE) {
       next();
       return;
     }

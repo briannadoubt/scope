@@ -170,7 +170,13 @@ test('hub dogfood omits internal probes and records safe route templates', async
     assert.ok(probed?.hub, 'the watchdog-style probe reaches the hub');
     assert.equal(existsSync(log), false, 'internal hub probes do not create telemetry noise');
 
-    const meta = await apiFetch(server.baseUrl, '/api/meta');
+    const legacyProbe = await fetch(`${server.baseUrl}/api/meta`);
+    assert.equal(legacyProbe.status, 200);
+    assert.equal(existsSync(log), false, 'an already-running unmarked Node probe is also omitted');
+
+    const meta = await apiFetch(server.baseUrl, '/api/meta', {
+      headers: { 'User-Agent': 'scope-dogfood-test' },
+    });
     assert.equal(meta.status, 200);
     const secretId = 'SENSITIVE-CUSTOMER-ID';
     const response = await apiFetch(server.baseUrl, `/api/tickets/${secretId}?token=SECRET-TOKEN`);

@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M0SMQH34S2YTX7T1184S9BG1",
+  "ts": "2026-08-24T10:23:18.628Z",
+  "actor": "codex:dogfood-monitor",
+  "kind": "agent.lease.release",
+  "payload": {
+    "leaseId": "01M0SMNAJ7EBMEBNVNKS5S61Y7",
+    "releasedAt": "2026-08-24T10:23:18.628Z",
+    "reason": "succeeded"
+  },
+  "hlc": "1787566998628-000001",
+  "baseRevision": "sha256:e324241d36cd7773e6d43f5cb91ed013d457ca03c9d4edac5e5a7fce4ab52089",
+  "transactionId": "01M0SMQH35610P1S42REGZMKE9",
+  "transactionIndex": 1
+}
