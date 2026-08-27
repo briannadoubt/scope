@@ -1,0 +1,27 @@
+{
+  "v": 2,
+  "id": "01M118TEBT103YD71N6VYJCXKM",
+  "ts": "2026-08-27T09:29:06.682Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M1182WE1X48EXR8JTQH7WE90",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-27T09:29:06.682Z",
+    "summary": "Added private local session binding and safe provider adapter contract.",
+    "failure": null,
+    "evidence": [
+      "test/session-bridge.test.js validates private file modes, safe session references, and body-free wakeups"
+    ],
+    "verification": [
+      {
+        "command": "node --test --import=./test/setup.js test/session-bridge.test.js",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787822946682-000000",
+  "baseRevision": "sha256:56b9f396def1cb0f4a3de5ac907937346ef941088d3bec13316fe032ca993441",
+  "transactionId": "01M118TEBV9D5XT76HEV9DSQ58",
+  "transactionIndex": 0
+}

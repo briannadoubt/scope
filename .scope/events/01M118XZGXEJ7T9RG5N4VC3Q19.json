@@ -1,0 +1,17 @@
+{
+  "v": 2,
+  "id": "01M118XZGXEJ7T9RG5N4VC3Q19",
+  "ts": "2026-08-27T09:31:02.557Z",
+  "actor": "dogfood:test-codex",
+  "kind": "agent.heartbeat",
+  "payload": {
+    "agentId": "dogfood:test-codex",
+    "status": "offline",
+    "capabilities": [],
+    "metadata": {},
+    "seenAt": "2026-08-27T09:31:02.541Z",
+    "expiresAt": "2026-08-27T09:31:03.541Z"
+  },
+  "hlc": "1787823062557-000000",
+  "baseRevision": "sha256:ee0ce38c294977fbeed642fae7c5df482f9ba75e26c9b87809dfc2950dba644b"
+}

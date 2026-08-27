@@ -1,0 +1,23 @@
+{
+  "v": 2,
+  "id": "01M118WGGVKYP06BE78ABJTYCW",
+  "ts": "2026-08-27T09:30:14.427Z",
+  "actor": "dogfood:test-codex",
+  "kind": "agent.message.send",
+  "payload": {
+    "messageId": "01M118WGGCX2ETFQ5DRJ04T1H2",
+    "ticketId": null,
+    "fromAgent": "dogfood:test-codex",
+    "toAgent": "dogfood:opus",
+    "kind": "reply",
+    "body": "CODEX_BRIDGE_OK",
+    "artifactRefs": [],
+    "threadId": "01M118VWAZM5P2K28HA2VDZBF7",
+    "replyTo": "01M118VWAZM5P2K28HA2VDZBF7",
+    "correlationId": null,
+    "createdAt": "2026-08-27T09:30:14.412Z",
+    "expiresAt": null
+  },
+  "hlc": "1787823014427-000000",
+  "baseRevision": "sha256:1acfb0b4fadee368d0274f57fc1d1d97020eeebd84589118408b6e25c2874bc0"
+}

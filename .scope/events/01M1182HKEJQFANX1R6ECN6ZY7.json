@@ -1,0 +1,26 @@
+{
+  "v": 2,
+  "id": "01M1182HKEJQFANX1R6ECN6ZY7",
+  "ts": "2026-08-27T09:16:03.566Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M1182HKEJQFANX1R6ECN6ZY6",
+    "number": 324,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Deliver Scope messages into live agent sessions",
+    "description": "Add a machine-local provider bridge that maps Scope agents to real Codex or Claude sessions, injects pending message notifications into those sessions, retries safely, and exposes truthful connection state without syncing provider session identifiers.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787822163566-000000",
+  "baseRevision": "sha256:439f8be8b809b7620590eb8ad7ea6332f3bc18e3c3e48c19c8333c1462c1f397",
+  "transactionId": "01M1182HKF88VWES2118R8HD2W",
+  "transactionIndex": 0
+}

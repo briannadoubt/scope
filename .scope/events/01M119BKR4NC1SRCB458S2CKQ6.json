@@ -1,0 +1,28 @@
+{
+  "v": 2,
+  "id": "01M119BKR4NC1SRCB458S2CKQ6",
+  "ts": "2026-08-27T09:38:29.252Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M11998GG0SMKGDYBT2717PKE",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-27T09:38:29.252Z",
+    "summary": "Hardened lifecycle with an exclusive machine-local runner lock and automatic passive takeover.",
+    "failure": null,
+    "evidence": [
+      "Lock regression proves one owner and clean replacement after shutdown",
+      "Passive hub runner retries ownership if a standalone owner disappears"
+    ],
+    "verification": [
+      {
+        "command": "node --test --import=./test/setup.js test/session-bridge.test.js",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787823509252-000000",
+  "baseRevision": "sha256:b7dd550534c9319f022e9654091efb4be718170f783dabbe4290af932993b445",
+  "transactionId": "01M119BKR56657FGGJBMJETCE7",
+  "transactionIndex": 0
+}

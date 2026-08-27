@@ -17,7 +17,9 @@ only when available for optional host conveniences.
 The local `scope serve` web UI also includes a first-party Agent coordination
 center, opened from the connected-agents button in the topbar. It renders agent
 presence, pending delivery, durable ticket-linked conversations,
-acknowledgements and replies, active leases, attempt metrics, and conflicts.
+acknowledgements and replies, truthful session-connected/mailbox-only state,
+active leases, attempt metrics, and conflicts. The message composer warns when
+a durable recipient cannot currently be woken by the local session bridge.
 Board cards identify the active execution phase and agent; ticket drawers show
 lease expiry, verification, evidence, observed repository intent, handoffs, and
 conflicts and can jump into a ticket-filtered conversation view.

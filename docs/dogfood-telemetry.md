@@ -42,6 +42,11 @@ npm run dogfood:report -- "$HOME/.scope/dogfood/usage.ndjson"
 npm run dogfood:report -- "$HOME/.scope/dogfood/usage.ndjson" --json
 ```
 
+When the local session bridge has run, the report also summarizes its private
+state as aggregate delivery counts, acknowledgement/retry rates, safe error
+codes, and average/p95 provider latency. It never prints agent ids, message ids
+or bodies, session ids, provider output, credentials, or workspace paths.
+
 For a live view, use `tail -f "$HOME/.scope/dogfood/usage.ndjson"`. To pause
 collection without deleting accumulated data, run `scope dogfood disable`.
 Run `scope dogfood enable` to resume. At the end of the calibration period,

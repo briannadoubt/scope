@@ -1,0 +1,14 @@
+{
+  "v": 2,
+  "id": "01M119986SK5SE1FFFKTFTWA2Y",
+  "ts": "2026-08-27T09:37:11.897Z",
+  "actor": "codex:session-bridge",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M1182HKEJQFANX1R6ECN6ZYC",
+    "field": "status",
+    "value": "in_progress"
+  },
+  "hlc": "1787823431897-000000",
+  "baseRevision": "sha256:0bdff813745a6461e4bfeee44f6dbd6015d606c302f50a065f35e130110ca33b"
+}

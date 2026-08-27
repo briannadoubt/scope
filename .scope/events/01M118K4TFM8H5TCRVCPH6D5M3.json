@@ -1,0 +1,37 @@
+{
+  "v": 2,
+  "id": "01M118K4TFM8H5TCRVCPH6D5M3",
+  "ts": "2026-08-27T09:25:07.535Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.lease.renew",
+  "payload": {
+    "leaseId": "01M1182WE1X48EXR8JTQH7WE8Z",
+    "heartbeatAt": "2026-08-27T09:25:07.531Z",
+    "expiresAt": "2026-08-27T09:55:07.531Z",
+    "files": [
+      ".scope/events/01M1182HKEJQFANX1R6ECN6ZY7.json",
+      ".scope/events/01M1182HKEJQFANX1R6ECN6ZY9.json",
+      ".scope/events/01M1182HKEJQFANX1R6ECN6ZYB.json",
+      ".scope/events/01M1182HKEJQFANX1R6ECN6ZYD.json",
+      ".scope/events/01M1182HKF88VWES2118R8HD2Q.json",
+      ".scope/events/01M1182HKF88VWES2118R8HD2S.json",
+      ".scope/events/01M1182HKF88VWES2118R8HD2T.json",
+      ".scope/events/01M1182HKF88VWES2118R8HD2V.json",
+      ".scope/events/01M1182HNGESW4DXGPS32JV8GQ.json",
+      ".scope/events/01M1182WE27VWREMQ5ZFR1CPVG.json",
+      ".scope/events/01M1182WE27VWREMQ5ZFR1CPVH.json",
+      ".scope/events/01M1182WEKK6PDD4QGA6MSDJT0.json",
+      "src/cli.js",
+      "src/server.js",
+      "src/session-bridge.js",
+      "src/web/app.js",
+      "src/web/style.css",
+      "test/session-bridge.test.js"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "2094e9dfbc11b13efedfcf24da964b23a5a8cdeb"
+  },
+  "hlc": "1787822707535-000000",
+  "baseRevision": "sha256:2706efc1745a8adf88e57a852e0b595053e0efc3b1e2461ad51a5ff45b20edf1"
+}

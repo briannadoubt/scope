@@ -1,29 +1,64 @@
-# Agent messaging and wakeup adapters
+# Agent messaging and live session delivery
 
-Scope provides a durable, addressed mailbox for direct collaboration between
-agent runtimes. Scope stores identity, heartbeat presence, messages, threads,
-expiry, and acknowledgements. A host adapter remains responsible for starting
-or resuming Codex, Claude, or another model runtime.
+Scope provides a durable, addressed mailbox plus a machine-local session bridge
+for direct collaboration between running Codex and Claude sessions. Scope stores
+identity, heartbeat presence, messages, threads, expiry, and acknowledgements in
+the workspace. The bridge stores provider session bindings privately on the
+machine and resumes the addressed runtime when a message arrives.
 
-This boundary keeps provider credentials, process control, sandboxes, and model
-session APIs out of Scope while giving every host the same delivery semantics.
+This boundary keeps provider credentials and session identifiers out of synced
+Scope events while giving every host the same delivery semantics. Other model
+runtimes can continue to use the provider-neutral listener or SSE contract.
 
 ## Delivery contract
 
-1. The host registers its agent and renews presence before the heartbeat TTL.
-2. The host subscribes to an addressed wakeup stream.
+1. The runtime registers its agent and renews presence before the heartbeat TTL.
+2. Registration automatically binds the current Codex or Claude session when
+   its session id is available in the runtime environment.
 3. Scope emits every pending message addressed to that agent.
-4. The host resumes the runtime with the message id, workspace, and ticket id.
+4. The local bridge resumes the runtime with the message id and workspace.
 5. The runtime reads the message through CLI, REST, MCP, or the Node facade.
-6. The recipient acknowledges only after the host has durably accepted the
-   message for processing.
+6. The bridge checkpoints provider acceptance, then acknowledges the message.
 7. A result or question is sent as a reply in the same thread.
 
 Delivery is **at least once**. Pending messages are replayed after listener or
 SSE reconnection until acknowledged. Consumers must deduplicate by `messageId`.
-Acknowledgement is idempotent and may safely be retried.
+Acknowledgement is idempotent and may safely be retried. The bridge persists an
+`accepted` checkpoint before acknowledgement, so a bridge restart normally
+finishes the acknowledgement without injecting the wakeup a second time. The
+provider boundary remains at least once if a provider accepts a turn but exits
+before reporting success.
 
-## CLI adapter
+## Built-in Codex and Claude bridge
+
+`scope serve` runs one session bridge in the process that owns the local hub.
+Every other `scope serve` process attaches to that hub and does not start a
+second bridge. A watchdog-promoted hub starts the bridge when it takes ownership.
+
+Registration binds the current session by default:
+
+```bash
+scope --json agent register codex:sol --provider openai --ttl 2m
+scope --json agent register claude:opus --provider anthropic --ttl 2m
+```
+
+For an isolated session or an environment that does not expose its session id,
+bind explicitly on that machine:
+
+```bash
+scope --json bridge bind codex:sol --provider codex --session SESSION_UUID
+scope --json bridge bind claude:opus --provider claude --session SESSION_UUID
+scope --json bridge list
+scope --json bridge status
+```
+
+Bindings live in `~/.scope/bridge.json` with mode `0600`; retry/checkpoint state
+lives in `~/.scope/bridge-state.json` with the same permissions. These files are
+machine-local. CLI and UI projections expose only a one-way session reference,
+provider, connection health, timestamps, and safe error codes—not session ids,
+message bodies, provider output, credentials, or raw telemetry paths.
+
+## Provider-neutral CLI adapter
 
 ```bash
 scope --json agent register codex:sol \
@@ -36,7 +71,8 @@ scope message listen codex:sol
 ```
 
 The listener emits the current pending inbox on startup, then follows the
-workspace event log. Restarting it replays unacknowledged messages.
+workspace event log. Restarting it replays unacknowledged messages. Use it for
+providers without a built-in bridge or for a custom host supervisor.
 
 ## HTTP/SSE adapter
 
@@ -87,7 +123,12 @@ Agent coordination center. The browser view exposes:
 - ticket filters and links between a thread and its work item;
 - message kind, expiry/delivery state, acknowledgements, replies, and new
   messages; and
-- workspace-wide active lease, attempt, and unresolved conflict metrics.
+- workspace-wide connected-session, active lease, attempt, and unresolved
+  conflict metrics.
+
+Each agent is labeled `session connected`, `session bridge offline`, or
+`mailbox only`. The new-message dialog warns when a recipient has no connected
+session: the message remains durable but cannot wake a model until it is bound.
 
 Ticket cards also identify the active execution phase and agent. The ticket
 drawer expands that state with lease expiry, attempt and verification status,
@@ -104,8 +145,8 @@ Adapters should resume a runtime with a bounded prompt such as:
 
 ```text
 Scope message <messageId> is pending for <agentId> in <workspace>.
-Read it from Scope, inspect the linked ticket context, process it once,
-reply in the same thread when useful, then acknowledge the original message.
+Read it from Scope, inspect the linked ticket context, process it once, and
+reply in the same thread when useful. The bridge acknowledges after acceptance.
 ```
 
 The adapter should not inject the entire conversation or artifact contents.
@@ -121,6 +162,6 @@ The agent can load those from Scope and Git using the durable identifiers.
   Event attribution separately records the authenticated actor where available.
 - Do not place credentials or secrets in message bodies or artifact references.
 - Use message expiry for time-sensitive requests.
-- Keep provider-specific launch tokens and session identifiers in the host
-  adapter, never in synced Scope events.
+- Keep provider-specific launch tokens and session identifiers in the private
+  local bridge files, never in synced Scope events.
 - Apply external-action approvals in the host exactly as for user-issued work.

@@ -63,8 +63,13 @@ lease; when `--files` is omitted, renewal observes changed Git files. Use Scope
 for durable discoveries, leases, attempts, verification, and outcomes.
 
 Use the native host channel for already-running siblings; use Scope messages
-when communication must cross hosts or survive a restart. A host adapter can
-consume `scope message listen <agent>` or the addressed SSE stream.
+when communication must cross hosts or survive a restart. Registration inside
+Codex or Claude binds the current session locally by default. The single bridge
+owned by `scope serve` resumes addressed sessions, retries transient failures,
+and acknowledges after provider acceptance. Use `scope --json bridge status`
+to inspect safe connection state or `bridge bind` when a session UUID must be
+supplied explicitly. Custom providers can consume `message listen <agent>` or
+the addressed SSE stream.
 
 After a child returns, re-read the ticket and attempt rather than trusting its
 final message. If ownership changes before completion, run `handoff create` to
@@ -76,5 +81,6 @@ If `scope serve` is running, CLI updates appear in the web UI via SSE. Never
 pass `--port` to `scope serve`; the hub auto-discovers the running instance.
 The connected-agents button opens the coordination center for presence,
 pending messages, durable ticket threads, delivery state, lease/attempt health,
-and conflicts. Ticket cards and drawers expose the active agent and execution
-details, with direct navigation into ticket-filtered conversations.
+truthful session-connected/mailbox-only state, and conflicts. Ticket cards and
+drawers expose the active agent and execution details, with direct navigation
+into ticket-filtered conversations.

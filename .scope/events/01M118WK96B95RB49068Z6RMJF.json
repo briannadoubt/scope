@@ -1,0 +1,14 @@
+{
+  "v": 2,
+  "id": "01M118WK96B95RB49068Z6RMJF",
+  "ts": "2026-08-27T09:30:17.254Z",
+  "actor": "scope:session-bridge",
+  "kind": "agent.message.ack",
+  "payload": {
+    "messageId": "01M118VWAZM5P2K28HA2VDZBF7",
+    "agent": "dogfood:test-codex",
+    "acknowledgedAt": "2026-08-27T09:30:17.224Z"
+  },
+  "hlc": "1787823017254-000000",
+  "baseRevision": "sha256:2fb49e52d094ad639ef7a5956f8879d897de0faf9e8c42461ebd111b061901c6"
+}

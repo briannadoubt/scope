@@ -65,12 +65,16 @@ scope --json message send --from codex:sol --to claude:opus \
   --ticket SCP-124 --kind review_request --body "Review commit abc123"
 scope --json message inbox claude:opus
 scope --json message reply MESSAGE_ID --from claude:opus --body "Review complete"
-scope --json message ack MESSAGE_ID --agent claude:opus
-scope message listen claude:opus
+scope --json bridge status
 ```
 
-`message listen` is a long-running JSONL wakeup source for host adapters.
-Pending messages are replayed after restart until acknowledged.
+Registration inside Codex or Claude binds the current session locally by
+default. `scope serve` owns one bridge that resumes addressed sessions and
+acknowledges after provider acceptance. Use
+`scope --json bridge bind AGENT_ID --provider codex|claude --session UUID` when
+automatic discovery is unavailable. `message listen` remains the long-running
+JSONL wakeup source for custom providers. Pending messages are replayed after
+restart until acknowledged.
 
 All `--json` output is a versioned envelope. Consume `.data` on success and
 `.error.code` / `.error.retryable` on failure. Retry mutations with the same

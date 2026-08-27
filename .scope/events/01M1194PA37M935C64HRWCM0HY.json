@@ -1,0 +1,32 @@
+{
+  "v": 2,
+  "id": "01M1194PA37M935C64HRWCM0HY",
+  "ts": "2026-08-27T09:34:42.499Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M118ZDYRYZR30ABNJMSYTQZ1",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-27T09:34:42.499Z",
+    "summary": "Added safe bridge projections and truthful connected, offline, retrying, and mailbox-only UI states.",
+    "failure": null,
+    "evidence": [
+      "Live UI showed dogfood:sol as session connected and unbound agents as mailbox only",
+      "Composer showed connected-session wakeup confirmation and mailbox-only non-wakeup warning"
+    ],
+    "verification": [
+      {
+        "command": "node --test --import=./test/setup.js test/server.test.js",
+        "ok": true
+      },
+      {
+        "command": "In-app browser coordination center and message composer inspection",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787823282499-000000",
+  "baseRevision": "sha256:28aece1bdcae60047f7e120bd2fd256c8d2ca9c7d897c1b704aaa4958aeffa05",
+  "transactionId": "01M1194PA4CTN7NM91T6S1Z329",
+  "transactionIndex": 0
+}

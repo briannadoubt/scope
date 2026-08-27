@@ -113,15 +113,17 @@ scope --json message inbox cursor:worker
 scope --json message ack MESSAGE_ID --agent cursor:worker
 ```
 
-`scope message listen <agent>` emits an at-least-once JSONL wakeup stream for
-host adapters. Deduplicate by message id and acknowledge after durable receipt.
+The built-in local session bridge currently resumes Codex and Claude sessions.
+Cursor agents remain mailbox-only unless a host adapter consumes
+`scope message listen <agent>` or the addressed SSE stream. Deduplicate by
+message id and acknowledge after durable receipt.
 
 Humans can inspect and operate the same coordination state from the
 connected-agents button in the `scope serve` web UI. It shows presence, pending
-delivery, ticket-linked conversations, acknowledgements/replies, leases,
-attempts, and conflicts. Ticket cards and drawers show the active agent and
-execution details. Keep messages free of credentials because bodies are durable
-workspace data.
+delivery, truthful session-connected/mailbox-only state, ticket-linked
+conversations, acknowledgements/replies, leases, attempts, and conflicts.
+Ticket cards and drawers show the active agent and execution details. Keep
+messages free of credentials because bodies are durable workspace data.
 
 ## Source
 

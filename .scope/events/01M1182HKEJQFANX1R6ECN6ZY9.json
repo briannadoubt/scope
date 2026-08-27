@@ -1,0 +1,26 @@
+{
+  "v": 2,
+  "id": "01M1182HKEJQFANX1R6ECN6ZY9",
+  "ts": "2026-08-27T09:16:03.566Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M1182HKEJQFANX1R6ECN6ZY8",
+    "number": 325,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Add private session bindings and adapter contract",
+    "description": "Persist machine-local agent-to-provider-session bindings with restrictive permissions. Define provider-neutral injection results, validation, listing, and removal.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M1182HKEJQFANX1R6ECN6ZY6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787822163566-000001",
+  "baseRevision": "sha256:439f8be8b809b7620590eb8ad7ea6332f3bc18e3c3e48c19c8333c1462c1f397",
+  "transactionId": "01M1182HKF88VWES2118R8HD2W",
+  "transactionIndex": 1
+}

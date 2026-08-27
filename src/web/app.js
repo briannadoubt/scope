@@ -3958,6 +3958,7 @@ async function renderCoordination() {
   const conflicts = overview.conflicts || [];
   const totalPending = agents.reduce((sum, agent) => sum + Number(agent.pendingMessages || 0), 0);
   const activeAgents = agents.filter((agent) => agent.status !== 'offline').length;
+  const connectedSessions = agents.filter((agent) => agent.sessionBridge?.connected).length;
   const badge = document.getElementById('coordination-badge');
   if (badge) {
     badge.hidden = totalPending === 0;
@@ -4000,6 +4001,7 @@ async function renderCoordination() {
       </header>
       <div class="coordination-metrics">
         ${coordinationMetric('agents online', `${activeAgents}/${agents.length}`, activeAgents ? 'good' : '')}
+        ${coordinationMetric('sessions connected', `${connectedSessions}/${agents.length}`, connectedSessions ? 'good' : 'attention')}
         ${coordinationMetric('pending messages', totalPending, totalPending ? 'attention' : 'good')}
         ${coordinationMetric('active leases', metrics.activeLeases || 0, metrics.activeLeases ? 'active' : '')}
         ${coordinationMetric('attempts observed', attempts)}
@@ -4012,7 +4014,7 @@ async function renderCoordination() {
             ${agents.length ? agents.map((agent) => `
               <button type="button" class="agent-row ${agent.agentId === state.coordinationAgent ? 'selected' : ''}" data-agent="${escapeHtml(agent.agentId)}">
                 ${agentAvatar(agent)}
-                <span class="agent-copy"><strong>${escapeHtml(agent.displayName || agent.agentId)}</strong><small>${escapeHtml(agent.provider || 'provider unknown')} · ${escapeHtml(relativeTime(agent.lastSeenAt))}</small></span>
+                <span class="agent-copy"><strong>${escapeHtml(agent.displayName || agent.agentId)}</strong><small>${escapeHtml(agent.provider || 'provider unknown')} · ${agent.sessionBridge?.retrying ? `delivery retrying (${escapeHtml(agent.sessionBridge.lastErrorCode || 'provider error')})` : agent.sessionBridge?.connected ? 'session connected' : agent.sessionBridge?.bound ? 'session bridge offline' : 'mailbox only'} · ${escapeHtml(relativeTime(agent.lastSeenAt))}</small></span>
                 <span class="agent-presence ${escapeHtml(agent.status)}">${escapeHtml(agent.status)}</span>
                 ${agent.pendingMessages ? `<span class="agent-unread">${agent.pendingMessages}</span>` : ''}
               </button>`).join('') : `
@@ -4145,6 +4147,7 @@ function openNewAgentMessageModal(agents) {
     <label>To
       <select id="agent-message-to">${agents.filter((agent) => agent.agentId !== from).map((agent) => `<option value="${escapeHtml(agent.agentId)}">${escapeHtml(agent.displayName || agent.agentId)}</option>`).join('')}</select>
     </label>
+    <div class="error" id="agent-message-delivery-note"></div>
     <label>Kind
       <select id="agent-message-kind">
         ${['question','task_request','review_request','evidence','result','challenge','handoff','blocked','status'].map((kind) => `<option value="${kind}">${kind.replaceAll('_', ' ')}</option>`).join('')}
@@ -4159,10 +4162,24 @@ function openNewAgentMessageModal(agents) {
     </div>`);
   const fromSelect = modal.querySelector('#agent-message-from');
   const toSelect = modal.querySelector('#agent-message-to');
+  const deliveryNote = modal.querySelector('#agent-message-delivery-note');
+  const updateDeliveryNote = () => {
+    const target = agents.find((agent) => agent.agentId === toSelect.value);
+    if (target?.sessionBridge?.connected) {
+      deliveryNote.textContent = `This will wake the connected ${target.sessionBridge.provider} session.`;
+      deliveryNote.classList.add('success');
+    } else {
+      deliveryNote.textContent = 'Mailbox only: the message will remain durable, but it cannot wake a model session until that agent is locally bound.';
+      deliveryNote.classList.remove('success');
+    }
+  };
   fromSelect.addEventListener('change', () => {
     toSelect.innerHTML = agents.filter((agent) => agent.agentId !== fromSelect.value)
       .map((agent) => `<option value="${escapeHtml(agent.agentId)}">${escapeHtml(agent.displayName || agent.agentId)}</option>`).join('');
+    updateDeliveryNote();
   });
+  toSelect.addEventListener('change', updateDeliveryNote);
+  updateDeliveryNote();
   modal.querySelector('#agent-message-cancel').addEventListener('click', closeModal);
   modal.querySelector('#agent-message-send').addEventListener('click', async () => {
     const body = modal.querySelector('#agent-message-body').value.trim();

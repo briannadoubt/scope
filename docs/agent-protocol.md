@@ -122,6 +122,12 @@ This build writes event format 2, reads formats 1, 2, and requires readers that 
 - `scope agent heartbeat [options] <agentId>` — No description.
 - `scope agent list [options]` — No description.
 - `scope agent show [options] <agentId>` — No description.
+- `scope bridge [options] [command]` — Bind Scope mailboxes to live local Codex or Claude sessions.
+- `scope bridge bind [options] <agentId>` — Bind an agent mailbox to a model session on this machine.
+- `scope bridge unbind [options] <agentId>` — Remove this machine's session binding for an agent mailbox.
+- `scope bridge list [options]` — List safe local session binding metadata for this workspace.
+- `scope bridge status [options]` — Show session connection and delivery state without exposing session ids or message bodies.
+- `scope bridge run [options]` — Run the local session bridge without starting the web hub.
 - `scope message [options] [command]` — Exchange durable addressed messages between agents.
 - `scope message send [options]` — No description.
 - `scope message reply [options] <messageId>` — No description.

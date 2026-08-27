@@ -49,6 +49,14 @@ import { openWorkspaceDb } from './workspace-open.js';
 import { syncWithRemote } from './sync-client.js';
 import { startRemoteSync } from './remote-sync.js';
 import {
+  bindSession,
+  currentSessionId,
+  listSessionBindings,
+  sessionBridgeOverview,
+  startSessionBridge,
+  unbindSession,
+} from './session-bridge.js';
+import {
   readRemoteConfig,
   writeRemoteConfig,
   resolveRemote,
@@ -1339,12 +1347,25 @@ export function buildProgram() {
     .option('--ttl <duration>', 'presence lease duration', '2m')
     .option('--by <actor>')
     .action((agentId, opts, cmd) => {
-      const { db } = openOrDie();
+      const { db, scopeDir } = openOrDie();
       const result = registerAgent(db, agentId, {
         displayName: opts.displayName, provider: opts.provider, capabilities: csv(opts.capabilities),
         metadata: parseJsonValue(opts.metadata, {}, 'metadata'), status: opts.status, ttl: opts.ttl,
         actor: opts.by, model: actingModel(cmd),
       });
+      const provider = String(opts.provider || '').toLowerCase();
+      if (['openai', 'codex', 'anthropic', 'claude'].includes(provider)) {
+        const sessionId = currentSessionId(provider);
+        if (sessionId) {
+          result.sessionBridge = bindSession({
+            scopeDir,
+            agentId,
+            provider,
+            sessionId,
+            cwd: dirname(scopeDir),
+          });
+        }
+      }
       out(cmd, result, (value) => `${chalk.green('✓')} registered ${value.agentId} (${value.status})`);
     });
   agent.command('heartbeat <agentId>')
@@ -1375,6 +1396,76 @@ export function buildProgram() {
     if (!result) fail(`Agent not found: ${agentId}`);
     out(cmd, result, (value) => JSON.stringify(value, null, 2));
   });
+
+  const bridge = program.command('bridge').description('Bind Scope mailboxes to live local Codex or Claude sessions.');
+  bridge.command('bind <agentId>')
+    .description('Bind an agent mailbox to a model session on this machine.')
+    .option('--provider <provider>', 'codex|claude (inferred from the current session when omitted)')
+    .option('--session <uuid>', 'session UUID (inferred from the current session when omitted)')
+    .option('--cwd <path>', 'working directory used when the session is resumed')
+    .action((agentId, opts, cmd) => {
+      const { scopeDir } = openOrDie();
+      const inferredProvider = opts.provider || (process.env.CODEX_THREAD_ID || process.env.CODEX_SESSION_ID
+        ? 'codex'
+        : process.env.CLAUDE_SESSION_ID || process.env.CLAUDE_CODE_SESSION_ID
+          ? 'claude'
+          : null);
+      if (!inferredProvider) {
+        throw new ScopeCliError('--provider is required outside a Codex or Claude session', {
+          code: 'BRIDGE_PROVIDER_REQUIRED',
+        });
+      }
+      const sessionId = opts.session || currentSessionId(inferredProvider);
+      if (!sessionId) {
+        throw new ScopeCliError('--session is required because the current session id is unavailable', {
+          code: 'BRIDGE_SESSION_REQUIRED',
+        });
+      }
+      const result = bindSession({
+        scopeDir,
+        agentId,
+        provider: inferredProvider,
+        sessionId,
+        cwd: opts.cwd || dirname(scopeDir),
+      });
+      out(cmd, result, (value) => `${chalk.green('✓')} ${value.agentId} bound to ${value.provider} session ${value.sessionRef}`);
+    });
+  bridge.command('unbind <agentId>')
+    .description('Remove this machine\'s session binding for an agent mailbox.')
+    .action((agentId, _opts, cmd) => {
+      const { scopeDir } = openOrDie();
+      const result = unbindSession({ scopeDir, agentId });
+      out(cmd, result, (value) => value.removed
+        ? `${chalk.green('✓')} unbound ${value.agentId}`
+        : `${chalk.gray('○')} ${value.agentId} had no local session binding`);
+    });
+  bridge.command('list')
+    .description('List safe local session binding metadata for this workspace.')
+    .action((_opts, cmd) => {
+      const { scopeDir } = openOrDie();
+      const result = listSessionBindings({ scopeDir });
+      out(cmd, result, (value) => JSON.stringify(value, null, 2));
+    });
+  bridge.command('status')
+    .description('Show session connection and delivery state without exposing session ids or message bodies.')
+    .action((_opts, cmd) => {
+      const { scopeDir } = openOrDie();
+      const result = sessionBridgeOverview(scopeDir);
+      out(cmd, result, (value) => JSON.stringify(value, null, 2));
+    });
+  bridge.command('run')
+    .description('Run the local session bridge without starting the web hub.')
+    .action((_opts, cmd) => {
+      const runner = startSessionBridge();
+      out(cmd, { running: runner.ownsLock, alreadyRunning: !runner.ownsLock, pid: process.pid }, (value) => value.running
+        ? `${chalk.green('✓')} session bridge running`
+        : `${chalk.gray('○')} a session bridge is already running`);
+      if (!runner.ownsLock) return;
+      const stop = async () => { await runner.stop(); };
+      process.on('SIGINT', stop);
+      process.on('SIGTERM', stop);
+      idleUntilSignaled();
+    });
 
   const message = program.command('message').description('Exchange durable addressed messages between agents.');
   message.command('send')
@@ -2977,6 +3068,10 @@ export function buildProgram() {
         openBrowser: false, // we open the browser ourselves after the CA trust prompt
       };
       const res = await ensureHub(ensureOpts);
+      let bridgeRunner = res.weAreHub ? startSessionBridge() : null;
+      const ensureBridgeRunner = () => {
+        if (res.weAreHub && !bridgeRunner) bridgeRunner = startSessionBridge();
+      };
 
       // LAN peer gossip (SCP-114): push/pull the event log directly with
       // paired peer hubs over mTLS — realtime on a LAN with no central host.
@@ -3020,6 +3115,7 @@ export function buildProgram() {
       startHubWatchdog(res, ensureOpts, {
         onEvent: (e) => {
           if (e.type === 'repair.done') {
+            ensureBridgeRunner();
             process.stderr.write(
               chalk.gray(
                 `[watchdog] hub repaired → ${e.url}${e.promoted ? ' (promoted self)' : ''}\n`

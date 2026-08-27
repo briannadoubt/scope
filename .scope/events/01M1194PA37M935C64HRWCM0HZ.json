@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1194PA37M935C64HRWCM0HZ",
+  "ts": "2026-08-27T09:34:42.499Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.lease.release",
+  "payload": {
+    "leaseId": "01M118ZDYRYZR30ABNJMSYTQZ0",
+    "releasedAt": "2026-08-27T09:34:42.499Z",
+    "reason": "succeeded"
+  },
+  "hlc": "1787823282499-000001",
+  "baseRevision": "sha256:28aece1bdcae60047f7e120bd2fd256c8d2ca9c7d897c1b704aaa4958aeffa05",
+  "transactionId": "01M1194PA4CTN7NM91T6S1Z329",
+  "transactionIndex": 1
+}

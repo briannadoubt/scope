@@ -202,19 +202,24 @@ scope --json agent register codex:sol --provider openai --ttl 2m
 scope --json message send --from codex:sol --to claude:opus \
   --ticket MA-2 --kind review_request --body "Review commit abc123"
 scope --json message inbox claude:opus
-scope --json message ack MESSAGE_ID --agent claude:opus
+scope --json bridge status
 ```
 
-Host adapters consume `scope message listen <agent>` or the addressed SSE
-stream. Delivery is at least once until acknowledgement; deduplicate by message
-id. Use native host messaging for siblings already running in the same harness.
+Registration inside Codex or Claude binds the current model session locally by
+default. The single bridge owned by `scope serve` resumes the addressed session,
+retries transient failures, and acknowledges after provider acceptance. Use
+`scope --json bridge bind AGENT_ID --provider codex|claude --session UUID` when
+the session id must be supplied explicitly, and `bridge status` to inspect safe
+connection state. Custom providers can still consume `message listen <agent>`
+or the addressed SSE stream. Use native host messaging for siblings already
+running in the same harness.
 
 Humans can inspect and operate the same coordination state from the
 connected-agents button in the `scope serve` web UI. It shows presence, pending
-delivery, ticket-linked conversations, acknowledgements/replies, leases,
-attempts, and conflicts. Ticket cards and drawers show the active agent and
-execution details. Keep messages free of credentials because bodies are durable
-workspace data.
+delivery, truthful session-connected/mailbox-only state, ticket-linked
+conversations, acknowledgements/replies, leases, attempts, and conflicts.
+Ticket cards and drawers show the active agent and execution details. Keep
+messages free of credentials because bodies are durable workspace data.
 
 ### Native subagents
 

@@ -91,6 +91,7 @@ import {
   sendMessage,
 } from './agent-mailbox.js';
 import { WorkspaceManager } from './workspaces.js';
+import { sessionBridgeOverview } from './session-bridge.js';
 import { loadOrCreateToken, authMiddleware, lanHosts } from './auth.js';
 import {
   hostedAuthEnabled, hostedAuthMiddleware, publicAuthRouter, apiKeyRouter,
@@ -1044,12 +1045,25 @@ export async function startServer({
 
   app.get('/api/agent/overview', ws((_req, res, w) => {
     const pending = pendingMessageCounts(w.db);
+    const sessionBridges = sessionBridgeOverview(w.scope_dir);
+    const metrics = agentMetrics(w.db);
     res.json({
       agents: listAgents(w.db).map((agent) => ({
         ...agent,
         pendingMessages: pending[agent.agentId] ?? 0,
+        sessionBridge: sessionBridges[agent.agentId] || {
+          bound: false,
+          connected: false,
+          provider: null,
+          lastDeliveryAt: null,
+          lastErrorCode: null,
+          retrying: false,
+        },
       })),
-      metrics: agentMetrics(w.db),
+      metrics: {
+        ...metrics,
+        connectedSessions: Object.values(sessionBridges).filter((bridge) => bridge.connected).length,
+      },
       conflicts: listConflicts(w.db, { unresolvedOnly: true }),
     });
   }));

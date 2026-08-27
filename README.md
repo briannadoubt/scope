@@ -115,7 +115,9 @@ agent. Threads can be filtered by ticket, acknowledged, replied to, or started
 from the browser. Ticket cards show the current execution phase and agent;
 ticket drawers expand that into lease expiry, attempt status, verification,
 evidence, repository intent, handoffs, and conflicts. Message bodies remain
-workspace data and are never included in dogfood telemetry.
+workspace data and are never included in dogfood telemetry. Agent rows and the
+message composer distinguish a live model-session connection from a durable
+mailbox that cannot currently wake its recipient.
 
 ## Programmatic API
 
@@ -240,18 +242,19 @@ scope --json handoff create MA-7 --agent codex:worker-1 \
 ```
 
 Agents can register heartbeat presence and exchange durable threaded messages.
-Unacknowledged delivery is retried when a CLI listener or addressed SSE stream
-reconnects:
+When registration runs inside Codex or Claude, Scope binds the current session
+locally by default. The bridge owned by `scope serve` resumes the addressed
+session, retries transient failures, and acknowledges after the provider accepts
+the turn:
 
 ```bash
 scope --json agent register codex:sol --provider openai --ttl 2m
 scope --json message send --from codex:sol --to claude:opus \
   --ticket MA-7 --kind review_request --body "Review commit abc123"
-scope message listen claude:opus
-scope --json message ack 01... --agent claude:opus
+scope --json bridge status
 ```
 
-The provider-neutral host adapter contract is documented in
+Explicit binding and the provider-neutral listener/SSE adapter contract are documented in
 [docs/agent-messaging.md](docs/agent-messaging.md).
 
 Humans can inspect the same state visually from the connected-agents button in

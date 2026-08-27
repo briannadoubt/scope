@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M11998GJDWZSK5B3FZ787X0F",
+  "ts": "2026-08-27T09:37:12.210Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.attempt.start",
+  "payload": {
+    "attemptId": "01M11998GG0SMKGDYBT2717PKE",
+    "ticketId": "01M1182HKEJQFANX1R6ECN6ZYC",
+    "leaseId": "01M11998GG0SMKGDYBT2717PKD",
+    "agent": "codex:session-bridge",
+    "startedAt": "2026-08-27T09:37:12.208Z"
+  },
+  "hlc": "1787823432210-000001",
+  "baseRevision": "sha256:6198e72a814d7eba8277b31f94ac58a525dd1b7c8a0b68d140b5cd0f8e2cc3f4",
+  "transactionId": "01M11998GJDWZSK5B3FZ787X0G",
+  "transactionIndex": 1
+}

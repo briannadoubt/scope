@@ -59,7 +59,7 @@ In short: when to reach for Scope (multi-step work, planning, status updates,
 bug tracking), how to invoke it (the CLI, with `--json` for parseable output),
 the data model (workspace / epic / story / bug / relations / statuses /
 priorities), native Codex/Claude coordination, durable cross-host messaging and
-wakeup adapters, and a handful of common commands. See [`scope.md`](./scope.md)
+live session delivery, and a handful of common commands. See [`scope.md`](./scope.md)
 for the canonical text — the per-tool files are mostly the same content with
 different frontmatter.
 
@@ -82,8 +82,10 @@ dies, a watchdog in any sibling `scope serve` instance promotes itself within
 
 The connected-agents button opens the visual coordination center: live agent
 presence, pending messages, durable ticket-linked conversations, delivery
-state, leases, attempts, and conflicts. Active execution also appears directly
-on board cards and in the ticket drawer.
+state, connected model sessions, leases, attempts, and conflicts. `scope serve`
+also runs the local Codex/Claude session bridge; registration binds the current
+session automatically when its runtime exposes a session id. Active execution
+also appears directly on board cards and in the ticket drawer.
 
 ### Claude Code preview pane
 

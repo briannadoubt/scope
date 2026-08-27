@@ -1,0 +1,31 @@
+{
+  "v": 2,
+  "id": "01M11952B8J9GP1QQ2PPX8Q9CY",
+  "ts": "2026-08-27T09:34:54.824Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M1182HKF88VWES2118R8HD2R",
+    "leaseId": "01M11952B7BF2KH1DZ87VHJRQ1",
+    "agent": "codex:session-bridge",
+    "capabilities": [],
+    "files": [
+      "README.md",
+      "docs/agent-messaging.md",
+      "docs/agent-protocol.md",
+      "skills",
+      "plugins/scope",
+      "test/session-bridge.test.js",
+      "test/server.test.js"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "2094e9dfbc11b13efedfcf24da964b23a5a8cdeb",
+    "claimedAt": "2026-08-27T09:34:54.823Z",
+    "expiresAt": "2026-08-27T10:04:54.823Z"
+  },
+  "hlc": "1787823294824-000000",
+  "baseRevision": "sha256:db7ddd918143241a83e0b4299710dd36521414c32dd87e75a539249582cb2497",
+  "transactionId": "01M11952B8J9GP1QQ2PPX8Q9D1",
+  "transactionIndex": 0
+}

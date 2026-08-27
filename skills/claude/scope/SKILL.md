@@ -209,19 +209,23 @@ ids and the addressed mailbox:
 scope --json agent register claude:opus --provider anthropic --ttl 2m
 scope --json message inbox claude:opus
 scope --json message reply MESSAGE_ID --from claude:opus --body "Review complete"
-scope --json message ack MESSAGE_ID --agent claude:opus
+scope --json bridge status
 ```
 
-Host adapters consume `scope message listen <agent>` or the addressed SSE
-stream. Delivery is at least once until acknowledgement; deduplicate by message
-id. Use native Claude messaging for siblings already running in one harness.
+Registration inside Claude binds the current session locally by default. The
+single bridge owned by `scope serve` resumes the addressed Claude session,
+retries transient failures, and acknowledges after provider acceptance. Use
+`scope --json bridge bind AGENT_ID --provider claude --session UUID` when the
+session id must be supplied explicitly, and `bridge status` to inspect safe
+connection state. Use native Claude messaging for siblings already running in
+one harness.
 
 Humans can inspect and operate the same coordination state from the
 connected-agents button in the `scope serve` web UI. It shows presence, pending
-delivery, ticket-linked conversations, acknowledgements/replies, leases,
-attempts, and conflicts. Ticket cards and drawers show the active agent and
-execution details. Keep messages free of credentials because bodies are durable
-workspace data.
+delivery, truthful session-connected/mailbox-only state, ticket-linked
+conversations, acknowledgements/replies, leases, attempts, and conflicts.
+Ticket cards and drawers show the active agent and execution details. Keep
+messages free of credentials because bodies are durable workspace data.
 
 ### Native Claude subagents
 

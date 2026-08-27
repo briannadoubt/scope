@@ -1,0 +1,28 @@
+{
+  "v": 2,
+  "id": "01M118ZAAZR70GVS4Q4TJEPDF3",
+  "ts": "2026-08-27T09:31:46.399Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M118YB01H3CT1CN2Y2WSN0BJ",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-27T09:31:46.399Z",
+    "summary": "Added the hub-owned polling runner, per-binding serialization, exponential retry, accepted checkpoints, and automatic acknowledgement.",
+    "failure": null,
+    "evidence": [
+      "Regression test proves restart after provider acceptance acknowledges without reinjecting",
+      "scope serve starts one bridge only in the hub-owning process and starts it after watchdog promotion"
+    ],
+    "verification": [
+      {
+        "command": "node --test --import=./test/setup.js test/session-bridge.test.js test/server.test.js",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787823106399-000000",
+  "baseRevision": "sha256:6a1e5bc08322f60d2d6260d3fad5fe72b5acf288630db17a95b115c403f9ae06",
+  "transactionId": "01M118ZAAZR70GVS4Q4TJEPDF6",
+  "transactionIndex": 0
+}

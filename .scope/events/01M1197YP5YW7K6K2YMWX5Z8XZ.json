@@ -1,0 +1,14 @@
+{
+  "v": 2,
+  "id": "01M1197YP5YW7K6K2YMWX5Z8XZ",
+  "ts": "2026-08-27T09:36:29.381Z",
+  "actor": "codex:session-bridge",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M1182HKEJQFANX1R6ECN6ZY6",
+    "field": "status",
+    "value": "done"
+  },
+  "hlc": "1787823389381-000000",
+  "baseRevision": "sha256:c8eb0c73d5b3f75321c1a5ce6cc86d48fb70f9b26eda8a2e6015a7759c4b2034"
+}

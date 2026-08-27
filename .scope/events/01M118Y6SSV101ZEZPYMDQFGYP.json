@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M118Y6SSV101ZEZPYMDQFGYP",
+  "ts": "2026-08-27T09:31:10.009Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.lease.release",
+  "payload": {
+    "leaseId": "01M118TJZMFNJ582B5E7WVCENP",
+    "releasedAt": "2026-08-27T09:31:10.009Z",
+    "reason": "succeeded"
+  },
+  "hlc": "1787823070009-000001",
+  "baseRevision": "sha256:4f63b9657feed2d991fa3a525f684509708ce71feb11f4e332872532525578e5",
+  "transactionId": "01M118Y6SSV101ZEZPYMDQFGYR",
+  "transactionIndex": 1
+}

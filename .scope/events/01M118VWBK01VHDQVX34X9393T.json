@@ -1,0 +1,23 @@
+{
+  "v": 2,
+  "id": "01M118VWBK01VHDQVX34X9393T",
+  "ts": "2026-08-27T09:29:53.779Z",
+  "actor": "dogfood:opus",
+  "kind": "agent.message.send",
+  "payload": {
+    "messageId": "01M118VWAZM5P2K28HA2VDZBF7",
+    "ticketId": null,
+    "fromAgent": "dogfood:opus",
+    "toAgent": "dogfood:test-codex",
+    "kind": "question",
+    "body": "Reply in this Scope thread with exactly CODEX_BRIDGE_OK and do no other project work.",
+    "artifactRefs": [],
+    "threadId": "01M118VWAZM5P2K28HA2VDZBF7",
+    "replyTo": null,
+    "correlationId": null,
+    "createdAt": "2026-08-27T09:29:53.759Z",
+    "expiresAt": null
+  },
+  "hlc": "1787822993779-000000",
+  "baseRevision": "sha256:79e87b2f2796296ebc0bb4c3d72693d95e7ec76bbde346f03cc9acc7ae1127b5"
+}

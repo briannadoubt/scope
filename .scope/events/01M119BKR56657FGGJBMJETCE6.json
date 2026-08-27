@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M119BKR56657FGGJBMJETCE6",
+  "ts": "2026-08-27T09:38:29.253Z",
+  "actor": "codex:session-bridge",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M1182HKEJQFANX1R6ECN6ZYC",
+    "field": "status",
+    "value": "done"
+  },
+  "hlc": "1787823509253-000000",
+  "baseRevision": "sha256:b7dd550534c9319f022e9654091efb4be718170f783dabbe4290af932993b445",
+  "transactionId": "01M119BKR56657FGGJBMJETCE7",
+  "transactionIndex": 2
+}

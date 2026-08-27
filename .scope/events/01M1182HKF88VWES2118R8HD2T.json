@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1182HKF88VWES2118R8HD2T",
+  "ts": "2026-08-27T09:16:03.567Z",
+  "actor": "codex",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M1182HKEJQFANX1R6ECN6ZY6",
+    "field": "status",
+    "value": "in_progress"
+  },
+  "hlc": "1787822163567-000002",
+  "baseRevision": "sha256:439f8be8b809b7620590eb8ad7ea6332f3bc18e3c3e48c19c8333c1462c1f397",
+  "transactionId": "01M1182HKF88VWES2118R8HD2W",
+  "transactionIndex": 6
+}

@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M119209JBYDTKZG3Y2R3HBQM",
+  "ts": "2026-08-27T09:33:14.418Z",
+  "actor": "dogfood:sol",
+  "kind": "agent.register",
+  "payload": {
+    "agentId": "dogfood:sol",
+    "displayName": "Sol",
+    "provider": "openai",
+    "capabilities": [
+      "code",
+      "test",
+      "review"
+    ],
+    "metadata": {},
+    "status": "online",
+    "registeredAt": "2026-08-23T08:15:08.776Z",
+    "seenAt": "2026-08-27T09:33:14.403Z",
+    "expiresAt": "2026-08-27T09:35:14.403Z"
+  },
+  "hlc": "1787823194418-000000",
+  "baseRevision": "sha256:6fe78d5d4e4a049eade5107fd2e42739a2b63683cf64f7d3a501eb703ad6a593"
+}

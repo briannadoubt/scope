@@ -1,0 +1,42 @@
+{
+  "v": 2,
+  "id": "01M1197Q0T5KNCEC2RE9Q53Z0V",
+  "ts": "2026-08-27T09:36:21.530Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M11952B7BF2KH1DZ87VHJRQ2",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-27T09:36:21.530Z",
+    "summary": "Updated and installed every shipped Scope skill/doc surface, dogfooded real Codex delivery, and added privacy-bounded bridge monitoring.",
+    "failure": null,
+    "evidence": [
+      "Global Codex and Claude skills plus active scope-dogfood plugin cache contain current bridge guidance",
+      "LaunchAgent is running the working tree and reports one connected dogfood:sol session",
+      "Privacy-bounded report observed one acknowledged Codex delivery, zero retries, and provider latency without identifiers or content"
+    ],
+    "verification": [
+      {
+        "command": "npm run docs:agent:check",
+        "ok": true
+      },
+      {
+        "command": "npm test",
+        "ok": true,
+        "note": "355 passed; 70 PostgreSQL-only tests skipped"
+      },
+      {
+        "command": "npm run dogfood:report -- ~/.scope/dogfood/usage.ndjson",
+        "ok": true
+      },
+      {
+        "command": "LaunchAgent, hub, CLI version, installed skills, and live UI inspection",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1787823381530-000000",
+  "baseRevision": "sha256:fc31cf78dcf979e6f41380fc51842638c3eb4a121b8988784886702dea8ac886",
+  "transactionId": "01M1197Q0VM8EN7ATBQ4BFRPCD",
+  "transactionIndex": 0
+}

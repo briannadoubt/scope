@@ -1,0 +1,20 @@
+{
+  "v": 2,
+  "id": "01M118VMSM74NMGEH85SB7XS1P",
+  "ts": "2026-08-27T09:29:46.036Z",
+  "actor": "dogfood:test-codex",
+  "kind": "agent.register",
+  "payload": {
+    "agentId": "dogfood:test-codex",
+    "displayName": "dogfood:test-codex",
+    "provider": "openai",
+    "capabilities": [],
+    "metadata": {},
+    "status": "online",
+    "registeredAt": "2026-08-27T09:29:46.019Z",
+    "seenAt": "2026-08-27T09:29:46.019Z",
+    "expiresAt": "2026-08-27T09:39:46.019Z"
+  },
+  "hlc": "1787822986036-000000",
+  "baseRevision": "sha256:b27e46a44be282136afffdf2d9081ef0ee43fbaafda897c368626485883bf645"
+}

@@ -1,0 +1,37 @@
+{
+  "v": 2,
+  "id": "01M118Y6SSV101ZEZPYMDQFGYN",
+  "ts": "2026-08-27T09:31:10.009Z",
+  "actor": "codex:session-bridge",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M118TJZMFNJ582B5E7WVCENQ",
+    "outcome": "succeeded",
+    "finishedAt": "2026-08-27T09:31:10.009Z",
+    "summary": "Implemented bounded Codex and Claude session resume adapters without injecting durable message bodies.",
+    "failure": null,
+    "evidence": [
+      "Disposable Codex session read Scope message, replied CODEX_BRIDGE_OK in-thread, and original message was bridge-acknowledged",
+      "Claude provider argv/stdin, body exclusion, and safe failure handling covered by session bridge tests"
+    ],
+    "verification": [
+      {
+        "command": "Codex isolated-session Scope message round-trip",
+        "ok": true
+      },
+      {
+        "command": "node --test --import=./test/setup.js test/session-bridge.test.js",
+        "ok": true
+      },
+      {
+        "command": "Claude isolated-session round-trip",
+        "ok": false,
+        "note": "Local Claude OAuth token expired with HTTP 401; adapter retained safe retry behavior"
+      }
+    ]
+  },
+  "hlc": "1787823070009-000000",
+  "baseRevision": "sha256:4f63b9657feed2d991fa3a525f684509708ce71feb11f4e332872532525578e5",
+  "transactionId": "01M118Y6SSV101ZEZPYMDQFGYR",
+  "transactionIndex": 0
+}

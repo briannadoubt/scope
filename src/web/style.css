@@ -945,6 +945,7 @@ button { font-family: inherit; }
 .modal textarea { min-height: 100px; resize: vertical; }
 .modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .modal .error { color: var(--red); font-size: 12px; margin-top: 8px; }
+.modal .error.success { color: var(--green); }
 
 .column-editor {
   display: flex;
@@ -1836,7 +1837,7 @@ body.role-viewer #board-empty-manual { display: none; }
   background: rgba(47,129,247,0.12); color: var(--blue); border: 1px solid rgba(47,129,247,0.28);
   border-radius: 999px; padding: 5px 10px; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer;
 }
-.coordination-metrics { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.coordination-metrics { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .coord-metric { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 10px 12px; }
 .coord-metric strong { display: block; font-size: 18px; line-height: 1.2; }
 .coord-metric span { color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }

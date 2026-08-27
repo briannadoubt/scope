@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { startTestServer, apiFetch } from './helpers.js';
+import { bindSession } from '../src/session-bridge.js';
 
 test('GET /api/meta returns enums and hub info', async () => {
   const t = await startTestServer();
@@ -135,6 +136,12 @@ test('agent HTTP mailbox delivers pending messages, replies, acknowledgements, a
       assert.equal(registered.status, 200);
       assert.equal(registered.data.status, 'online');
     }
+    bindSession({
+      scopeDir: t.scope.scopeDir,
+      agentId: 'claude:opus',
+      provider: 'claude',
+      sessionId: '22222222-2222-4222-8222-222222222222',
+    });
 
     const sent = await apiFetch(t.baseUrl, '/api/agent/messages', {
       method: 'POST', body: {
@@ -144,7 +151,12 @@ test('agent HTTP mailbox delivers pending messages, replies, acknowledgements, a
     assert.equal(sent.status, 201);
     const overview = await apiFetch(t.baseUrl, '/api/agent/overview');
     assert.equal(overview.status, 200);
-    assert.equal(overview.data.agents.find((agent) => agent.agentId === 'claude:opus').pendingMessages, 1);
+    const opus = overview.data.agents.find((agent) => agent.agentId === 'claude:opus');
+    assert.equal(opus.pendingMessages, 1);
+    assert.equal(opus.sessionBridge.bound, true);
+    assert.equal(opus.sessionBridge.connected, false, 'a binding without a live runner is not connected');
+    assert.equal(overview.data.agents.find((agent) => agent.agentId === 'codex:sol').sessionBridge.bound, false);
+    assert.equal(overview.data.metrics.connectedSessions, 0);
     assert.equal(overview.data.metrics.activeLeases, 0);
     const inbox = await apiFetch(t.baseUrl, `/api/agent/agents/${encodeURIComponent('claude:opus')}/inbox`);
     assert.equal(inbox.data[0].messageId, sent.data.messageId);

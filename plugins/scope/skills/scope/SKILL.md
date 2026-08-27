@@ -50,15 +50,18 @@ ticket's `execution` state after a child returns; do not infer success from chat
 
 For communication that must cross hosts or survive a restart, register stable
 agent ids and use `message send`, `message inbox`, `message reply`, and
-`message ack`. Host adapters consume `scope message listen <agent>` or the
-addressed SSE stream. Delivery is at least once until acknowledgement, so
-deduplicate by message id.
+`message ack`. Registration inside Codex or Claude binds the current session
+locally by default. The bridge owned by `scope serve` resumes the addressed
+session, retries transient failures, and acknowledges after provider acceptance.
+Use `bridge status` for safe connection state and `bridge bind` for an explicit
+session UUID. Custom providers consume `message listen <agent>` or addressed SSE.
 
 When `scope serve` is running, the connected-agents button opens the visual
 coordination center. Humans can inspect presence, pending delivery,
-ticket-linked conversations, acknowledgements/replies, leases, attempts, and
-conflicts there. Ticket cards and drawers show the active agent and execution
-details. Message bodies are durable workspace data, so never include secrets.
+truthful session-connected/mailbox-only state, ticket-linked conversations,
+acknowledgements/replies, leases, attempts, and conflicts there. Ticket cards
+and drawers show the active agent and execution details. Message bodies are
+durable workspace data, so never include secrets.
 
 Use global `--request-id` when retrying mutations and `--if-revision` when a
 write depends on previously read state. Never unwrap JSON by guessing: success
