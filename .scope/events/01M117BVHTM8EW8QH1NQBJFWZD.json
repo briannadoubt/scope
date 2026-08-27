@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M117BVHTM8EW8QH1NQBJFWZD",
+  "ts": "2026-08-27T09:03:40.090Z",
+  "actor": "unknown",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M117BVHSXHYMXHRESN8KF2P5",
+    "number": 323,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Harden and synchronize agent coordination skills",
+    "description": "Dogfood telemetry shows repeated INVALID_ARGUMENT discovery writes and NOT_FOUND or expired lease renewals. Add exact command shapes and stale-lease recovery guidance, then synchronize the repository skills with every active local installation, including the Codex dogfood plugin cache.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787821420090-000000",
+  "baseRevision": "sha256:3de3c2f8f834e4193fe97e8d8fded29ccb5e26e0f7b9387a92c5a9a3f7c6b5bc"
+}

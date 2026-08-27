@@ -23,6 +23,24 @@ Read `../../references/guardrails.md` before mutating tickets.
 4. Record durable facts with `discover`, not untyped prose comments.
 5. Finish with `complete`, including verification/evidence required by contract.
 
+Keep execution identifiers distinct. `claim` returns
+`data.lease.leaseId` and `data.attempt.attemptId`; renew only the lease id and
+complete only the attempt id, always with the same agent identity:
+
+```bash
+scope --json lease renew LEASE_ID --agent AGENT_ID
+scope --json discover TICKET_ID fact "Observed behavior" --by AGENT_ID
+scope --json complete TICKET_ID --attempt ATTEMPT_ID --agent AGENT_ID \
+  --verification '[{"command":"npm test","ok":true}]'
+```
+
+`discover` accepts only `decision`, `fact`, `risk`, `blocker`, `question`,
+`handoff`, or `evidence` as its second positional argument. After `complete`,
+`handoff create`, or `lease release`, stop renewing that lease. On
+`NOT_FOUND` or `LEASE_EXPIRED`, re-read the ticket's execution state and do not
+retry the stale id. On `INVALID_ARGUMENT`, inspect `--help` or `capabilities`
+and correct the request instead of replaying it unchanged.
+
 When the host has native subagents, run `scope --json ready --plan` and use a
 safe parallel group. Give each child one ticket; that child runs `claim`, reads
 `context`, renews its lease, and either `complete`s with evidence or creates a

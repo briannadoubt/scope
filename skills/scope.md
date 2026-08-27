@@ -1,3 +1,8 @@
+---
+name: scope
+description: Plan, track, and report multi-step work using Scope. Use when the user wants an agent to manage project state, tickets, progress, bugs, branches, PRs, or coordination.
+---
+
 # Using Scope
 
 Scope is a local-first kanban for epics, stories, and bugs. It ships as a
@@ -167,6 +172,7 @@ with status/comments:
 scope --json ready --capabilities node,postgres
 scope --json claim MA-2 --agent codex --files src/auth.js,test/auth.test.js
 scope --json context MA-2 --budget 3000
+scope --json lease renew LEASE_ID --agent codex
 scope --json discover MA-2 risk "Refresh-token migration needs rollback coverage" --by codex
 scope --json complete MA-2 --attempt <attempt-id> --agent codex \
   --verification '[{"command":"npm test","ok":true}]'
@@ -177,6 +183,16 @@ drive readiness; contracts can require capabilities, evidence, verification,
 or exclusive file intent. Use `--request-id` for exactly-once retries,
 `--if-revision` for compare-and-swap writes, `watch --since` for resumable
 updates, and `conflicts list/resolve` for concurrent sibling intent.
+
+Save `data.lease.leaseId` and `data.attempt.attemptId` from `claim`; ticket,
+lease, and attempt ids are not interchangeable. `lease renew` takes the lease
+id, while `complete` takes the attempt id. `discover` takes the ticket id,
+then exactly one of `decision`, `fact`, `risk`, `blocker`, `question`,
+`handoff`, or `evidence`, followed by the body. After `complete`,
+`handoff create`, or `lease release`, stop renewing. On `NOT_FOUND` or
+`LEASE_EXPIRED`, re-read execution state instead of retrying the stale id. On
+`INVALID_ARGUMENT`, inspect `--help` or `capabilities` and correct the request
+before retrying.
 
 For communication that must cross hosts or survive a restart, register stable
 agent ids and use the addressed mailbox:

@@ -1,0 +1,30 @@
+{
+  "v": 2,
+  "id": "01M117C0A429QQFQFYXEQ4YQK8",
+  "ts": "2026-08-27T09:03:44.964Z",
+  "actor": "codex:sol-skill-fix",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M117BVHSXHYMXHRESN8KF2P5",
+    "leaseId": "01M117C0A0KYVHX165GPH6G41Z",
+    "agent": "codex:sol-skill-fix",
+    "capabilities": [],
+    "files": [
+      "plugins/scope/skills/scope/SKILL.md",
+      "plugins/scope/skills/multi-agent/SKILL.md",
+      "skills/codex/AGENTS.md",
+      "skills/claude/scope/SKILL.md",
+      "skills/scope.md",
+      "skills/README.md"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "66cba03a7783ed96bd37a316adef66d4a546082b",
+    "claimedAt": "2026-08-27T09:03:44.960Z",
+    "expiresAt": "2026-08-27T09:23:44.960Z"
+  },
+  "hlc": "1787821424964-000000",
+  "baseRevision": "sha256:f16a0f0280917b8401245a608a8e64235d91ce0371bdef0a7099f4e4ea353b04",
+  "transactionId": "01M117C0A51874VAP86HTAFA5K",
+  "transactionIndex": 0
+}

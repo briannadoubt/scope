@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M117N4RXR25MB3P0BSW4CFVM",
+  "ts": "2026-08-27T09:08:44.445Z",
+  "actor": "codex:sol-skill-fix",
+  "kind": "agent.discovery.add",
+  "payload": {
+    "discoveryId": "01M117N4RXR25MB3P0BSW4CFVK",
+    "ticketId": "01M117BVHSXHYMXHRESN8KF2P5",
+    "discoveryType": "fact",
+    "body": "Dogfood failures were client-shape errors: discover used invalid arguments and lease renew used missing or stale lease ids; hub and mailbox state remained healthy.",
+    "data": {},
+    "author": "codex:sol-skill-fix",
+    "createdAt": "2026-08-27T09:08:44.445Z"
+  },
+  "hlc": "1787821724445-000000",
+  "baseRevision": "sha256:88edbd4171dd9dd06959dd6e1cc7fba33c7c8863bf6314a4b1735b4889e4b937"
+}

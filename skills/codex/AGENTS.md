@@ -114,6 +114,16 @@ verification/evidence. Use `--request-id` for retries, `--if-revision` for
 state-dependent writes, `watch --since` for updates, and `conflicts` to resolve
 concurrent sibling intent explicitly.
 
+Save `data.lease.leaseId` and `data.attempt.attemptId` from `claim`; ticket,
+lease, and attempt ids are not interchangeable. Renew with
+`scope --json lease renew LEASE_ID --agent AGENT_ID`. Publish with
+`scope --json discover TICKET_ID TYPE BODY --by AGENT_ID`, where `TYPE` is
+`decision`, `fact`, `risk`, `blocker`, `question`, `handoff`, or `evidence`.
+After `complete`, `handoff create`, or `lease release`, stop renewing. On
+`NOT_FOUND` or `LEASE_EXPIRED`, re-read execution state instead of retrying the
+stale id. On `INVALID_ARGUMENT`, inspect `--help` or `capabilities` and correct
+the request before retrying.
+
 For communication that must cross hosts or survive a restart, use stable agent
 ids and the addressed mailbox:
 

@@ -179,6 +179,7 @@ Use Scope's execution primitives when agents share work:
 scope --json ready --capabilities node,postgres
 scope --json claim MA-2 --agent claude --files src/auth.js,test/auth.test.js
 scope --json context MA-2 --budget 3000
+scope --json lease renew LEASE_ID --agent claude
 scope --json discover MA-2 fact "Expiry is enforced in middleware" --by claude
 scope --json complete MA-2 --attempt <attempt-id> --agent claude \
   --verification '[{"command":"npm test","ok":true}]'
@@ -190,6 +191,16 @@ verification/evidence, or exclusive file intent. Use global `--request-id` for
 exactly-once retries and `--if-revision` for state-dependent writes. Consume
 incremental context with `context --since`, follow events with `watch --since`,
 and inspect/resolve concurrent sibling intent via `conflicts`.
+
+Save `data.lease.leaseId` and `data.attempt.attemptId` from `claim`; ticket,
+lease, and attempt ids are not interchangeable. `lease renew` takes the lease
+id, while `complete` takes the attempt id. `discover` takes the ticket id,
+then exactly one of `decision`, `fact`, `risk`, `blocker`, `question`,
+`handoff`, or `evidence`, followed by the body. After `complete`,
+`handoff create`, or `lease release`, stop renewing. On `NOT_FOUND` or
+`LEASE_EXPIRED`, re-read execution state instead of retrying the stale id. On
+`INVALID_ARGUMENT`, inspect `--help` or `capabilities` and correct the request
+before retrying.
 
 For communication that must cross hosts or survive a restart, use stable agent
 ids and the addressed mailbox:

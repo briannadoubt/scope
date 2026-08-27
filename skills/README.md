@@ -7,7 +7,7 @@ at the same canonical content (`scope.md`).
 | Tool | File | Installed to |
 |---|---|---|
 | Claude Code | `claude/scope/SKILL.md` | `~/.claude/skills/scope/SKILL.md` |
-| Codex user skill | `claude/scope/SKILL.md` | `~/.agents/skills/scope/SKILL.md` |
+| Codex user skill | `scope.md` | `~/.agents/skills/scope/SKILL.md` |
 | Codex global guidance | `codex/AGENTS.md` | managed block in `~/.codex/AGENTS.md` |
 | Cursor | `cursor/scope.mdc` | `<project>/.cursor/rules/scope.mdc` |
 
@@ -44,7 +44,7 @@ mkdir -p ~/.claude/skills/scope && \
 
 # Codex user skill (Codex also supports symlinking this directory while developing)
 mkdir -p ~/.agents/skills/scope && \
-  curl -fsSL https://raw.githubusercontent.com/briannadoubt/scope/main/skills/claude/scope/SKILL.md \
+  curl -fsSL https://raw.githubusercontent.com/briannadoubt/scope/main/skills/scope.md \
        -o ~/.agents/skills/scope/SKILL.md
 
 # Cursor (per-project — run from the project root)

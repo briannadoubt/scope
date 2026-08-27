@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M117PFVQHMEXT4XYVKDMH6YV",
+  "ts": "2026-08-27T09:09:28.567Z",
+  "actor": "codex:sol-skill-fix",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M117BVHSXHYMXHRESN8KF2P5",
+    "field": "status",
+    "value": "done"
+  },
+  "hlc": "1787821768567-000001",
+  "baseRevision": "sha256:978ab587179c6c846b3f6e201cd846d6d40274a79d35ac4756d5a7ad5f5c5dc5",
+  "transactionId": "01M117PFVQHMEXT4XYVKDMH6YW",
+  "transactionIndex": 2
+}

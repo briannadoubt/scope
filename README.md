@@ -205,10 +205,16 @@ scope --json contract set MA-7 \
   --verify '["npm test -- auth"]' \
   --policy '{"requireVerification":true}' --by planner
 scope --json context MA-7 --budget 3000
+scope --json lease renew LEASE_ID --agent codex
 scope --json discover MA-7 fact "Expiry is enforced in middleware" --by codex
 scope --json complete MA-7 --attempt 01... --agent codex \
   --verification '[{"command":"npm test -- auth","ok":true}]'
 ```
+
+Capture `data.lease.leaseId` and `data.attempt.attemptId` from `claim` and keep
+them distinct from the ticket id. Stop renewing after completion, handoff, or
+release. A stale lease error means re-read execution state, not retry the old
+id; an invalid argument means correct the command shape before retrying.
 
 When Codex or Claude can spawn native subagents, the host remains the harness
 and Scope is the shared coordination state. Ask Scope for a conflict-aware

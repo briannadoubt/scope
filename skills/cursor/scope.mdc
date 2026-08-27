@@ -95,6 +95,15 @@ file/worktree/branch/base intent when claiming. Use `--request-id` for retries,
 `--if-revision` for compare-and-swap writes, and `conflicts list/resolve` for
 concurrent sibling intent.
 
+Save `data.lease.leaseId` and `data.attempt.attemptId` from `claim`; ticket,
+lease, and attempt ids are not interchangeable. Renew with
+`scope --json lease renew LEASE_ID --agent AGENT_ID`. Publish with
+`scope --json discover TICKET_ID TYPE BODY --by AGENT_ID`, where `TYPE` is
+`decision`, `fact`, `risk`, `blocker`, `question`, `handoff`, or `evidence`.
+Stop renewal after completion, handoff, or release. On `NOT_FOUND` or
+`LEASE_EXPIRED`, re-read execution state instead of retrying the stale id. On
+`INVALID_ARGUMENT`, inspect `--help` or `capabilities` and correct the request.
+
 For cross-host or restart-safe communication, register agents and use the
 addressed mailbox:
 

@@ -2533,7 +2533,7 @@ export function buildProgram() {
         },
         {
           tool: 'codex',
-          source: join(skillsDir, 'claude/scope/SKILL.md') + ' + ' + join(skillsDir, 'codex/AGENTS.md'),
+          source: join(skillsDir, 'scope.md') + ' + ' + join(skillsDir, 'codex/AGENTS.md'),
           target: targets.codex,
           detected: existsSync((process.env.HOME || '') + '/.codex'),
         },

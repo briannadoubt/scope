@@ -16,9 +16,11 @@ Workflow:
    `scope --json claim [ticket] --agent <id>`.
 3. Include `--files`, `--worktree`, `--branch`, and `--base` when known so
    overlap is visible before agents edit the same repository surface.
-4. Renew long-running work with `lease renew`; release or finish failed and
-   handed-off attempts explicitly.
-5. Publish facts, risks, blockers, questions, and handoffs with `discover`.
+4. Save `data.lease.leaseId` and `data.attempt.attemptId` from the claim.
+   Renew long-running work with `lease renew <leaseId> --agent <same-id>`;
+   release or finish failed and handed-off attempts explicitly.
+5. Publish facts, risks, blockers, questions, and handoffs with
+   `discover <ticketId> <type> <body...> --by <agent>`.
 6. Use `context --since <cursor>` for compact incremental handoff state.
 7. Inspect `conflicts list`; resolve sibling field intent explicitly.
 8. Register stable agent identities and use `message send` / `message reply`
@@ -28,6 +30,14 @@ Workflow:
 Dependencies drive readiness automatically. A lease is ownership with an
 expiry, not a permanent lock; abandoned work becomes reclaimable. Contracts
 may turn file overlap into a hard block and require completion evidence.
+
+The valid discovery types are `decision`, `fact`, `risk`, `blocker`,
+`question`, `handoff`, and `evidence`. Ticket ids, lease ids, and attempt ids
+are not interchangeable. After `complete`, `handoff create`, or
+`lease release`, stop renewing the lease. If renewal returns `NOT_FOUND` or
+`LEASE_EXPIRED`, re-read the ticket's execution state and never retry the stale
+id. If a mutation returns `INVALID_ARGUMENT`, inspect its `--help` or
+`capabilities` and correct the request rather than repeating it unchanged.
 
 ## Native host subagents
 
@@ -41,6 +51,8 @@ scope --json ready --plan --capabilities <csv>
 scope --json claim SCP-123 --agent <unique-child-id> \
   --files <anticipated-files>
 scope --json context SCP-123
+scope --json lease renew <lease-id-from-claim> --agent <unique-child-id>
+scope --json discover SCP-123 fact "Observed behavior" --by <unique-child-id>
 scope --json message inbox <unique-child-id>
 ```
 

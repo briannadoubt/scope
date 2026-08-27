@@ -82,7 +82,7 @@ install_codex() {
   fi
   step "Installing Codex user skill → $skill_dest"
   mkdir -p "$skill_dest"
-  fetch "claude/scope/SKILL.md" "$skill_dest/SKILL.md"
+  fetch "scope.md" "$skill_dest/SKILL.md"
 
   # Keep the legacy global AGENTS.md surface current for existing Codex hosts,
   # but replace our managed block instead of appending duplicates on every run.

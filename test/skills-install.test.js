@@ -33,7 +33,9 @@ test('Codex skill install is user-wide, current, idempotent, and preserves unrel
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
     const installedSkill = readFileSync(join(home, '.agents', 'skills', 'scope', 'SKILL.md'), 'utf8');
-    assert.equal(installedSkill, readFileSync(join(SKILLS, 'claude', 'scope', 'SKILL.md'), 'utf8'));
+    assert.equal(installedSkill, readFileSync(join(SKILLS, 'scope.md'), 'utf8'));
+    assert.match(installedSkill, /^---\nname: scope\n/);
+    assert.doesNotMatch(installedSkill, /Native Claude subagents/);
     const installedGuidance = readFileSync(guidance, 'utf8');
     assert.match(installedGuidance, /# Personal guidance/);
     assert.match(installedGuidance, /Keep this unrelated line\./);
