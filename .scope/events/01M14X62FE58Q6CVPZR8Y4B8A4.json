@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M14X62FE58Q6CVPZR8Y4B8A4",
+  "ts": "2026-08-28T19:22:42.542Z",
+  "actor": "codex:session-lifecycle",
+  "kind": "agent.discovery.add",
+  "payload": {
+    "discoveryId": "01M14X62FE58Q6CVPZR8Y4B8A3",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "discoveryType": "fact",
+    "body": "Supported Codex lifecycle path is the native hooks framework (hooks feature stable/enabled locally): SessionStart and synchronous SessionEnd provide the opaque session id on stdin, so integration uses no provider transcript scan or filesystem polling. User-installed Codex hooks require one-time host review via /hooks; Claude Code hooks activate from user settings. Standalone hosts without that payload remain mailbox-only.",
+    "data": {},
+    "author": "codex:session-lifecycle",
+    "createdAt": "2026-08-28T19:22:42.542Z"
+  },
+  "hlc": "1787944962542-000000",
+  "baseRevision": "sha256:3ed8416f4557a469870bc65e77a608bd8bc93e1c821bfb7d70d9c56c1dc07a18"
+}

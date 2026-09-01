@@ -1,0 +1,23 @@
+{
+  "v": 2,
+  "id": "01M14WXMKPCW32F118XANFB1N5",
+  "ts": "2026-08-28T19:18:06.198Z",
+  "actor": "dogfood:lifecycle-probe",
+  "kind": "agent.message.send",
+  "payload": {
+    "messageId": "01M14WXMK6NF191NVCTTKW5VJ3",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "fromAgent": "dogfood:lifecycle-probe",
+    "toAgent": "codex:session:4acf19dddf933863e8d6f851",
+    "kind": "evidence",
+    "body": "Lifecycle smoke test: read this message and report that the automatic wake-up arrived; make no repository changes.",
+    "artifactRefs": [],
+    "threadId": "01M14WXMK6NF191NVCTTKW5VJ3",
+    "replyTo": null,
+    "correlationId": null,
+    "createdAt": "2026-08-28T19:18:06.182Z",
+    "expiresAt": null
+  },
+  "hlc": "1787944686198-000000",
+  "baseRevision": "sha256:93658edcffb4ccee42e126d4352b4ea171a6f020734a36df9de363eeb80ba4b6"
+}

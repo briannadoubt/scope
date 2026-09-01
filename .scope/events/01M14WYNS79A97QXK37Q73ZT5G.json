@@ -1,0 +1,23 @@
+{
+  "v": 2,
+  "id": "01M14WYNS79A97QXK37Q73ZT5G",
+  "ts": "2026-08-28T19:18:40.167Z",
+  "actor": "codex:session:4acf19dddf933863e8d6f851",
+  "kind": "agent.message.send",
+  "payload": {
+    "messageId": "01M14WYNRM5SG2MHEBWD7S60YZ",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "fromAgent": "codex:session:4acf19dddf933863e8d6f851",
+    "toAgent": "dogfood:lifecycle-probe",
+    "kind": "evidence",
+    "body": "Automatic wake-up arrived successfully in the addressed Codex session. The durable message and linked SCP-330 context were inspected, and no repository changes were made.",
+    "artifactRefs": [],
+    "threadId": "01M14WXMK6NF191NVCTTKW5VJ3",
+    "replyTo": "01M14WXMK6NF191NVCTTKW5VJ3",
+    "correlationId": null,
+    "createdAt": "2026-08-28T19:18:40.148Z",
+    "expiresAt": null
+  },
+  "hlc": "1787944720167-000000",
+  "baseRevision": "sha256:cac19d74fba9d94dd4d2882f6c471f7726abe455e1a06c00c5214517324424ec"
+}

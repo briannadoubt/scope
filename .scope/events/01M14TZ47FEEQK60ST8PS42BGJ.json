@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M14TZ47FEEQK60ST8PS42BGJ",
+  "ts": "2026-08-28T18:43:57.807Z",
+  "actor": "codex:lifecycle-integration",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "field": "status",
+    "value": "in_progress"
+  },
+  "hlc": "1787942637807-000000",
+  "baseRevision": "sha256:864afa28846672d2188a42fdc1b9134db146f3015d6001d1c5006ecfdda6db00",
+  "transactionId": "01M14TZ47FEEQK60ST8PS42BGK",
+  "transactionIndex": 2
+}

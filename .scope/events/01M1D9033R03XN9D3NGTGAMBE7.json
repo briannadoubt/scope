@@ -1,0 +1,33 @@
+{
+  "v": 2,
+  "id": "01M1D9033R03XN9D3NGTGAMBE7",
+  "ts": "2026-09-01T01:23:04.952Z",
+  "actor": "codex:scope-lifecycle-reconcile",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "leaseId": "01M1D9033PHY85N2X22MQMXXVZ",
+    "agent": "codex:scope-lifecycle-reconcile",
+    "capabilities": [],
+    "files": [
+      "src/session-bridge.js",
+      "src/lifecycle-hooks.js",
+      "src/cli.js",
+      "test/session-bridge.test.js",
+      "test/lifecycle-hooks.test.js",
+      "docs/session-lifecycle.md",
+      "docs/agent-messaging.md",
+      "docs/agent-protocol.md",
+      "README.md"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "39ef470",
+    "claimedAt": "2026-09-01T01:23:04.950Z",
+    "expiresAt": "2026-09-01T01:43:04.950Z"
+  },
+  "hlc": "1788225784952-000000",
+  "baseRevision": "sha256:f919208e348b9d0ee492df85ba6f8d8902925730fd72bf4d4ca3e40fb43135de",
+  "transactionId": "01M1D9033R03XN9D3NGTGAMBE9",
+  "transactionIndex": 0
+}

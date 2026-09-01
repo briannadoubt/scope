@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M1D3X4HPS5MMHHQWXJK2J98Z",
+  "ts": "2026-08-31T23:54:05.238Z",
+  "actor": "codex:scope-lifecycle-reconcile",
+  "kind": "agent.discovery.add",
+  "payload": {
+    "discoveryId": "01M1D3X4HNMPYZVVDGNQQ1B6XX",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "discoveryType": "fact",
+    "body": "Reconciliation audit found that the prior completion was made from /Users/bri/dev/Scope while the assigned cbc9 worktree remained at the initial 19-line uncommitted helper change. The implementation exists only as uncommitted changes in main. bridge status also derives retrying from any historical retry record, so a later acknowledged delivery can still appear retrying. Reopening for a committed, verified reconciliation without deleting the prior attempt or its failure evidence.",
+    "data": {},
+    "author": "codex:scope-lifecycle-reconcile",
+    "createdAt": "2026-08-31T23:54:05.237Z"
+  },
+  "hlc": "1788220445238-000000",
+  "baseRevision": "sha256:bd9edb0ec1c23eabc2e1dc94a250ae11b05882c2a09fd3e6f7e3dd180f9f2c71"
+}

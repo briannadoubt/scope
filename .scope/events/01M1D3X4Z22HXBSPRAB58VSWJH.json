@@ -1,0 +1,35 @@
+{
+  "v": 2,
+  "id": "01M1D3X4Z22HXBSPRAB58VSWJH",
+  "ts": "2026-08-31T23:54:05.666Z",
+  "actor": "codex:scope-lifecycle-reconcile",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "leaseId": "01M1D3X4Z125ZEJ4XVAJCJW6EM",
+    "agent": "codex:scope-lifecycle-reconcile",
+    "capabilities": [],
+    "files": [
+      "src/session-bridge.js",
+      "src/lifecycle-hooks.js",
+      "src/cli.js",
+      "test/session-bridge.test.js",
+      "test/lifecycle-hooks.test.js",
+      "docs/session-lifecycle.md",
+      "docs/agent-messaging.md",
+      "docs/agent-protocol.md",
+      "README.md"
+    ],
+    "worktree": "/Users/bri/dev/Scope",
+    "branch": "main",
+    "baseSha": "24c79da69a008735fcf2145879ba4adf98299f3e",
+    "claimedAt": "2026-08-31T23:54:05.665Z",
+    "expiresAt": "2026-09-01T00:14:05.665Z"
+  },
+  "hlc": "1788220445666-000000",
+  "baseRevision": "sha256:c2fb27a55d995ccf2c594be8d5452b4a48d84721b422141622d349246d20d878",
+  "requestId": "019f969f-reconcile-scp330-0001",
+  "requestCommand": "claim",
+  "transactionId": "01M1D3X4Z32FHDJZ75FBS768ZX",
+  "transactionIndex": 0
+}

@@ -1,0 +1,20 @@
+{
+  "v": 2,
+  "id": "01M1D3X4Z32FHDJZ75FBS768ZV",
+  "ts": "2026-08-31T23:54:05.667Z",
+  "actor": "codex:scope-lifecycle-reconcile",
+  "kind": "agent.attempt.start",
+  "payload": {
+    "attemptId": "01M1D3X4Z125ZEJ4XVAJCJW6EN",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "leaseId": "01M1D3X4Z125ZEJ4XVAJCJW6EM",
+    "agent": "codex:scope-lifecycle-reconcile",
+    "startedAt": "2026-08-31T23:54:05.665Z"
+  },
+  "hlc": "1788220445667-000000",
+  "baseRevision": "sha256:c2fb27a55d995ccf2c594be8d5452b4a48d84721b422141622d349246d20d878",
+  "requestId": "019f969f-reconcile-scp330-0001",
+  "requestCommand": "claim",
+  "transactionId": "01M1D3X4Z32FHDJZ75FBS768ZX",
+  "transactionIndex": 1
+}

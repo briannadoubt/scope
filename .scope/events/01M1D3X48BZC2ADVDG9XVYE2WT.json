@@ -1,0 +1,14 @@
+{
+  "v": 2,
+  "id": "01M1D3X48BZC2ADVDG9XVYE2WT",
+  "ts": "2026-08-31T23:54:04.939Z",
+  "actor": "codex:scope-lifecycle-reconcile",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "field": "status",
+    "value": "todo"
+  },
+  "hlc": "1788220444939-000000",
+  "baseRevision": "sha256:6ac76328f61dc00dc3b0eac313723b054e85337a4dcd91d45b13df9bc874d2b0"
+}

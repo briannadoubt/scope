@@ -1,0 +1,48 @@
+{
+  "v": 2,
+  "id": "01M14W1YB8M67R1EXTFSVERS5P",
+  "ts": "2026-08-28T19:02:58.664Z",
+  "actor": "codex:lifecycle-integration",
+  "kind": "agent.discovery.add",
+  "payload": {
+    "discoveryId": "01M14W1YB8M67R1EXTFSVERS5N",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "discoveryType": "handoff",
+    "body": "Ticket created, claimed, and initial host audit recorded. Began implementation by adding private session-binding lookup and random automatic agent-id helpers to src/session-bridge.js; change is uncommitted.",
+    "data": {
+      "handoffVersion": "1.0",
+      "fromAgent": "codex:lifecycle-integration",
+      "toAgent": "codex:session-lifecycle",
+      "sourceAttemptId": "01M14TZ47DZ25Z6P6G42Y87PEJ",
+      "summary": "Ticket created, claimed, and initial host audit recorded. Began implementation by adding private session-binding lookup and random automatic agent-id helpers to src/session-bridge.js; change is uncommitted.",
+      "decisions": [
+        "Use supported lifecycle signals only; preserve mailbox-only status when host lifecycle identity is unavailable",
+        "Do not sync raw provider session IDs or session-derived identifiers into shared Scope events"
+      ],
+      "files": [
+        ".claude",
+        ".codex",
+        "Docs",
+        "src/cli.js",
+        "src/session-bridge.js",
+        "test/session-bridge.test.js"
+      ],
+      "verification": [],
+      "evidence": [],
+      "remaining": [
+        "Implement and test scope bridge lifecycle start/resume/end command",
+        "Package/install Claude Code SessionStart and SessionEnd hooks",
+        "Determine supported Codex lifecycle integration without filesystem polling",
+        "Verify automatic register/bind/wake/resume/offline behavior end-to-end",
+        "Document capability matrix and complete SCP-330"
+      ],
+      "blockers": []
+    },
+    "author": "codex:lifecycle-integration",
+    "createdAt": "2026-08-28T19:02:58.664Z"
+  },
+  "hlc": "1787943778664-000000",
+  "baseRevision": "sha256:4533a392623aeeb42734c66c2f100ec8ff929a9aee19e9a0b9ee97e69a66c2f8",
+  "transactionId": "01M14W1YB98NPDFN6MFRG92WNK",
+  "transactionIndex": 0
+}

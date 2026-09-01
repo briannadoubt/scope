@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1D90XKZASRTADNBQ7NTPY2H",
+  "ts": "2026-09-01T01:23:32.095Z",
+  "actor": "codex:scope-lifecycle-reconcile",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "field": "branch",
+    "value": "main"
+  },
+  "hlc": "1788225812095-000001",
+  "baseRevision": "sha256:8babf0f8369ba5161d4adcf4d62c7b3484767aaf76eeb7e24dad1cc65f3f887b",
+  "transactionId": "01M1D90XKZASRTADNBQ7NTPY2J",
+  "transactionIndex": 3
+}

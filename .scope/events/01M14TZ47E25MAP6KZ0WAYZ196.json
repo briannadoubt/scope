@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M14TZ47E25MAP6KZ0WAYZ196",
+  "ts": "2026-08-28T18:43:57.806Z",
+  "actor": "codex:lifecycle-integration",
+  "kind": "agent.attempt.start",
+  "payload": {
+    "attemptId": "01M14TZ47DZ25Z6P6G42Y87PEJ",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "leaseId": "01M14TZ47DZ25Z6P6G42Y87PEH",
+    "agent": "codex:lifecycle-integration",
+    "startedAt": "2026-08-28T18:43:57.805Z"
+  },
+  "hlc": "1787942637806-000001",
+  "baseRevision": "sha256:864afa28846672d2188a42fdc1b9134db146f3015d6001d1c5006ecfdda6db00",
+  "transactionId": "01M14TZ47FEEQK60ST8PS42BGK",
+  "transactionIndex": 1
+}

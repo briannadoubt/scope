@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M14V07336N3WCM9BTJGPNZDW",
+  "ts": "2026-08-28T18:44:33.507Z",
+  "actor": "codex:lifecycle-integration",
+  "kind": "agent.discovery.add",
+  "payload": {
+    "discoveryId": "01M14V0732XAKWT2GZGW2ZWNK1",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "discoveryType": "fact",
+    "body": "Initial host audit: Scope already auto-binds when 'scope agent register' runs inside a detectable Codex/Claude session, but no installed global or project lifecycle hook invokes registration. Claude Code supports SessionStart (startup/resume/clear) and SessionEnd hooks; current ~/.claude/settings.json and Scope project settings contain no hooks. Claude Desktop/Cowork sessions require a separate capability check because they may not expose the same hook environment. Codex needs host-supported lifecycle integration rather than filesystem polling.",
+    "data": {},
+    "author": "codex:lifecycle-integration",
+    "createdAt": "2026-08-28T18:44:33.506Z"
+  },
+  "hlc": "1787942673507-000000",
+  "baseRevision": "sha256:823b35272bb9ddce30bfd0f76cb36354816823eca33db648f6e93954818bb822"
+}

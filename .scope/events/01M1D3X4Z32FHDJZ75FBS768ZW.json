@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M1D3X4Z32FHDJZ75FBS768ZW",
+  "ts": "2026-08-31T23:54:05.667Z",
+  "actor": "codex:scope-lifecycle-reconcile",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "field": "status",
+    "value": "in_progress"
+  },
+  "hlc": "1788220445667-000001",
+  "baseRevision": "sha256:c2fb27a55d995ccf2c594be8d5452b4a48d84721b422141622d349246d20d878",
+  "requestId": "019f969f-reconcile-scp330-0001",
+  "requestCommand": "claim",
+  "transactionId": "01M1D3X4Z32FHDJZ75FBS768ZX",
+  "transactionIndex": 2
+}

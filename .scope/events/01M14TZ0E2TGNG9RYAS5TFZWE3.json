@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M14TZ0E2TGNG9RYAS5TFZWE3",
+  "ts": "2026-08-28T18:43:53.922Z",
+  "actor": "codex:lifecycle-integration",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "number": 330,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Automatically register and bind agent sessions",
+    "description": "Detect supported Claude Code CLI, Claude Desktop/Cowork, and Codex session lifecycle signals. Automatically register a stable Scope agent, bind the real provider session, renew presence while active, rebind resumed sessions without duplicates, and mark ended sessions offline/release leases. Start with an evidence-backed host capability matrix; implement only supported lifecycle integrations, with truthful mailbox-only fallback. Acceptance: a newly started supported session appears connected without a manual scope agent register/bridge bind, receives an addressed wake-up, survives resume, and becomes offline after termination without leaking provider session identifiers into shared events.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M1182HKEJQFANX1R6ECN6ZY6",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1787942633922-000000",
+  "baseRevision": "sha256:cd5dcc2d2d47b686f787879953fcf8f2351f8d8d0fc5691b9405f649bb3a8e05"
+}

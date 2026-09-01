@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M1D90N6P792B089NYE1SK8NM",
+  "ts": "2026-09-01T01:23:23.478Z",
+  "actor": "codex:scope-lifecycle-reconcile",
+  "kind": "agent.discovery.add",
+  "payload": {
+    "discoveryId": "01M1D90N6P792B089NYE1SK8NK",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "discoveryType": "evidence",
+    "body": "Reconciliation completed on main at 39ef470. Focused lifecycle/bridge tests: 14 passed, 0 failed. Full unrestricted npm test: 434 total, 364 passed, 70 skipped because PostgreSQL was unavailable, 0 failed. docs:agent:check, git diff --check, and npm pack --dry-run all passed. Codex hooks status reports SessionStart and SessionEnd installed. Bridge status reports this Codex session bound and connected with hashed session references only. The former cbc9 partial state is preserved in stash \"SCP-330 pre-reconciliation cbc9 state\" and the worktree is aligned to 39ef470.",
+    "data": {},
+    "author": "codex:scope-lifecycle-reconcile",
+    "createdAt": "2026-09-01T01:23:23.478Z"
+  },
+  "hlc": "1788225803478-000000",
+  "baseRevision": "sha256:49671eb994bf0ed01f4cf1572abda1ece635d9aca5d035f78c679ea1182e297f"
+}

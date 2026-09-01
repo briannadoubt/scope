@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M14V079V9DQN5NBDAA008GKS",
+  "ts": "2026-08-28T18:44:33.723Z",
+  "actor": "codex:lifecycle-integration",
+  "kind": "agent.discovery.add",
+  "payload": {
+    "discoveryId": "01M14V079T7C94HHFJ57044Y6B",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "discoveryType": "decision",
+    "body": "Implement lifecycle auto-registration only for providers with supported session identity signals. Preserve truthful mailbox-only state for unsupported Desktop/Cowork hosts; never scrape or sync raw provider session ids into Scope events.",
+    "data": {},
+    "author": "codex:lifecycle-integration",
+    "createdAt": "2026-08-28T18:44:33.722Z"
+  },
+  "hlc": "1787942673723-000000",
+  "baseRevision": "sha256:6762ccddc3345b4fd4eefe5b9867e28e543be528a184935b6f734c1780349bdc"
+}

@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M14W1YB98NPDFN6MFRG92WNJ",
+  "ts": "2026-08-28T19:02:58.665Z",
+  "actor": "codex:lifecycle-integration",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "field": "status",
+    "value": "todo"
+  },
+  "hlc": "1787943778665-000002",
+  "baseRevision": "sha256:4533a392623aeeb42734c66c2f100ec8ff929a9aee19e9a0b9ee97e69a66c2f8",
+  "transactionId": "01M14W1YB98NPDFN6MFRG92WNK",
+  "transactionIndex": 3
+}

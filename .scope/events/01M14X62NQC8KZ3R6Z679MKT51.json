@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M14X62NQC8KZ3R6Z679MKT51",
+  "ts": "2026-08-28T19:22:42.743Z",
+  "actor": "codex:session-lifecycle",
+  "kind": "agent.discovery.add",
+  "payload": {
+    "discoveryId": "01M14X62NQC8KZ3R6Z679MKT50",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "discoveryType": "evidence",
+    "body": "Verification passed: full npm test suite (431 tests: 361 pass, 70 environment skips, 0 failures); docs generator check and git diff --check passed; npm pack dry-run includes src/lifecycle-hooks.js and docs/session-lifecycle.md; installed Codex and Claude hooks report SessionStart+SessionEnd. Live daemon delivery message 01M14X3D8XW1RJJRQEAGFZ5AJP was acknowledged and replied to as 01M14X45NKKR0K52WR4P7TTB8T by the resumed stable random Codex identity, then SessionEnd marked it offline and unbound it. Shared-event scan found no provider session ids.",
+    "data": {},
+    "author": "codex:session-lifecycle",
+    "createdAt": "2026-08-28T19:22:42.743Z"
+  },
+  "hlc": "1787944962743-000000",
+  "baseRevision": "sha256:04033bb6c9ddfea3ead6917f870473a1f7443df0579ae53872c48f8b82f2c2cf"
+}

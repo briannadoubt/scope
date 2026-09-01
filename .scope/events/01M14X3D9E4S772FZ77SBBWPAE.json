@@ -1,0 +1,23 @@
+{
+  "v": 2,
+  "id": "01M14X3D9E4S772FZ77SBBWPAE",
+  "ts": "2026-08-28T19:21:15.310Z",
+  "actor": "dogfood:lifecycle-probe",
+  "kind": "agent.message.send",
+  "payload": {
+    "messageId": "01M14X3D8XW1RJJRQEAGFZ5AJP",
+    "ticketId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "fromAgent": "dogfood:lifecycle-probe",
+    "toAgent": "codex:session:4acf19dddf933863e8d6f851",
+    "kind": "evidence",
+    "body": "Second lifecycle smoke test: confirm the daemon-delivered automatic wake-up arrived; make no repository changes.",
+    "artifactRefs": [],
+    "threadId": "01M14X3D8XW1RJJRQEAGFZ5AJP",
+    "replyTo": null,
+    "correlationId": null,
+    "createdAt": "2026-08-28T19:21:15.293Z",
+    "expiresAt": null
+  },
+  "hlc": "1787944875310-000000",
+  "baseRevision": "sha256:0ec13786151a65279d8300f4a3fa2844e1d5f22abbc787e8864c73db616cefc1"
+}
