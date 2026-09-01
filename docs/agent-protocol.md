@@ -124,9 +124,13 @@ This build writes event format 2, reads formats 1, 2, and requires readers that 
 - `scope agent show [options] <agentId>` — No description.
 - `scope bridge [options] [command]` — Bind Scope mailboxes to live local Codex or Claude sessions.
 - `scope bridge bind [options] <agentId>` — Bind an agent mailbox to a model session on this machine.
+- `scope bridge lifecycle [options]` — Consume a supported Codex or Claude SessionStart/SessionEnd hook payload from stdin.
 - `scope bridge unbind [options] <agentId>` — Remove this machine's session binding for an agent mailbox.
 - `scope bridge list [options]` — List safe local session binding metadata for this workspace.
 - `scope bridge status [options]` — Show session connection and delivery state without exposing session ids or message bodies.
+- `scope bridge hooks [options] [command]` — Install or inspect supported model-host lifecycle hooks.
+- `scope bridge hooks install [options]` — Merge Scope lifecycle hooks into user-level Codex and/or Claude Code configuration.
+- `scope bridge hooks status [options]` — Report whether Scope lifecycle hooks are installed without reading session state.
 - `scope bridge run [options]` — Run the local session bridge without starting the web hub.
 - `scope message [options] [command]` — Exchange durable addressed messages between agents.
 - `scope message send [options]` — No description.

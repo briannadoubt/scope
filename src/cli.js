@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, watch as watchFileSystem, writeFil
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir, hostname } from 'node:os';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { tmpdir } from 'node:os';
 
@@ -14,6 +14,7 @@ const PKG = JSON.parse(
     'utf8'
   )
 );
+const SCOPE_BIN = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'scope.js');
 import {
   openDb,
   findScopeDir,
@@ -51,11 +52,18 @@ import { startRemoteSync } from './remote-sync.js';
 import {
   bindSession,
   currentSessionId,
+  endSessionLifecycle,
+  findSessionBinding,
+  findSessionIdentity,
   listSessionBindings,
+  readBridgeConfig,
   sessionBridgeOverview,
+  sessionBridgeRunnerActive,
+  startSessionLifecycle,
   startSessionBridge,
   unbindSession,
 } from './session-bridge.js';
+import { installLifecycleHooks, lifecycleHookStatus } from './lifecycle-hooks.js';
 import {
   readRemoteConfig,
   writeRemoteConfig,
@@ -352,6 +360,18 @@ function idleUntilSignaled() {
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
   process.on('SIGHUP', stop);
+}
+
+function ensureDetachedSessionBridge(scopeDir) {
+  if (sessionBridgeRunnerActive()) return false;
+  const child = spawn(process.execPath, [SCOPE_BIN, 'bridge', 'run', '--exit-when-idle'], {
+    cwd: dirname(scopeDir),
+    env: { ...process.env, SCOPE_DIR: scopeDir },
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.unref();
+  return true;
 }
 
 function stdinPrompt(question) {
@@ -1401,7 +1421,7 @@ export function buildProgram() {
   bridge.command('bind <agentId>')
     .description('Bind an agent mailbox to a model session on this machine.')
     .option('--provider <provider>', 'codex|claude (inferred from the current session when omitted)')
-    .option('--session <uuid>', 'session UUID (inferred from the current session when omitted)')
+    .option('--session <id>', 'opaque session id (inferred from the current session when omitted)')
     .option('--cwd <path>', 'working directory used when the session is resumed')
     .action((agentId, opts, cmd) => {
       const { scopeDir } = openOrDie();
@@ -1430,6 +1450,54 @@ export function buildProgram() {
       });
       out(cmd, result, (value) => `${chalk.green('✓')} ${value.agentId} bound to ${value.provider} session ${value.sessionRef}`);
     });
+  bridge.command('lifecycle')
+    .description('Consume a supported Codex or Claude SessionStart/SessionEnd hook payload from stdin.')
+    .requiredOption('--provider <provider>', 'codex|claude')
+    .action(async (opts, cmd) => {
+      if (process.stdin.isTTY) {
+        throw new ScopeCliError('lifecycle hook JSON is required on stdin', { code: 'BRIDGE_HOOK_INPUT_REQUIRED' });
+      }
+      let input;
+      try {
+        input = JSON.parse(await readStdin());
+      } catch (error) {
+        throw new ScopeCliError(`invalid lifecycle hook JSON: ${error.message}`, {
+          code: 'BRIDGE_HOOK_INPUT_INVALID',
+        });
+      }
+      const sessionId = input?.session_id;
+      const event = input?.hook_event_name;
+      if (!sessionId || !['SessionStart', 'SessionEnd'].includes(event)) {
+        throw new ScopeCliError('hook payload must contain session_id and SessionStart or SessionEnd', {
+          code: 'BRIDGE_HOOK_INPUT_INVALID',
+        });
+      }
+      const existing = findSessionBinding({ provider: opts.provider, sessionId })
+        || findSessionIdentity({ provider: opts.provider, sessionId });
+      const scopeDir = existing?.scopeDir || findScopeDir(input.cwd || process.cwd());
+      if (!scopeDir) {
+        const result = { handled: false, provider: opts.provider, mode: 'mailbox_only', reason: 'workspace_not_found' };
+        if (cmd.optsWithGlobals().json) out(cmd, result, (value) => JSON.stringify(value, null, 2));
+        return;
+      }
+      const { db } = openWorkspaceDb(scopeDir);
+      try {
+        const result = event === 'SessionStart'
+          ? startSessionLifecycle({
+              db,
+              scopeDir,
+              provider: opts.provider,
+              sessionId,
+              cwd: input.cwd || dirname(scopeDir),
+            })
+          : endSessionLifecycle({ db, scopeDir, provider: opts.provider, sessionId });
+        const runnerStarted = event === 'SessionStart' ? ensureDetachedSessionBridge(scopeDir) : false;
+        const report = { ...result, event, runnerStarted };
+        if (cmd.optsWithGlobals().json) out(cmd, report, (value) => JSON.stringify(value, null, 2));
+      } finally {
+        db.close();
+      }
+    });
   bridge.command('unbind <agentId>')
     .description('Remove this machine\'s session binding for an agent mailbox.')
     .action((agentId, _opts, cmd) => {
@@ -1453,17 +1521,49 @@ export function buildProgram() {
       const result = sessionBridgeOverview(scopeDir);
       out(cmd, result, (value) => JSON.stringify(value, null, 2));
     });
+  const bridgeHooks = bridge.command('hooks').description('Install or inspect supported model-host lifecycle hooks.');
+  bridgeHooks.command('install')
+    .description('Merge Scope lifecycle hooks into user-level Codex and/or Claude Code configuration.')
+    .option('--provider <provider>', 'codex|claude|all', 'all')
+    .action((opts, cmd) => {
+      const providers = opts.provider === 'all' ? ['codex', 'claude'] : [opts.provider];
+      const result = providers.map((provider) => installLifecycleHooks(provider));
+      out(cmd, result, (value) => value.map((item) => `${chalk.green('✓')} ${item.provider}: ${item.path}`).join('\n'));
+    });
+  bridgeHooks.command('status')
+    .description('Report whether Scope lifecycle hooks are installed without reading session state.')
+    .option('--provider <provider>', 'codex|claude|all', 'all')
+    .action((opts, cmd) => {
+      const providers = opts.provider === 'all' ? ['codex', 'claude'] : [opts.provider];
+      const result = providers.map((provider) => lifecycleHookStatus(provider));
+      out(cmd, result, (value) => JSON.stringify(value, null, 2));
+    });
   bridge.command('run')
     .description('Run the local session bridge without starting the web hub.')
-    .action((_opts, cmd) => {
+    .option('--exit-when-idle', 'Exit after the last private session binding is removed.')
+    .action((opts, cmd) => {
       const runner = startSessionBridge();
       out(cmd, { running: runner.ownsLock, alreadyRunning: !runner.ownsLock, pid: process.pid }, (value) => value.running
         ? `${chalk.green('✓')} session bridge running`
         : `${chalk.gray('○')} a session bridge is already running`);
       if (!runner.ownsLock) return;
-      const stop = async () => { await runner.stop(); };
+      let idlePoll = null;
+      let stopping = false;
+      const stop = async () => {
+        if (stopping) return;
+        stopping = true;
+        if (idlePoll) clearInterval(idlePoll);
+        await runner.stop();
+        if (opts.exitWhenIdle) process.exit(0);
+      };
       process.on('SIGINT', stop);
       process.on('SIGTERM', stop);
+      if (opts.exitWhenIdle) {
+        idlePoll = setInterval(() => {
+          if (readBridgeConfig().bindings.length === 0) void stop();
+        }, 1_000);
+        return;
+      }
       idleUntilSignaled();
     });
 

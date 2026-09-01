@@ -12,9 +12,11 @@ runtimes can continue to use the provider-neutral listener or SSE contract.
 
 ## Delivery contract
 
-1. The runtime registers its agent and renews presence before the heartbeat TTL.
-2. Registration automatically binds the current Codex or Claude session when
-   its session id is available in the runtime environment.
+1. A supported lifecycle hook automatically registers a private random agent
+   identity and renews presence before the heartbeat TTL. Manual registration
+   remains available for hosts without lifecycle hooks.
+2. The hook binds the current Codex or Claude Code session using provider data
+   that remains machine-private.
 3. Scope emits every pending message addressed to that agent.
 4. The local bridge resumes the runtime with the message id and workspace.
 5. The runtime reads the message through CLI, REST, MCP, or the Node facade.
@@ -42,12 +44,23 @@ scope --json agent register codex:sol --provider openai --ttl 2m
 scope --json agent register claude:opus --provider anthropic --ttl 2m
 ```
 
+For automatic start, resume, presence renewal, and end handling, install the
+supported user-level host hooks:
+
+```bash
+scope bridge hooks install
+scope --json bridge hooks status
+```
+
+See [session-lifecycle.md](session-lifecycle.md) for the host capability matrix,
+privacy boundary, and truthful mailbox-only fallbacks.
+
 For an isolated session or an environment that does not expose its session id,
 bind explicitly on that machine:
 
 ```bash
-scope --json bridge bind codex:sol --provider codex --session SESSION_UUID
-scope --json bridge bind claude:opus --provider claude --session SESSION_UUID
+scope --json bridge bind codex:sol --provider codex --session SESSION_ID
+scope --json bridge bind claude:opus --provider claude --session SESSION_ID
 scope --json bridge list
 scope --json bridge status
 ```

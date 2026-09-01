@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   chmodSync,
   closeSync,
@@ -11,17 +11,26 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 
-import { acknowledgeMessage, listInbox } from './agent-mailbox.js';
+import {
+  acknowledgeMessage,
+  getAgent,
+  heartbeatAgent,
+  listInbox,
+  registerAgent,
+} from './agent-mailbox.js';
+import { releaseLease } from './agent-runtime.js';
 import { ScopeCliError } from './protocol.js';
 import { openWorkspaceDb } from './workspace-open.js';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const PROVIDERS = new Set(['codex', 'claude']);
 const DEFAULT_POLL_MS = 1_000;
 const RUNNER_STALE_MS = 10_000;
+const PRESENCE_RENEW_MS = 60_000;
+const PRESENCE_TTL = '2m';
 const MAX_PROMPT_CHARS = 2_000;
 const MAX_STDERR_CHARS = 8_192;
 
@@ -39,7 +48,7 @@ export function bridgePaths(env = process.env) {
 }
 
 function emptyConfig() {
-  return { version: 1, bindings: [] };
+  return { version: 1, bindings: [], identities: [] };
 }
 
 function emptyState() {
@@ -90,8 +99,8 @@ export function normalizeSessionProvider(provider) {
 
 function assertSessionId(sessionId) {
   const value = String(sessionId || '').trim();
-  if (!UUID_RE.test(value)) {
-    throw new ScopeCliError('session id must be a UUID', { code: 'BRIDGE_SESSION_INVALID' });
+  if (!SESSION_ID_RE.test(value)) {
+    throw new ScopeCliError('session id must be a safe opaque identifier', { code: 'BRIDGE_SESSION_INVALID' });
   }
   return value;
 }
@@ -109,7 +118,7 @@ export function currentSessionId(provider, env = process.env) {
   const value = normalized === 'codex'
     ? env.CODEX_THREAD_ID || env.CODEX_SESSION_ID
     : env.CLAUDE_SESSION_ID || env.CLAUDE_CODE_SESSION_ID;
-  return value && UUID_RE.test(value) ? value : null;
+  return value && SESSION_ID_RE.test(value) ? value : null;
 }
 
 export function readBridgeConfig(options = {}) {
@@ -121,8 +130,14 @@ export function readBridgeConfig(options = {}) {
       if (!binding || typeof binding !== 'object') return false;
       if (typeof binding.scopeDir !== 'string' || !binding.scopeDir) return false;
       if (typeof binding.cwd !== 'string' || !binding.cwd) return false;
-      if (!PROVIDERS.has(binding.provider) || !UUID_RE.test(binding.sessionId || '')) return false;
+      if (!PROVIDERS.has(binding.provider) || !SESSION_ID_RE.test(binding.sessionId || '')) return false;
       return /^[A-Za-z0-9][A-Za-z0-9:._/@-]{0,127}$/.test(binding.agentId || '');
+    }) : [],
+    identities: Array.isArray(value.identities) ? value.identities.filter((identity) => {
+      if (!identity || typeof identity !== 'object') return false;
+      if (typeof identity.scopeDir !== 'string' || !identity.scopeDir) return false;
+      if (!PROVIDERS.has(identity.provider) || !SESSION_ID_RE.test(identity.sessionId || '')) return false;
+      return /^[A-Za-z0-9][A-Za-z0-9:._/@-]{0,127}$/.test(identity.agentId || '');
     }) : [],
   };
 }
@@ -147,7 +162,45 @@ function publicBinding(binding) {
   };
 }
 
-export function bindSession({ scopeDir, agentId, provider, sessionId, cwd, env, now = () => new Date() }) {
+export function findSessionBinding({ scopeDir, provider, sessionId, env } = {}) {
+  const normalizedScopeDir = scopeDir ? resolve(scopeDir) : null;
+  const normalizedProvider = provider ? normalizeSessionProvider(provider) : null;
+  const normalizedSessionId = assertSessionId(sessionId);
+  const binding = readBridgeConfig({ env }).bindings.find((item) =>
+    (!normalizedScopeDir || resolve(item.scopeDir) === normalizedScopeDir)
+    && (!normalizedProvider || item.provider === normalizedProvider)
+    && item.sessionId === normalizedSessionId
+  );
+  return binding ? { ...binding, ...publicBinding(binding) } : null;
+}
+
+export function findSessionIdentity({ scopeDir, provider, sessionId, env } = {}) {
+  const normalizedScopeDir = scopeDir ? resolve(scopeDir) : null;
+  const normalizedProvider = provider ? normalizeSessionProvider(provider) : null;
+  const normalizedSessionId = assertSessionId(sessionId);
+  const identity = readBridgeConfig({ env }).identities.find((item) =>
+    (!normalizedScopeDir || resolve(item.scopeDir) === normalizedScopeDir)
+    && (!normalizedProvider || item.provider === normalizedProvider)
+    && item.sessionId === normalizedSessionId
+  );
+  return identity ? { ...identity } : null;
+}
+
+export function automaticAgentId(provider, random = randomBytes) {
+  const normalizedProvider = normalizeSessionProvider(provider);
+  return `${normalizedProvider}:session:${random(12).toString('hex')}`;
+}
+
+export function bindSession({
+  scopeDir,
+  agentId,
+  provider,
+  sessionId,
+  cwd,
+  env,
+  lifecycleManaged,
+  now = () => new Date(),
+}) {
   const paths = bridgePaths(env);
   const normalizedScopeDir = resolve(scopeDir);
   const normalizedAgentId = assertAgentId(agentId);
@@ -156,6 +209,11 @@ export function bindSession({ scopeDir, agentId, provider, sessionId, cwd, env, 
   const config = readBridgeConfig({ path: paths.config });
   const key = bindingKey(normalizedScopeDir, normalizedAgentId);
   const existing = config.bindings.find((item) => bindingKey(item.scopeDir, item.agentId) === key);
+  const existingIdentity = config.identities.find((item) =>
+    resolve(item.scopeDir) === normalizedScopeDir
+    && item.provider === normalizedProvider
+    && item.sessionId === normalizedSessionId
+  );
   const timestamp = nowIso(now);
   const binding = {
     scopeDir: normalizedScopeDir,
@@ -163,13 +221,124 @@ export function bindSession({ scopeDir, agentId, provider, sessionId, cwd, env, 
     provider: normalizedProvider,
     sessionId: normalizedSessionId,
     cwd: resolve(cwd || dirname(normalizedScopeDir)),
+    lifecycleManaged: lifecycleManaged ?? existing?.lifecycleManaged ?? false,
     boundAt: existing?.boundAt || timestamp,
     updatedAt: timestamp,
   };
   config.bindings = config.bindings.filter((item) => bindingKey(item.scopeDir, item.agentId) !== key);
   config.bindings.push(binding);
+  if (binding.lifecycleManaged) {
+    config.identities = config.identities.filter((item) => !(
+      resolve(item.scopeDir) === normalizedScopeDir
+      && item.provider === normalizedProvider
+      && item.sessionId === normalizedSessionId
+    ));
+    config.identities.push({
+      scopeDir: normalizedScopeDir,
+      agentId: normalizedAgentId,
+      provider: normalizedProvider,
+      sessionId: normalizedSessionId,
+      createdAt: existingIdentity?.createdAt || existing?.boundAt || timestamp,
+      updatedAt: timestamp,
+    });
+  }
   writePrivateJson(paths.config, config);
   return publicBinding(binding);
+}
+
+function registryProvider(provider) {
+  return normalizeSessionProvider(provider) === 'codex' ? 'openai' : 'anthropic';
+}
+
+function releaseAgentLeases(db, agentId, now) {
+  const rows = db.prepare(`SELECT lease_id FROM agent_leases
+    WHERE agent=? AND released_at IS NULL AND expires_at>?`).all(agentId, now.toISOString());
+  return rows.map((row) => releaseLease(db, row.lease_id, {
+    agent: agentId,
+    reason: 'session_ended',
+    now,
+  }));
+}
+
+/**
+ * Register or renew an automatically managed provider session. The provider
+ * session id is used only to find and write the private bridge binding; it is
+ * never included in the agent registry event.
+ */
+export function startSessionLifecycle({
+  db,
+  scopeDir,
+  provider,
+  sessionId,
+  cwd,
+  env,
+  now = () => new Date(),
+  random = randomBytes,
+}) {
+  const normalizedProvider = normalizeSessionProvider(provider);
+  const normalizedSessionId = assertSessionId(sessionId);
+  const existing = findSessionBinding({
+    scopeDir,
+    provider: normalizedProvider,
+    sessionId: normalizedSessionId,
+    env,
+  });
+  const identity = existing || findSessionIdentity({
+    scopeDir,
+    provider: normalizedProvider,
+    sessionId: normalizedSessionId,
+    env,
+  });
+  const agentId = identity?.agentId || automaticAgentId(normalizedProvider, random);
+  const timestamp = now();
+  const current = getAgent(db, agentId, { now: timestamp });
+  const presence = current
+    ? heartbeatAgent(db, agentId, { status: 'online', ttl: PRESENCE_TTL, now: timestamp, actor: agentId })
+    : registerAgent(db, agentId, {
+        provider: registryProvider(normalizedProvider),
+        status: 'online',
+        ttl: PRESENCE_TTL,
+        now: timestamp,
+        actor: agentId,
+      });
+  const binding = bindSession({
+    scopeDir,
+    agentId,
+    provider: normalizedProvider,
+    sessionId: normalizedSessionId,
+    cwd,
+    env,
+    lifecycleManaged: true,
+    now: () => timestamp,
+  });
+  return { agentId, provider: normalizedProvider, reused: Boolean(identity), presence, binding };
+}
+
+/** Mark a lifecycle-managed session offline, release its leases, and remove its private binding. */
+export function endSessionLifecycle({ db, scopeDir, provider, sessionId, env, now = () => new Date() }) {
+  const normalizedProvider = normalizeSessionProvider(provider);
+  const existing = findSessionBinding({ scopeDir, provider: normalizedProvider, sessionId, env });
+  if (!existing) return { handled: false, provider: normalizedProvider };
+  const timestamp = now();
+  const unbound = unbindSession({ scopeDir: existing.scopeDir, agentId: existing.agentId, env });
+  const current = getAgent(db, existing.agentId, { now: timestamp });
+  const presence = current
+    ? heartbeatAgent(db, existing.agentId, {
+        status: 'offline',
+        ttl: PRESENCE_TTL,
+        now: timestamp,
+        actor: existing.agentId,
+      })
+    : null;
+  const releasedLeases = releaseAgentLeases(db, existing.agentId, timestamp);
+  return {
+    handled: true,
+    agentId: existing.agentId,
+    provider: normalizedProvider,
+    presence,
+    releasedLeaseIds: releasedLeases.map((lease) => lease.leaseId),
+    unbound: unbound.removed,
+  };
 }
 
 export function unbindSession({ scopeDir, agentId, env }) {
@@ -209,6 +378,20 @@ function classifyProviderFailure(error, stderr = '') {
   return 'BRIDGE_PROVIDER_FAILED';
 }
 
+export function providerExecutable(provider, env = process.env) {
+  const normalized = normalizeSessionProvider(provider);
+  const name = normalized === 'codex' ? 'codex' : 'claude';
+  const override = normalized === 'codex' ? env.SCOPE_CODEX_BIN : env.SCOPE_CLAUDE_BIN;
+  if (override) return override;
+  const candidates = [
+    ...String(env.PATH || '').split(delimiter).filter(Boolean).map((dir) => join(dir, name)),
+    join(env.HOME || homedir(), '.local', 'bin', name),
+    join('/opt/homebrew/bin', name),
+    join('/usr/local/bin', name),
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) || name;
+}
+
 export function bridgePrompt(binding, message) {
   const text = [
     `Scope has a pending durable message ${message.messageId} addressed to ${binding.agentId}.`,
@@ -225,7 +408,7 @@ export function injectSessionMessage(binding, message, options = {}) {
   const args = binding.provider === 'codex'
     ? ['exec', 'resume', '--json', binding.sessionId, '-']
     : ['-p', '--resume', binding.sessionId, '--output-format', 'json'];
-  const command = binding.provider === 'codex' ? 'codex' : 'claude';
+  const command = providerExecutable(binding.provider, { ...process.env, ...(options.env || {}) });
   const started = Date.now();
 
   return new Promise((resolveResult) => {
@@ -301,6 +484,14 @@ function heartbeatRunner(paths, now) {
   writePrivateJson(paths.state, state);
 }
 
+function clearRunnerHeartbeat(paths) {
+  const state = readBridgeState({ path: paths.state });
+  if (state.runner?.pid !== process.pid) return false;
+  state.runner = null;
+  writePrivateJson(paths.state, state);
+  return true;
+}
+
 function acquireRunnerLock(paths, now) {
   mkdirSync(dirname(paths.lock), { recursive: true, mode: 0o700 });
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -363,10 +554,17 @@ export function sessionBridgeOverview(scopeDir, options = {}) {
       sessionRef: safeSessionRef(binding.sessionId),
       lastDeliveryAt: latest?.updatedAt || null,
       lastErrorCode: latest?.errorCode || null,
-      retrying: relevant.some((item) => item.status === 'retrying'),
+      retrying: latest?.status === 'retrying',
     };
   }
   return result;
+}
+
+export function sessionBridgeRunnerActive(options = {}) {
+  const state = readBridgeState(options);
+  const heartbeatAt = Date.parse(state.runner?.heartbeatAt || '');
+  const now = options.now ? options.now().getTime() : Date.now();
+  return Number.isFinite(heartbeatAt) && now - heartbeatAt <= RUNNER_STALE_MS;
 }
 
 export class SessionBridgeRunner {
@@ -401,7 +599,10 @@ export class SessionBridgeRunner {
     if (this.ownsLock) return true;
     this.ownsLock = acquireRunnerLock(this.paths, this.now);
     if (!this.ownsLock) return false;
-    this.exitHandler = () => releaseRunnerLock(this.paths);
+    this.exitHandler = () => {
+      releaseRunnerLock(this.paths);
+      clearRunnerHeartbeat(this.paths);
+    };
     process.once('exit', this.exitHandler);
     heartbeatRunner(this.paths, this.now);
     return true;
@@ -416,7 +617,10 @@ export class SessionBridgeRunner {
       try { db.close(); } catch {}
     }
     this.dbs.clear();
-    if (this.ownsLock) releaseRunnerLock(this.paths);
+    if (this.ownsLock) {
+      releaseRunnerLock(this.paths);
+      clearRunnerHeartbeat(this.paths);
+    }
     this.ownsLock = false;
   }
 
@@ -432,10 +636,34 @@ export class SessionBridgeRunner {
     try {
       heartbeatRunner(this.paths, this.now);
       const bindings = readBridgeConfig({ path: this.paths.config }).bindings;
-      await Promise.all(bindings.map((binding) => this.processBinding(binding)));
+      await Promise.all(bindings.map(async (binding) => {
+        this.renewPresence(binding);
+        await this.processBinding(binding);
+      }));
     } finally {
       this.running = false;
     }
+  }
+
+  renewPresence(binding) {
+    if (!binding.lifecycleManaged) return;
+    const stillBound = readBridgeConfig({ path: this.paths.config }).bindings.some((item) =>
+      bindingKey(item.scopeDir, item.agentId) === bindingKey(binding.scopeDir, binding.agentId)
+      && item.sessionId === binding.sessionId
+      && item.lifecycleManaged
+    );
+    if (!stillBound) return;
+    const db = this.workspaceDb(binding.scopeDir);
+    const timestamp = this.now();
+    const agent = getAgent(db, binding.agentId, { now: timestamp });
+    if (!agent || agent.declaredStatus === 'offline') return;
+    if (timestamp.getTime() - Date.parse(agent.lastSeenAt) < PRESENCE_RENEW_MS) return;
+    heartbeatAgent(db, binding.agentId, {
+      status: 'online',
+      ttl: PRESENCE_TTL,
+      now: timestamp,
+      actor: binding.agentId,
+    });
   }
 
   async processBinding(binding) {

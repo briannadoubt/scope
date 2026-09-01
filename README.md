@@ -254,6 +254,18 @@ scope --json message send --from codex:sol --to claude:opus \
 scope --json bridge status
 ```
 
+Install native Codex and Claude Code lifecycle hooks to register a private
+random identity automatically, reuse it on resume, renew presence, and mark it
+offline on session end:
+
+```bash
+scope bridge hooks install
+scope --json bridge hooks status
+```
+
+The supported-host matrix and mailbox-only fallbacks are documented in
+[docs/session-lifecycle.md](docs/session-lifecycle.md).
+
 Explicit binding and the provider-neutral listener/SSE adapter contract are documented in
 [docs/agent-messaging.md](docs/agent-messaging.md).
 
