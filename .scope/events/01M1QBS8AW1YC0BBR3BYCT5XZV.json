@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1QBS8AW1YC0BBR3BYCT5XZV",
+  "ts": "2026-09-04T23:24:10.972Z",
+  "actor": "codex:coordinator-fixes",
+  "kind": "agent.lease.release",
+  "payload": {
+    "leaseId": "01M1QB6KVWDC1QT8R0B8X22MJF",
+    "releasedAt": "2026-09-04T23:24:10.972Z",
+    "reason": "succeeded"
+  },
+  "hlc": "1788564250972-000001",
+  "baseRevision": "sha256:5a442d61a66d31c56986d8c49c18ee4a03133665cb1234dc483c6787f5f7d76a",
+  "transactionId": "01M1QBS8AX18W6GVM5YSSX38TK",
+  "transactionIndex": 1
+}

@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M1QCF9200TT9YESNFH0R2NBP",
+  "ts": "2026-09-04T23:36:12.608Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M1QCF91Z8TWSE72RKDTMM93E",
+    "number": 337,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Keep historical attempt cancellation from overwriting current lifecycle",
+    "description": "Alder AS-201 read-only incident: worker handed off current attempt, then cancelled older superseded attempt; ticket changed to cancelled and root claim refused terminal. Reproduce on isolated leases with old running attempt expired, newer attempt handed_off, then cancel old attempt. Only latest attempt may reconcile ticket lifecycle; historical finish still records history and releases its own lease.",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M1QB5RVAT7WW23MJMV2CG183",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1788564972608-000000",
+  "baseRevision": "sha256:eda5021fce292913ba34cadf0547ac17d6a203691b3d8e0d706dd405a832d92c"
+}

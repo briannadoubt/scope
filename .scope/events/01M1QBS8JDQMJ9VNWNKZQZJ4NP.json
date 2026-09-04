@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1QBS8JDQMJ9VNWNKZQZJ4NP",
+  "ts": "2026-09-04T23:24:11.213Z",
+  "actor": "codex:coordinator-view",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M1QB6A4VFE29TQNEF2G1AF3A",
+    "field": "status",
+    "value": "done"
+  },
+  "hlc": "1788564251213-000001",
+  "baseRevision": "sha256:b73f234ad6f957b65222835617fcc48ad43d61395890d2f538443fc4db6b9e79",
+  "transactionId": "01M1QBS8JDQMJ9VNWNKZQZJ4NR",
+  "transactionIndex": 2
+}

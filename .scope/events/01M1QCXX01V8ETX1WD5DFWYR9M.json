@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1QCXX01V8ETX1WD5DFWYR9M",
+  "ts": "2026-09-04T23:44:11.777Z",
+  "actor": "codex:resource-audit",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M1QB6AB5QQ3MVW84K2VAQVZE",
+    "field": "status",
+    "value": "done"
+  },
+  "hlc": "1788565451777-000000",
+  "baseRevision": "sha256:1999ea598fd89e14df024574582bd7cdefff5e0dd7f4a49af413cc74d8eeb99d",
+  "transactionId": "01M1QCXX01V8ETX1WD5DFWYR9P",
+  "transactionIndex": 2
+}

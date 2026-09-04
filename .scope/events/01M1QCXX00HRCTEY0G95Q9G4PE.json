@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1QCXX00HRCTEY0G95Q9G4PE",
+  "ts": "2026-09-04T23:44:11.776Z",
+  "actor": "codex:resource-audit",
+  "kind": "agent.lease.release",
+  "payload": {
+    "leaseId": "01M1QBS8TW18A1V26K027Z2NPH",
+    "releasedAt": "2026-09-04T23:44:11.776Z",
+    "reason": "succeeded"
+  },
+  "hlc": "1788565451776-000001",
+  "baseRevision": "sha256:1999ea598fd89e14df024574582bd7cdefff5e0dd7f4a49af413cc74d8eeb99d",
+  "transactionId": "01M1QCXX01V8ETX1WD5DFWYR9P",
+  "transactionIndex": 1
+}

@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1QCG1M1MWPT3WNE0G0489CF",
+  "ts": "2026-09-04T23:36:37.761Z",
+  "actor": "codex:lifecycle-fix",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M1QCF91Z8TWSE72RKDTMM93E",
+    "field": "status",
+    "value": "in_progress"
+  },
+  "hlc": "1788564997761-000002",
+  "baseRevision": "sha256:e84f87afd691d1b35c78a6970fa350a20f39cda25e6b55c7511cac128c9e23aa",
+  "transactionId": "01M1QCG1M2CDH7RWVQHB935EWY",
+  "transactionIndex": 2
+}

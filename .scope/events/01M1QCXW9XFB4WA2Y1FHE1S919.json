@@ -1,0 +1,33 @@
+{
+  "v": 2,
+  "id": "01M1QCXW9XFB4WA2Y1FHE1S919",
+  "ts": "2026-09-04T23:44:11.069Z",
+  "actor": "codex:ownership-admission",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M1QCQR07MSNQPKM6VMZF2P7H",
+    "outcome": "succeeded",
+    "finishedAt": "2026-09-04T23:44:11.069Z",
+    "summary": "Structured source/interface/output ownership enforced during exclusive claims; current and format-2 compatibility suites pass",
+    "failure": null,
+    "evidence": [
+      {
+        "commit": "8a49c70"
+      },
+      {
+        "commit": "d737af8"
+      }
+    ],
+    "verification": [
+      {
+        "command": "npm test",
+        "ok": true,
+        "detail": "382 passed, 70 unavailable-Postgres skips; format-2 combination 375 passed, 70 skips"
+      }
+    ]
+  },
+  "hlc": "1788565451069-000000",
+  "baseRevision": "sha256:36880acff0af8d66641f32eab8d302097c49732747d6beca026cb732ef6aeb27",
+  "transactionId": "01M1QCXW9Y2Y5CX2FXRPFFFWBB",
+  "transactionIndex": 0
+}

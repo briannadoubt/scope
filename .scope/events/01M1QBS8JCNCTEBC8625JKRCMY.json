@@ -1,0 +1,35 @@
+{
+  "v": 2,
+  "id": "01M1QBS8JCNCTEBC8625JKRCMY",
+  "ts": "2026-09-04T23:24:11.212Z",
+  "actor": "codex:coordinator-view",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M1QBDVD6JNB0FVWGJE7R05DD",
+    "outcome": "succeeded",
+    "finishedAt": "2026-09-04T23:24:11.212Z",
+    "summary": "Bounded coordinator-v1 output and deterministic complete pagination verified",
+    "failure": null,
+    "evidence": [
+      {
+        "commit": "8a49c70"
+      },
+      {
+        "fullBytes": 1900175,
+        "compactBytes": 7864,
+        "unchangedBytes": 449
+      }
+    ],
+    "verification": [
+      {
+        "command": "npm test",
+        "ok": true,
+        "detail": "371 passed; 70 Postgres unavailable skips"
+      }
+    ]
+  },
+  "hlc": "1788564251212-000000",
+  "baseRevision": "sha256:b73f234ad6f957b65222835617fcc48ad43d61395890d2f538443fc4db6b9e79",
+  "transactionId": "01M1QBS8JDQMJ9VNWNKZQZJ4NR",
+  "transactionIndex": 0
+}

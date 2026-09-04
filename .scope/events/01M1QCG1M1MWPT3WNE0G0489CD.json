@@ -1,0 +1,26 @@
+{
+  "v": 2,
+  "id": "01M1QCG1M1MWPT3WNE0G0489CD",
+  "ts": "2026-09-04T23:36:37.761Z",
+  "actor": "codex:lifecycle-fix",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M1QCF91Z8TWSE72RKDTMM93E",
+    "leaseId": "01M1QCG1KZD07CTA8A2D6FDHMK",
+    "agent": "codex:lifecycle-fix",
+    "capabilities": [],
+    "files": [
+      "src/agent-runtime.js",
+      "test/agent-runtime.test.js"
+    ],
+    "worktree": "/Users/bri/.codex/worktrees/510e/Scope",
+    "branch": "codex/coordinator-readiness",
+    "baseSha": "05e9a46dd248ea51adb5f8e3242b1a62db130485",
+    "claimedAt": "2026-09-04T23:36:37.759Z",
+    "expiresAt": "2026-09-05T01:36:37.759Z"
+  },
+  "hlc": "1788564997761-000000",
+  "baseRevision": "sha256:e84f87afd691d1b35c78a6970fa350a20f39cda25e6b55c7511cac128c9e23aa",
+  "transactionId": "01M1QCG1M2CDH7RWVQHB935EWY",
+  "transactionIndex": 0
+}

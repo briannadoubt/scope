@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M1QB69YG5AB1WKPJX0HBZ1NF",
+  "ts": "2026-09-04T23:13:50.032Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M1QB69YFNSBEZDW1WKS9JJSP",
+    "number": 332,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Prevent inferred prose from certifying parallel ownership",
+    "description": "",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M1QB5RVAT7WW23MJMV2CG183",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1788563630032-000000",
+  "baseRevision": "sha256:303e3d87fa6c4261494ed506980e1aa23462b4cb8bbcd9eb5379e20305ad4e58"
+}

@@ -1,0 +1,30 @@
+{
+  "v": 2,
+  "id": "01M1QCXWRMRQA0YCZMCGCY4GAW",
+  "ts": "2026-09-04T23:44:11.540Z",
+  "actor": "codex:lifecycle-fix",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M1QCG1KZD07CTA8A2D6FDHMM",
+    "outcome": "succeeded",
+    "finishedAt": "2026-09-04T23:44:11.540Z",
+    "summary": "Superseded attempts cannot cancel or reset current ticket lifecycle; AS-201 reproduction passes after failing before fix",
+    "failure": null,
+    "evidence": [
+      {
+        "commit": "4207c29"
+      }
+    ],
+    "verification": [
+      {
+        "command": "npm test",
+        "ok": true,
+        "detail": "382 passed; isolated format-2 compatible set 375 passed; 70 Postgres skips each"
+      }
+    ]
+  },
+  "hlc": "1788565451540-000000",
+  "baseRevision": "sha256:58fa4b6a341495122adec405eb020fdfd941e1b7da9a2ed86eaa9f1bd25dcb3b",
+  "transactionId": "01M1QCXWRN6PHPCYHDETJYHM6D",
+  "transactionIndex": 0
+}

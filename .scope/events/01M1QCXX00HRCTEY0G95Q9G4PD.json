@@ -1,0 +1,36 @@
+{
+  "v": 2,
+  "id": "01M1QCXX00HRCTEY0G95Q9G4PD",
+  "ts": "2026-09-04T23:44:11.776Z",
+  "actor": "codex:resource-audit",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M1QBS8TW18A1V26K027Z2NPJ",
+    "outcome": "succeeded",
+    "finishedAt": "2026-09-04T23:44:11.776Z",
+    "summary": "Recorded delivery/resource boundaries, both requested task observations, exact commits and adoption/testing ledger",
+    "failure": null,
+    "evidence": [
+      {
+        "path": "docs/coordinator-verification.md"
+      },
+      {
+        "path": "docs/coordinator-workflow.md"
+      }
+    ],
+    "verification": [
+      {
+        "command": "npm run docs:agent:check",
+        "ok": true
+      },
+      {
+        "command": "git diff --check",
+        "ok": true
+      }
+    ]
+  },
+  "hlc": "1788565451776-000000",
+  "baseRevision": "sha256:1999ea598fd89e14df024574582bd7cdefff5e0dd7f4a49af413cc74d8eeb99d",
+  "transactionId": "01M1QCXX01V8ETX1WD5DFWYR9P",
+  "transactionIndex": 0
+}

@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1QCXWAVX8WDBR5J9HEZTEAF",
+  "ts": "2026-09-04T23:44:11.099Z",
+  "actor": "codex:ownership-admission",
+  "kind": "transaction.commit",
+  "payload": {
+    "transactionId": "01M1QCXW9Y2Y5CX2FXRPFFFWBB",
+    "eventIds": [
+      "01M1QCXW9XFB4WA2Y1FHE1S919",
+      "01M1QCXW9Y2Y5CX2FXRPFFFWB9",
+      "01M1QCXW9Y2Y5CX2FXRPFFFWBA"
+    ]
+  },
+  "hlc": "1788565451099-000000"
+}

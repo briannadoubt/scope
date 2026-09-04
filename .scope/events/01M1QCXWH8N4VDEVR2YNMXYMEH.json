@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1QCXWH8N4VDEVR2YNMXYMEH",
+  "ts": "2026-09-04T23:44:11.304Z",
+  "actor": "codex:phase-resources",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M1QBTK70PE4YK2ZVDX630JVM",
+    "field": "status",
+    "value": "done"
+  },
+  "hlc": "1788565451304-000000",
+  "baseRevision": "sha256:693714e162a192a414a40844bfe903c4ed10ec83f98c16b4b4e93b88ca3ae05a",
+  "transactionId": "01M1QCXWH8N4VDEVR2YNMXYMEK",
+  "transactionIndex": 2
+}

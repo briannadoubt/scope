@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M1QB6AB6KYHMHP6BED9SAZHB",
+  "ts": "2026-09-04T23:13:50.438Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M1QB6AB5QQ3MVW84K2VAQVZE",
+    "number": 334,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Document resource and delivery coordination boundaries",
+    "description": "",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01M1QB5RVAT7WW23MJMV2CG183",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1788563630438-000000",
+  "baseRevision": "sha256:3a26341e024fa639949749bc18e4ecf4f90edeabc4ef4cce3811da161d1cf2b8"
+}

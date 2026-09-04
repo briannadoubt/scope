@@ -1,0 +1,14 @@
+{
+  "v": 2,
+  "id": "01M1QCMCE042XX6VM2M6H7F024",
+  "ts": "2026-09-04T23:38:59.904Z",
+  "actor": "codex",
+  "kind": "relation.add",
+  "payload": {
+    "fromId": "01M1QCDHGS29DE9D3WVST2NFXA",
+    "toId": "01M14TZ0E1P5C45DKDRCB09ACX",
+    "type": "relates_to"
+  },
+  "hlc": "1788565139904-000000",
+  "baseRevision": "sha256:dfa2fb199b27ba0afbb0250f08780cfd451bde15f5f8d111283b8681d5510ed3"
+}

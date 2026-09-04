@@ -66,7 +66,8 @@ intent make every group unsafe and appear in `unresolvedActiveIntent`.
 Groups are alternative disjoint batches; do not run multiple groups together.
 Planning is advice at a snapshot, not a reservation. Recheck and atomically
 claim work before dispatch. Ordinary file overlaps remain warnings unless
-`exclusiveFiles` is requested. Ticket dependencies remain `blocked_by` relations.
+`exclusiveFiles` is requested by either participant. Claim admission uses the
+same declared output/interface overlaps as planning. Ticket dependencies remain `blocked_by` relations.
 
 ## Delivery and acceptance
 

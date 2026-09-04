@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M1QB6A4VFE29TQNEF2G1AF3B",
+  "ts": "2026-09-04T23:13:50.235Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M1QB6A4VFE29TQNEF2G1AF3A",
+    "number": 333,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Bound coordinator output with explicit detail and cursors",
+    "description": "",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": "01M1QB5RVAT7WW23MJMV2CG183",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1788563630235-000000",
+  "baseRevision": "sha256:488f9c42cc402be574e175782098633ff7cc0336f2d19bf12f4af6401d06641d"
+}

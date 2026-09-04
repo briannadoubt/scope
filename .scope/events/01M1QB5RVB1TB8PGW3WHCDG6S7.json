@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M1QB5RVB1TB8PGW3WHCDG6S7",
+  "ts": "2026-09-04T23:13:32.523Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M1QB5RVAT7WW23MJMV2CG183",
+    "number": 331,
+    "keyPrefix": "SCP",
+    "ticketType": "epic",
+    "title": "Make coordinator readiness trustworthy and compact",
+    "description": "",
+    "status": "backlog",
+    "priority": "high",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1788563612523-000000",
+  "baseRevision": "sha256:74f78c1bea2e9a150337f438618ca270dd35a14d7668f65d3e61590fddb1bc4f"
+}

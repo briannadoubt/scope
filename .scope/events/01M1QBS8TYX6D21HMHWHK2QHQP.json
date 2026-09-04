@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1QBS8TYX6D21HMHWHK2QHQP",
+  "ts": "2026-09-04T23:24:11.486Z",
+  "actor": "codex:resource-audit",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M1QB6AB5QQ3MVW84K2VAQVZE",
+    "field": "status",
+    "value": "in_progress"
+  },
+  "hlc": "1788564251486-000002",
+  "baseRevision": "sha256:8e660ac8f9d908c778cd87337c7bf4926f8a0225e9c2f40fc3203e703d24b6ff",
+  "transactionId": "01M1QBS8TYX6D21HMHWHK2QHQQ",
+  "transactionIndex": 2
+}

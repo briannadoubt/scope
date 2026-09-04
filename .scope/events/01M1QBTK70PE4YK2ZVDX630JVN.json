@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M1QBTK70PE4YK2ZVDX630JVN",
+  "ts": "2026-09-04T23:24:54.880Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M1QBTK70PE4YK2ZVDX630JVM",
+    "number": 335,
+    "keyPrefix": "SCP",
+    "ticketType": "story",
+    "title": "Reserve scarce resources per execution phase",
+    "description": "",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": "01M1QB5RVAT7WW23MJMV2CG183",
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1788564294880-000000",
+  "baseRevision": "sha256:a88d70801e003035c00589339f90d76c0c9b0f138d218f7c4b567ae7b32dfeeb"
+}

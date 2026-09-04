@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M1QCQR0EBPZA2QJ3S37GCTSQ",
+  "ts": "2026-09-04T23:40:50.062Z",
+  "actor": "codex:ownership-admission",
+  "kind": "agent.attempt.start",
+  "payload": {
+    "attemptId": "01M1QCQR07MSNQPKM6VMZF2P7H",
+    "ticketId": "01M1QB69YFNSBEZDW1WKS9JJSP",
+    "leaseId": "01M1QCQR07MSNQPKM6VMZF2P7G",
+    "agent": "codex:ownership-admission",
+    "startedAt": "2026-09-04T23:40:50.055Z"
+  },
+  "hlc": "1788565250062-000001",
+  "baseRevision": "sha256:77141967c862a351f70025b9d1261b064195574fe5c04e5e7bb40f268772d139",
+  "transactionId": "01M1QCQR0EBPZA2QJ3S37GCTSR",
+  "transactionIndex": 1
+}

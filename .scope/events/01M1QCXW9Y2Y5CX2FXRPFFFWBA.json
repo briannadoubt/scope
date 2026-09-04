@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1QCXW9Y2Y5CX2FXRPFFFWBA",
+  "ts": "2026-09-04T23:44:11.070Z",
+  "actor": "codex:ownership-admission",
+  "kind": "ticket.set_field",
+  "payload": {
+    "ticketId": "01M1QB69YFNSBEZDW1WKS9JJSP",
+    "field": "status",
+    "value": "done"
+  },
+  "hlc": "1788565451070-000001",
+  "baseRevision": "sha256:36880acff0af8d66641f32eab8d302097c49732747d6beca026cb732ef6aeb27",
+  "transactionId": "01M1QCXW9Y2Y5CX2FXRPFFFWBB",
+  "transactionIndex": 2
+}

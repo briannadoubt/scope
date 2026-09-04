@@ -1,0 +1,25 @@
+{
+  "v": 2,
+  "id": "01M1QBS8TYX6D21HMHWHK2QHQM",
+  "ts": "2026-09-04T23:24:11.486Z",
+  "actor": "codex:resource-audit",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M1QB6AB5QQ3MVW84K2VAQVZE",
+    "leaseId": "01M1QBS8TW18A1V26K027Z2NPH",
+    "agent": "codex:resource-audit",
+    "capabilities": [],
+    "files": [
+      "docs/coordinator-workflow.md"
+    ],
+    "worktree": "/Users/bri/.codex/worktrees/510e/Scope",
+    "branch": "codex/coordinator-readiness",
+    "baseSha": "8a49c70cc445d399c629674a9fc35763c0b19cd2",
+    "claimedAt": "2026-09-04T23:24:11.484Z",
+    "expiresAt": "2026-09-05T01:24:11.484Z"
+  },
+  "hlc": "1788564251486-000000",
+  "baseRevision": "sha256:8e660ac8f9d908c778cd87337c7bf4926f8a0225e9c2f40fc3203e703d24b6ff",
+  "transactionId": "01M1QBS8TYX6D21HMHWHK2QHQQ",
+  "transactionIndex": 0
+}

@@ -1,0 +1,18 @@
+{
+  "v": 2,
+  "id": "01M1QBW50K70EQDZ0773S9HA2X",
+  "ts": "2026-09-04T23:25:45.875Z",
+  "actor": "codex:phase-resources",
+  "kind": "agent.attempt.start",
+  "payload": {
+    "attemptId": "01M1QBW50JSZWFA8FCP9CQGY4K",
+    "ticketId": "01M1QBTK70PE4YK2ZVDX630JVM",
+    "leaseId": "01M1QBW50JSZWFA8FCP9CQGY4J",
+    "agent": "codex:phase-resources",
+    "startedAt": "2026-09-04T23:25:45.874Z"
+  },
+  "hlc": "1788564345875-000001",
+  "baseRevision": "sha256:d63e1fbdc4d3efde6249d001f7f53956275b131a4c591dbefa6cb362492b386d",
+  "transactionId": "01M1QBW50K70EQDZ0773S9HA2Z",
+  "transactionIndex": 1
+}

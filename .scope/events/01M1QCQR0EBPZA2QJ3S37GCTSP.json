@@ -1,0 +1,26 @@
+{
+  "v": 2,
+  "id": "01M1QCQR0EBPZA2QJ3S37GCTSP",
+  "ts": "2026-09-04T23:40:50.062Z",
+  "actor": "codex:ownership-admission",
+  "kind": "agent.lease.claim",
+  "payload": {
+    "ticketId": "01M1QB69YFNSBEZDW1WKS9JJSP",
+    "leaseId": "01M1QCQR07MSNQPKM6VMZF2P7G",
+    "agent": "codex:ownership-admission",
+    "capabilities": [],
+    "files": [
+      "src/agent-runtime.js",
+      "test/agent-runtime.test.js"
+    ],
+    "worktree": "/Users/bri/.codex/worktrees/510e/Scope",
+    "branch": "codex/coordinator-readiness",
+    "baseSha": "4207c2918542f33fc9f9d88baf5e51631f254d49",
+    "claimedAt": "2026-09-04T23:40:50.055Z",
+    "expiresAt": "2026-09-05T01:40:50.055Z"
+  },
+  "hlc": "1788565250062-000000",
+  "baseRevision": "sha256:77141967c862a351f70025b9d1261b064195574fe5c04e5e7bb40f268772d139",
+  "transactionId": "01M1QCQR0EBPZA2QJ3S37GCTSR",
+  "transactionIndex": 0
+}

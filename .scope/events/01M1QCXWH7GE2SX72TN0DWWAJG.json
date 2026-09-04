@@ -1,0 +1,30 @@
+{
+  "v": 2,
+  "id": "01M1QCXWH7GE2SX72TN0DWWAJG",
+  "ts": "2026-09-04T23:44:11.303Z",
+  "actor": "codex:phase-resources",
+  "kind": "agent.attempt.finish",
+  "payload": {
+    "attemptId": "01M1QBW50JSZWFA8FCP9CQGY4K",
+    "outcome": "succeeded",
+    "finishedAt": "2026-09-04T23:44:11.303Z",
+    "summary": "Phase admission reuses work leases with atomic local capacity, recovery and explicit format-3 upgrade boundary",
+    "failure": null,
+    "evidence": [
+      {
+        "commit": "05e9a46"
+      }
+    ],
+    "verification": [
+      {
+        "command": "npm test",
+        "ok": true,
+        "detail": "382 passed, 70 unavailable-Postgres skips; includes process contention and replay"
+      }
+    ]
+  },
+  "hlc": "1788565451303-000000",
+  "baseRevision": "sha256:693714e162a192a414a40844bfe903c4ed10ec83f98c16b4b4e93b88ca3ae05a",
+  "transactionId": "01M1QCXWH8N4VDEVR2YNMXYMEK",
+  "transactionIndex": 0
+}

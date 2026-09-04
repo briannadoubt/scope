@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M1QB6KMRAZA02PJKNZ9JV1ZX",
+  "ts": "2026-09-04T23:13:59.960Z",
+  "actor": "codex",
+  "kind": "agent.contract.set",
+  "payload": {
+    "ticketId": "01M1QB69YFNSBEZDW1WKS9JJSP",
+    "contract": {
+      "acceptance": [],
+      "constraints": [],
+      "verificationCommands": [],
+      "requiredCapabilities": [],
+      "policy": {
+        "files": [
+          "src/agent-runtime.js",
+          "test/agent-runtime.test.js"
+        ]
+      }
+    }
+  },
+  "hlc": "1788563639960-000000",
+  "baseRevision": "sha256:09d4489b26deec6678ab587adc20cc8639d08b8ed0c3ab2e5b23a1051836a8c8"
+}

@@ -1,0 +1,16 @@
+{
+  "v": 2,
+  "id": "01M1QCXWH7GE2SX72TN0DWWAJH",
+  "ts": "2026-09-04T23:44:11.303Z",
+  "actor": "codex:phase-resources",
+  "kind": "agent.lease.release",
+  "payload": {
+    "leaseId": "01M1QBW50JSZWFA8FCP9CQGY4J",
+    "releasedAt": "2026-09-04T23:44:11.303Z",
+    "reason": "succeeded"
+  },
+  "hlc": "1788565451303-000001",
+  "baseRevision": "sha256:693714e162a192a414a40844bfe903c4ed10ec83f98c16b4b4e93b88ca3ae05a",
+  "transactionId": "01M1QCXWH8N4VDEVR2YNMXYMEK",
+  "transactionIndex": 1
+}

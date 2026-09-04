@@ -1,0 +1,24 @@
+{
+  "v": 2,
+  "id": "01M1QCDHGTEETBXJ119MM3NV33",
+  "ts": "2026-09-04T23:35:15.738Z",
+  "actor": "codex",
+  "kind": "ticket.create",
+  "payload": {
+    "ticketId": "01M1QCDHGS29DE9D3WVST2NFXA",
+    "number": 336,
+    "keyPrefix": "SCP",
+    "ticketType": "bug",
+    "title": "Investigate stale-session bridge delivery failures",
+    "description": "Read-only evidence from Codex task Evaluate Opus Sol collaboration (01a02d74-d3f9-7c63-b75c-fb5a394deea3), turn 01a06799-74ff-72c0-bd90-b0334e919c46: live Codex delivery still pending after six attempts, target inbox held four messages; later monitoring reported stale binding removed and no active retries. Current failure is not reproduced. Verify reconnect/rebind recovery and an end-to-end acknowledged delivery in an isolated session; distinguish an unbound/empty monitored workspace from successful delivery health. Related automatic binding work is SCP-330. Readiness/resource fixes do not repair this incident.",
+    "status": "backlog",
+    "priority": "medium",
+    "parentId": null,
+    "branch": null,
+    "prUrl": null,
+    "assignee": null,
+    "labels": []
+  },
+  "hlc": "1788564915738-000000",
+  "baseRevision": "sha256:7189e9bc56eba86ccbb45700dad5124b0d383f363fdb9a8280ef5d5c4683d0d5"
+}
