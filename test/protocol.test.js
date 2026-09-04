@@ -146,3 +146,23 @@ function makeFutureEvent(version) {
   event.v = version;
   return event;
 }
+
+test('ready compact is explicitly versioned and default JSON remains compatible', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'scope-compact-cli-'));
+  const run = (...args) => spawnSync(process.execPath, [CLI, '--json', ...args], { cwd: repo, encoding: 'utf8' });
+  try {
+    assert.equal(run('init', '--key', 'CMP', '--name', 'Compact').status, 0);
+    assert.equal(run('ticket', 'create', 'door/obstruction quit/relaunch').status, 0);
+    const legacy = JSON.parse(run('ready', '--plan').stdout);
+    assert.ok(Array.isArray(legacy.data.candidates));
+    assert.equal(legacy.data.parallelGroups[0].safe, false);
+    const compact = JSON.parse(run('ready', '--plan', '--compact', '--budget-bytes', '2048').stdout);
+    assert.equal(compact.ok, true);
+    assert.equal(compact.data.view, 'coordinator-v1');
+    assert.ok(Buffer.byteLength(JSON.stringify(compact.data)) <= 2048);
+    const unchanged = JSON.parse(run('ready', '--plan', '--compact', '--since', compact.data.snapshot).stdout);
+    assert.equal(unchanged.data.unchanged, true);
+    assert.equal(JSON.parse(run('ready', '--compact').stdout).ok, false);
+    assert.equal(JSON.parse(run('ready', '--plan', '--compact', '--budget-bytes', '1').stdout).ok, false);
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+});

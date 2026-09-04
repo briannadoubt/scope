@@ -27,6 +27,8 @@ This build writes event format 2, reads formats 1, 2, and requires readers that 
 - `doctor`: true
 - `readiness`: true
 - `parallelPlanning`: true
+- `compactCoordinatorView`: true
+- `declaredRepositoryIntent`: true
 - `leases`: true
 - `derivedLifecycle`: true
 - `executionProjection`: true

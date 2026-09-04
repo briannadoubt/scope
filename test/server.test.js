@@ -95,6 +95,14 @@ test('agent HTTP exposes parallel planning, execution state, and durable handoff
     assert.ok(plan.data.parallelGroups.some((group) => group.safe
       && group.tickets.includes(first.data.id) && group.tickets.includes(second.data.id)));
 
+    const compact = await apiFetch(t.baseUrl, '/api/agent/ready?plan=true&compact=true&budgetBytes=2048');
+    assert.equal(compact.status, 200);
+    assert.equal(compact.data.view, 'coordinator-v1');
+    assert.ok(Buffer.byteLength(JSON.stringify(compact.data)) <= 2048);
+    const unchanged = await apiFetch(t.baseUrl, `/api/agent/ready?plan=true&compact=true&since=${compact.data.snapshot}`);
+    assert.equal(unchanged.data.unchanged, true);
+    assert.equal((await apiFetch(t.baseUrl, '/api/agent/ready?compact=true')).status, 400);
+
     const claim = await apiFetch(t.baseUrl, '/api/agent/claim', {
       method: 'POST',
       body: { ticketId: first.data.id, agent: 'claude:child-1', files: ['src/first.js'] },

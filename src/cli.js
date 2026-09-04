@@ -1,4 +1,5 @@
 import { Command, Option } from 'commander';
+import { coordinatorView } from './coordinator-view.js';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readFileSync, watch as watchFileSystem, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -1689,12 +1690,20 @@ export function buildProgram() {
     .option('--capabilities <csv>', 'capabilities available to the agent')
     .option('--parent <epicId>', 'limit ready work to one epic')
     .option('--plan', 'return deterministic native-subagent parallel groups and overlap signals')
+    .option('--compact', 'opt in to bounded coordinator-v1 records (requires --plan)')
+    .option('--budget-bytes <bytes>', 'compact JSON data byte budget (2048..1048576)', '16384')
+    .option('--cursor <cursor>', 'continue a compact snapshot page')
+    .option('--since <snapshot>', 'return unchanged when the compact snapshot matches')
     .action((ticketId, opts, cmd) => {
       const { db } = openOrDie();
       const capabilities = csv(opts.capabilities);
       if (ticketId && opts.plan) fail('--plan cannot be combined with a specific ticket id');
+      if ((opts.compact || opts.cursor || opts.since) && !opts.plan) fail('compact options require --plan');
+      if ((opts.cursor || opts.since) && !opts.compact) fail('--cursor and --since require --compact');
       const data = opts.plan
-        ? parallelPlan(db, { capabilities, parentId: opts.parent })
+        ? (opts.compact ? coordinatorView(db, { capabilities, parentId: opts.parent,
+            budgetBytes: opts.budgetBytes, cursor: opts.cursor, since: opts.since })
+          : parallelPlan(db, { capabilities, parentId: opts.parent }))
         : ticketId
         ? { ticket: getTicket(db, ticketId), readiness: readiness(db, ticketId, { capabilities }) }
         : listReady(db, { capabilities, parentId: opts.parent });

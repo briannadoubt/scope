@@ -1,4 +1,6 @@
 import express from 'express';
+import { coordinatorView } from './coordinator-view.js';
+import { ScopeCliError } from './protocol.js';
 import http from 'node:http';
 import https from 'node:https';
 import { readFileSync } from 'node:fs';
@@ -1040,7 +1042,11 @@ export async function startServer({
       capabilities: csvQuery(req.query.capabilities),
       parentId: req.query.parent || null,
     };
-    res.json(req.query.plan === 'true' ? parallelPlan(w.db, options) : listReady(w.db, options));
+    if (req.query.compact === 'true' && req.query.plan !== 'true') throw new ScopeCliError('compact requires plan=true');
+    res.json(req.query.compact === 'true'
+      ? coordinatorView(w.db, { ...options, budgetBytes: req.query.budgetBytes ?? 16384,
+          cursor: req.query.cursor, since: req.query.since })
+      : req.query.plan === 'true' ? parallelPlan(w.db, options) : listReady(w.db, options));
   }));
 
   app.get('/api/agent/overview', ws((_req, res, w) => {

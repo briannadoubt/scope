@@ -1,4 +1,5 @@
 import { ulid } from './ulid.js';
+import { posix } from 'node:path';
 import { doneColumnIds, normalizeColumns, terminalColumns } from './columns.js';
 import {
   emitDomainChange,
@@ -77,17 +78,17 @@ function discoveryRow(row) {
 }
 
 function latestLease(db, ticketId) {
-  return leaseRow(db.prepare('SELECT * FROM agent_leases WHERE ticket_id=? ORDER BY claimed_at DESC LIMIT 1').get(ticketId));
+  return leaseRow(db.prepare('SELECT * FROM agent_leases WHERE ticket_id=? ORDER BY claimed_at DESC,lease_id DESC LIMIT 1').get(ticketId));
 }
 
 function latestAttempt(db, ticketId) {
-  return attemptRow(db.prepare('SELECT * FROM agent_attempts WHERE ticket_id=? ORDER BY started_at DESC LIMIT 1').get(ticketId));
+  return attemptRow(db.prepare('SELECT * FROM agent_attempts WHERE ticket_id=? ORDER BY started_at DESC,attempt_id DESC LIMIT 1').get(ticketId));
 }
 
 function latestDiscovery(db, ticketId, type = null) {
   const row = type
-    ? db.prepare('SELECT * FROM agent_discoveries WHERE ticket_id=? AND type=? ORDER BY created_at DESC LIMIT 1').get(ticketId, type)
-    : db.prepare('SELECT * FROM agent_discoveries WHERE ticket_id=? ORDER BY created_at DESC LIMIT 1').get(ticketId);
+    ? db.prepare('SELECT * FROM agent_discoveries WHERE ticket_id=? AND type=? ORDER BY created_at DESC,discovery_id DESC LIMIT 1').get(ticketId, type)
+    : db.prepare('SELECT * FROM agent_discoveries WHERE ticket_id=? ORDER BY created_at DESC,discovery_id DESC LIMIT 1').get(ticketId);
   return discoveryRow(row);
 }
 
@@ -207,7 +208,7 @@ export function setContract(db, ticketId, contract, actor = null, model = null) 
 
 export function activeLease(db, ticketId, now = new Date()) {
   return leaseRow(db.prepare(`SELECT * FROM agent_leases WHERE ticket_id=? AND released_at IS NULL
-    AND expires_at>? ORDER BY claimed_at DESC LIMIT 1`).get(ticketId, now.toISOString()));
+    AND expires_at>? ORDER BY claimed_at DESC,lease_id DESC LIMIT 1`).get(ticketId, now.toISOString()));
 }
 
 export function readiness(db, ticketId, { now = new Date(), capabilities = [] } = {}) {
@@ -219,7 +220,7 @@ export function readiness(db, ticketId, { now = new Date(), capabilities = [] } 
   if (terminal.has(ticket.status)) return result({ state: 'terminal', reasons: [`status:${ticket.status}`], blockers: [], lease: null });
   const blockers = db.prepare(`SELECT r.to_ticket_id AS id, t.title, t.status
     FROM ticket_relations r JOIN tickets t ON t.id=r.to_ticket_id
-    WHERE r.from_ticket_id=? AND r.type='blocked_by'`).all(ticket.id)
+    WHERE r.from_ticket_id=? AND r.type='blocked_by' ORDER BY r.to_ticket_id`).all(ticket.id)
     .filter((row) => !terminal.has(row.status));
   const lease = activeLease(db, ticket.id, now);
   const contract = getContract(db, ticket.id);
@@ -243,32 +244,69 @@ export function listReady(db, { capabilities = [], now = new Date(), parentId = 
 
 function referencedPaths(ticket) {
   const text = `${ticket.title ?? ''}\n${ticket.description ?? ''}`;
-  return Array.from(new Set(text.match(/\b(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+\b/g) ?? [])).sort();
+  // Suggestions only: bare slash-separated prose is not repository intent.
+  return Array.from(new Set((text.match(/\b(?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.-]+\b/g) ?? [])
+    .filter((path) => /\.[A-Za-z][A-Za-z0-9]*$/.test(path) && !/^[A-Z]+-\d+\//.test(path)))).sort();
+}
+
+function intentPaths(value) {
+  if (!Array.isArray(value) || value.some((path) => typeof path !== 'string' || !path.trim()
+    || /[\0*?\[\]]/.test(path))) return null;
+  const paths = value.map((path) => posix.normalize(path.trim().replaceAll('\\', '/')).replace(/\/$/, '') || '/');
+  if (paths.some((path) => path === '..' || path.startsWith('../'))) return null;
+  return [...new Set(paths)].sort();
 }
 
 function repositoryIntent(db, ticket) {
   const contract = getContract(db, ticket.id);
+  const structured = contract?.policy?.repositoryIntent;
+  if (structured) {
+    const files = intentPaths(structured.files ?? []);
+    const reads = intentPaths(structured.reads ?? []);
+    const outputs = intentPaths(structured.outputs ?? []);
+    const resolved = files !== null && reads !== null && outputs !== null
+      && (files.length + reads.length + outputs.length > 0 || structured.complete === true);
+    return { files: files ?? [], reads: reads ?? [], outputs: outputs ?? [],
+      worktree: typeof structured.worktree === 'string' ? structured.worktree : null,
+      source: 'contract', confidence: 'declared', resolved };
+  }
   const declared = contract?.policy?.files ?? contract?.policy?.repositoryFiles ?? [];
   if (Array.isArray(declared) && declared.length) {
-    return { files: Array.from(new Set(declared.map(String))).sort(), source: 'contract', confidence: 'declared' };
+    const files = intentPaths(declared);
+    return { files: files ?? [], source: 'contract', confidence: 'declared', resolved: files !== null };
   }
   const lease = latestLease(db, ticket.id);
-  if (lease?.files?.length) return { files: lease.files, source: 'lease_history', confidence: 'observed' };
+  if (lease?.files?.length) return { files: intentPaths(lease.files) ?? [], source: 'lease_history', confidence: 'observed', resolved: false };
   const inferred = referencedPaths(ticket);
-  if (inferred.length) return { files: inferred, source: 'ticket_text', confidence: 'inferred' };
-  return { files: [], source: 'unknown', confidence: 'unknown' };
+  if (inferred.length) return { files: inferred, source: 'ticket_text', confidence: 'inferred', resolved: false };
+  return { files: [], source: 'unknown', confidence: 'unknown', resolved: false };
 }
 
 function overlappingFiles(left, right) {
   const overlap = [];
   for (const a of left) {
     for (const b of right) {
-      if (a === b || a.startsWith(`${b.replace(/\/$/, '')}/`) || b.startsWith(`${a.replace(/\/$/, '')}/`)) {
+      if (a === '.' || b === '.' || a === b || a.startsWith(`${b.replace(/\/$/, '')}/`) || b.startsWith(`${a.replace(/\/$/, '')}/`)) {
         overlap.push(a === b ? a : `${a} ↔ ${b}`);
       }
     }
   }
   return Array.from(new Set(overlap)).sort();
+}
+
+function intentOverlap(left, right) {
+  const physicalPaths = (intent, paths) => paths.map((path) =>
+    posix.isAbsolute(path) ? path : posix.join(intent.worktree ?? '.', path));
+  // Source writes conflict across worktrees: integration still shares those paths.
+  // Reads model shared interfaces; generated outputs use their physical location.
+  return [...new Set([
+    ...overlappingFiles(left.files, [...right.files, ...(right.reads ?? [])]),
+    ...overlappingFiles(left.reads ?? [], right.files),
+    ...overlappingFiles(physicalPaths(left, left.outputs ?? []),
+      physicalPaths(right, [...(right.outputs ?? []), ...right.files, ...(right.reads ?? [])])),
+    ...overlappingFiles(physicalPaths(left, [...left.files, ...(left.reads ?? [])]),
+      physicalPaths(right, right.outputs ?? [])),
+  ])].sort();
 }
 
 /** Deterministic scheduling advice for a parent using native subagents. */
@@ -281,10 +319,17 @@ export function parallelPlan(db, { capabilities = [], now = new Date(), parentId
     ORDER BY ticket_id,claimed_at`).all(now.toISOString()).map(leaseRow);
   const conflicts = [];
   const deferred = new Set();
+  const activeIntents = active.map((lease) => {
+    const intent = repositoryIntent(db, getTicket(db, lease.ticketId));
+    return { ...intent, files: [...new Set([...intent.files, ...(intentPaths(lease.files) ?? [])])],
+      worktree: lease.worktree ?? intent.worktree,
+      resolved: intent.resolved || (intentPaths(lease.files)?.length > 0) };
+  });
+  const unresolvedActiveIntent = active.filter((_lease, i) => !activeIntents[i].resolved).map((lease) => lease.ticketId);
 
   for (const candidate of candidates) {
-    for (const lease of active) {
-      const files = overlappingFiles(candidate.repositoryIntent.files, lease.files);
+    for (const [index, lease] of active.entries()) {
+      const files = intentOverlap(candidate.repositoryIntent, activeIntents[index]);
       if (!files.length) continue;
       deferred.add(candidate.ticket.id);
       conflicts.push({
@@ -298,7 +343,7 @@ export function parallelPlan(db, { capabilities = [], now = new Date(), parentId
 
   for (let i = 0; i < candidates.length; i += 1) {
     for (let j = i + 1; j < candidates.length; j += 1) {
-      const files = overlappingFiles(candidates[i].repositoryIntent.files, candidates[j].repositoryIntent.files);
+      const files = intentOverlap(candidates[i].repositoryIntent, candidates[j].repositoryIntent);
       if (files.length) conflicts.push({
         type: 'candidate_overlap',
         tickets: [candidates[i].ticket.id, candidates[j].ticket.id],
@@ -309,13 +354,14 @@ export function parallelPlan(db, { capabilities = [], now = new Date(), parentId
 
   const groups = [];
   for (const candidate of candidates.filter((item) => !deferred.has(item.ticket.id))) {
-    if (!candidate.repositoryIntent.files.length) {
-      groups.push({ tickets: [candidate.ticket.id], safe: false, reason: 'repository_intent_unknown' });
+    if (!candidate.repositoryIntent.resolved || unresolvedActiveIntent.length) {
+      groups.push({ tickets: [candidate.ticket.id], safe: false,
+        reason: !candidate.repositoryIntent.resolved ? 'repository_intent_unknown' : 'active_repository_intent_unknown' });
       continue;
     }
     let group = groups.find((item) => item.safe && item.tickets.every((id) => {
       const other = candidates.find((candidateItem) => candidateItem.ticket.id === id);
-      return overlappingFiles(candidate.repositoryIntent.files, other.repositoryIntent.files).length === 0;
+      return intentOverlap(candidate.repositoryIntent, other.repositoryIntent).length === 0;
     }));
     if (!group) {
       group = { tickets: [], safe: true, reason: 'known_disjoint_repository_intent' };
@@ -329,16 +375,16 @@ export function parallelPlan(db, { capabilities = [], now = new Date(), parentId
     parallelGroups: groups,
     deferred: candidates.filter((item) => deferred.has(item.ticket.id)).map((item) => item.ticket.id),
     conflicts,
-    unresolvedIntent: candidates.filter((item) => !item.repositoryIntent.files.length).map((item) => item.ticket.id),
+    unresolvedIntent: candidates.filter((item) => !item.repositoryIntent.resolved).map((item) => item.ticket.id),
+    unresolvedActiveIntent,
   };
 }
 
 function overlapWarnings(db, files, now) {
   if (!files?.length) return [];
-  const wanted = new Set(files);
   return db.prepare(`SELECT * FROM agent_leases WHERE released_at IS NULL AND expires_at>?`).all(now.toISOString())
     .flatMap((row) => {
-      const overlap = parse(row.files, []).filter((file) => wanted.has(file));
+      const overlap = overlappingFiles(intentPaths(files) ?? [], intentPaths(parse(row.files, [])) ?? []);
       return overlap.length ? [{ leaseId: row.lease_id, ticketId: row.ticket_id, agent: row.agent, files: overlap }] : [];
     });
 }
@@ -646,7 +692,7 @@ export function contextPack(db, ticketId, { since = null, budget = 4000 } = {}) 
     AND (? IS NULL OR created_at>?) ORDER BY created_at`).all(ticketId, sinceTimestamp, sinceTimestamp).map((row) => ({
       discoveryId: row.discovery_id, type: row.type, body: row.body, data: parse(row.data, {}), author: row.author, createdAt: row.created_at,
     }));
-  const attempts = db.prepare('SELECT * FROM agent_attempts WHERE ticket_id=? ORDER BY started_at DESC LIMIT 10')
+  const attempts = db.prepare('SELECT * FROM agent_attempts WHERE ticket_id=? ORDER BY started_at DESC,attempt_id DESC LIMIT 10')
     .all(ticketId).map(attemptRow);
   const plans = db.prepare('SELECT version,body,reason,actor,created_at AS createdAt FROM agent_plans WHERE ticket_id=? ORDER BY version DESC LIMIT 5').all(ticketId);
   const pack = {

@@ -198,3 +198,62 @@ test('concurrent sibling field writes become an explicit resolvable conflict', (
     cleanup();
   }
 });
+
+test('slash prose and historical observations never certify complete ownership', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const prose = createTicket(db, { type: 'story', title: 'door/obstruction eligibility/interior grants/revocations unregister/rebind AS-174/175 atomic/versioned quit/relaunch' });
+    const path = createTicket(db, { type: 'story', title: 'Update src/door.cpp and include/door.h' });
+    const historical = createTicket(db, { type: 'story', title: 'Old attempt' });
+    const claim = claimTicket(db, historical.id, { agent: 'old', files: ['src/old.cpp'] });
+    finishAttempt(db, claim.attempt.attemptId, { outcome: 'failed', agent: 'old' });
+    const plan = parallelPlan(db);
+    assert.deepEqual(plan.candidates.find((c) => c.ticket.id === prose.id).repositoryIntent.files, []);
+    assert.deepEqual(plan.candidates.find((c) => c.ticket.id === path.id).repositoryIntent.files, ['include/door.h', 'src/door.cpp']);
+    assert.deepEqual(new Set(plan.unresolvedIntent), new Set([prose.id, path.id, historical.id]));
+    assert.ok(plan.parallelGroups.every((group) => !group.safe));
+  } finally { cleanup(); }
+});
+
+test('declared source paths, shared interfaces and physical generated outputs model ownership', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const make = (title, intent) => {
+      const ticket = createTicket(db, { type: 'story', title });
+      setContract(db, ticket.id, { policy: { repositoryIntent: intent } });
+      return ticket;
+    };
+    const a = make('A', { files: ['./src/./shared.h'], worktree: '/wt/a', outputs: ['build/result'] });
+    const b = make('B', { files: ['src/b.cpp'], worktree: '/wt/b', outputs: ['build/result'] });
+    const reader = make('Reader', { reads: ['src/shared.h'] });
+    const writer = make('Other worktree writer', { files: ['src/shared.h'], worktree: '/wt/c' });
+    const output = make('Shared output', { outputs: ['/wt/a/build/result'] });
+    const malformed = make('Malformed intent', { files: ['../escape'] });
+    const plan = parallelPlan(db);
+    const conflict = (x, y) => plan.conflicts.some((c) => c.tickets.includes(x.id) && c.tickets.includes(y.id));
+    assert.equal(conflict(a, b), false);
+    assert.equal(conflict(a, reader), true);
+    assert.equal(conflict(a, writer), true);
+    assert.equal(conflict(a, output), true);
+    assert.ok(plan.unresolvedIntent.includes(malformed.id));
+    assert.ok(plan.parallelGroups.some((g) => g.safe && g.tickets.includes(a.id) && g.tickets.includes(b.id)));
+    const active = createTicket(db, { type: 'story', title: 'Unknown active worker' });
+    const claim = claimTicket(db, active.id, { agent: 'unknown', ttl: '1s' });
+    assert.ok(parallelPlan(db).parallelGroups.every((g) => !g.safe));
+    assert.deepEqual(parallelPlan(db).unresolvedActiveIntent, [active.id]);
+    const expiredPlan = parallelPlan(db, { now: new Date(Date.parse(claim.lease.expiresAt) + 1) });
+    assert.deepEqual(expiredPlan.unresolvedActiveIntent, []);
+    assert.ok(expiredPlan.parallelGroups.some((g) => g.safe));
+  } finally { cleanup(); }
+});
+
+test('exclusive file admission detects normalized directory and descendant overlaps', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const a = createTicket(db, { type: 'story', title: 'Directory owner' });
+    const b = createTicket(db, { type: 'story', title: 'File owner' });
+    setContract(db, b.id, { policy: { exclusiveFiles: true } });
+    claimTicket(db, a.id, { agent: 'a', files: ['./src/'] });
+    assert.throws(() => claimTicket(db, b.id, { agent: 'b', files: ['src/file.js'] }), (e) => e.code === 'FILE_OVERLAP');
+  } finally { cleanup(); }
+});

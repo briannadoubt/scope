@@ -72,6 +72,7 @@ import {
   resolveConflict,
 } from './agent-runtime.js';
 import { buildCapabilities } from './capabilities.js';
+import { coordinatorView } from './coordinator-view.js';
 import {
   acknowledgeMessage,
   getAgent,
@@ -184,6 +185,7 @@ function openAt(dir) {
     readiness: bind(readiness),
     listReady: bind(listReady),
     parallelPlan: bind(parallelPlan),
+    coordinatorView: bind(coordinatorView),
     claimTicket: bind(claimTicket),
     claimNext: bind(claimNext),
     renewLease: bind(renewLease),
