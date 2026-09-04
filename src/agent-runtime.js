@@ -506,7 +506,9 @@ export function finishAttempt(db, attemptId, options = {}) {
     if (attempt.leaseId) releaseLease(db, attempt.leaseId, {
       agent: options.agent || attempt.agent, reason: outcome, now, model: options.model,
     });
-    if (options.reconcileStatus !== false) {
+    // Finishing superseded history must not cancel/reset a newer worker or handoff.
+    // Only the latest attempt owns the ticket's derived lifecycle.
+    if (options.reconcileStatus !== false && latestAttempt(db, attempt.ticketId)?.attemptId === attemptId) {
       const role = outcome === 'succeeded' ? 'review'
         : outcome === 'cancelled' ? 'cancelled'
           : 'ready';

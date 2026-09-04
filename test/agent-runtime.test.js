@@ -257,3 +257,46 @@ test('exclusive file admission detects normalized directory and descendant overl
     assert.throws(() => claimTicket(db, b.id, { agent: 'b', files: ['src/file.js'] }), (e) => e.code === 'FILE_OVERLAP');
   } finally { cleanup(); }
 });
+
+test('cancelling a superseded attempt preserves the current handoff and permits coordinator reclaim', () => {
+  const { db, scopeDir, cleanup } = createTempScope();
+  try {
+    ensureEventLog(db, scopeDir);
+    const ticket = createTicket(db, { type: 'story', title: 'AS-201 lifecycle reproduction' });
+    const start = Date.parse('2026-09-04T00:00:00Z');
+    const old = claimTicket(db, ticket.id, { agent: 'worker', now: new Date(start), ttl: '1s' });
+    const current = claimTicket(db, ticket.id, { agent: 'worker', now: new Date(start + 1001) });
+    createHandoff(db, ticket.id, { agent: 'worker', attemptId: current.attempt.attemptId,
+      summary: 'Implementation ready for coordinator integration', now: new Date(start + 2000) });
+    finishAttempt(db, old.attempt.attemptId, { agent: 'worker', outcome: 'cancelled',
+      summary: 'Superseded historical attempt', now: new Date(start + 3000) });
+    assert.equal(getAttempt(db, old.attempt.attemptId).status, 'cancelled');
+    assert.equal(getTicket(db, ticket.id).status, 'todo');
+    assert.equal(executionState(db, ticket.id, { now: new Date(start + 3000) }).phase, 'handed_off');
+    replayInto(db, readAllEvents(eventsDir(scopeDir)));
+    assert.equal(getTicket(db, ticket.id).status, 'todo', 'replay preserves current lifecycle too');
+    const coordinator = claimTicket(db, ticket.id, { agent: 'coordinator', now: new Date(start + 4000) });
+    assert.equal(coordinator.ticket.status, 'in_progress');
+  } finally { cleanup(); }
+});
+
+test('historical outcomes cannot move a current running, reviewed, or completed ticket', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const start = Date.parse('2026-09-04T00:00:00Z');
+    for (const stage of ['running', 'review', 'done']) {
+      const ticket = createTicket(db, { type: 'story', title: stage });
+      const old = claimTicket(db, ticket.id, { agent: 'old', now: new Date(start), ttl: '1s' });
+      const current = claimTicket(db, ticket.id, { agent: 'current', now: new Date(start + 1001) });
+      if (stage === 'review') finishAttempt(db, current.attempt.attemptId, { agent: 'current', outcome: 'succeeded', now: new Date(start + 2000) });
+      if (stage === 'done') completeWork(db, ticket.id, { agent: 'current', attemptId: current.attempt.attemptId, now: new Date(start + 2000) });
+      const status = getTicket(db, ticket.id).status;
+      finishAttempt(db, old.attempt.attemptId, { agent: 'old', outcome: stage === 'running' ? 'failed' : 'cancelled', now: new Date(start + 3000) });
+      assert.equal(getTicket(db, ticket.id).status, status, stage);
+      if (stage === 'running') {
+        finishAttempt(db, current.attempt.attemptId, { agent: 'current', outcome: 'cancelled', now: new Date(start + 4000) });
+        assert.equal(getTicket(db, ticket.id).status, 'cancelled', 'current owner can still cancel');
+      }
+    }
+  } finally { cleanup(); }
+});
