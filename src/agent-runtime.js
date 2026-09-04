@@ -381,11 +381,16 @@ export function parallelPlan(db, { capabilities = [], now = new Date(), parentId
   };
 }
 
-function overlapWarnings(db, files, now) {
-  if (!files?.length) return [];
-  return db.prepare(`SELECT * FROM agent_leases WHERE released_at IS NULL AND expires_at>?`).all(now.toISOString())
+function overlapWarnings(db, files, now, ticketId, worktree) {
+  const intent = repositoryIntent(db, getTicket(db, ticketId));
+  const wanted = { ...intent, files: [...new Set([...intent.files, ...(intentPaths(files) ?? [])])],
+    worktree: worktree ?? intent.worktree };
+  return db.prepare(`SELECT * FROM agent_leases WHERE released_at IS NULL AND expires_at>? ORDER BY lease_id`).all(now.toISOString())
     .flatMap((row) => {
-      const overlap = overlappingFiles(intentPaths(files) ?? [], intentPaths(parse(row.files, [])) ?? []);
+      const declared = repositoryIntent(db, getTicket(db, row.ticket_id));
+      const overlap = intentOverlap(wanted, { ...declared,
+        files: [...new Set([...declared.files, ...(intentPaths(parse(row.files, [])) ?? [])])],
+        worktree: row.worktree ?? declared.worktree });
       return overlap.length ? [{ leaseId: row.lease_id, ticketId: row.ticket_id, agent: row.agent, files: overlap }] : [];
     });
 }
@@ -404,9 +409,11 @@ export function claimTicket(db, ticketId, options = {}) {
     const attemptId = ulid(now.getTime());
     const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
     const files = options.files ?? [];
-    const warnings = overlapWarnings(db, files, now);
+    const warnings = overlapWarnings(db, files, now, ticketId, options.worktree);
     const contract = getContract(db, ticketId);
-    if (warnings.length && contract?.policy?.exclusiveFiles) throw new ScopeCliError('file-intent overlaps an active lease', {
+    const exclusiveOverlap = contract?.policy?.exclusiveFiles
+      || warnings.some((warning) => getContract(db, warning.ticketId)?.policy?.exclusiveFiles);
+    if (warnings.length && exclusiveOverlap) throw new ScopeCliError('file-intent overlaps an active lease', {
       code: 'FILE_OVERLAP', retryable: true, details: warnings,
     });
     db.prepare(`INSERT INTO agent_leases

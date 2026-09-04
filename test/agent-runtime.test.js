@@ -300,3 +300,31 @@ test('historical outcomes cannot move a current running, reviewed, or completed 
     }
   } finally { cleanup(); }
 });
+
+test('exclusive claim admission uses declared generated outputs and shared interface reads', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const owner = createTicket(db, { type: 'story', title: 'Generated output and interface owner' });
+    setContract(db, owner.id, { policy: { repositoryIntent: { files: ['src/shared.h'], outputs: ['Build/result'], worktree: '/work/a' } } });
+    claimTicket(db, owner.id, { agent: 'owner', worktree: '/work/a' });
+    for (const intent of [{ outputs: ['/work/a/Build/result'] }, { reads: ['src/shared.h'] }]) {
+      const contender = createTicket(db, { type: 'story', title: 'Declared contender' });
+      setContract(db, contender.id, { policy: { exclusiveFiles: true, repositoryIntent: intent } });
+      assert.throws(() => claimTicket(db, contender.id, { agent: 'contender', worktree: '/work/b' }), (error) => error.code === 'FILE_OVERLAP');
+    }
+    const separate = createTicket(db, { type: 'story', title: 'Independent generated output' });
+    setContract(db, separate.id, { policy: { exclusiveFiles: true, repositoryIntent: { outputs: ['Build/result'] } } });
+    assert.doesNotThrow(() => claimTicket(db, separate.id, { agent: 'separate', worktree: '/work/b' }));
+  } finally { cleanup(); }
+});
+
+test('a contender cannot bypass an active owner exclusive intent policy', () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const owner = createTicket(db, { type: 'story', title: 'Exclusive owner' });
+    const contender = createTicket(db, { type: 'story', title: 'Ordinary contender' });
+    setContract(db, owner.id, { policy: { files: ['src/shared'], exclusiveFiles: true } });
+    claimTicket(db, owner.id, { agent: 'owner' });
+    assert.throws(() => claimTicket(db, contender.id, { agent: 'contender', files: ['src/shared/child.cpp'] }), (error) => error.code === 'FILE_OVERLAP');
+  } finally { cleanup(); }
+});
