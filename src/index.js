@@ -73,6 +73,7 @@ import {
 } from './agent-runtime.js';
 import { buildCapabilities } from './capabilities.js';
 import { coordinatorView } from './coordinator-view.js';
+import { phaseReadiness, acquireResources, releaseResources } from './agent-resources.js';
 import {
   acknowledgeMessage,
   getAgent,
@@ -186,6 +187,9 @@ function openAt(dir) {
     listReady: bind(listReady),
     parallelPlan: bind(parallelPlan),
     coordinatorView: bind(coordinatorView),
+    phaseReadiness: bind(phaseReadiness),
+    acquireResources: bind(acquireResources),
+    releaseResources: bind(releaseResources),
     claimTicket: bind(claimTicket),
     claimNext: bind(claimNext),
     renewLease: bind(renewLease),

@@ -11,6 +11,7 @@ import { replayInto } from '../src/replay.js';
 import { readAllEvents, eventsDir } from '../src/event-store.js';
 import { pgReplay } from '../src/pg/replay.js';
 import { setContract, claimTicket, addDiscovery, revisePlan, finishAttempt } from '../src/agent-runtime.js';
+import { acquireResources } from '../src/agent-resources.js';
 import { acknowledgeMessage, registerAgent, sendMessage } from '../src/agent-mailbox.js';
 import { ensureSchema } from '../src/pg/schema.js';
 import { getPool, closePool, pgUrl } from '../src/pg/pool.js';
@@ -45,9 +46,10 @@ function buildLog() {
   addComment(s.db, a.id, 'a note', 'bri', 'Opus 4.8');
   putArtifact(s.db, a.id, { name: 'status.html', content: '<h1>Status</h1>' }, 'bri', 'Opus 4.8');
   setContract(s.db, a.id, {
-    acceptance: ['tests pass'], requiredCapabilities: ['node'], policy: { requireEvidence: true },
+    acceptance: ['tests pass'], requiredCapabilities: ['node'], policy: { requireEvidence: true, resourceRequirements: { build: [{ key: 'host:test:builder' }] } },
   }, 'bri');
   const claimed = claimTicket(s.db, a.id, { agent: 'worker', capabilities: ['node'], files: ['src/a.js'] });
+  acquireResources(s.db, claimed.lease.leaseId, { agent: 'worker', phase: 'build' });
   addDiscovery(s.db, a.id, { type: 'fact', body: 'Existing parser is reusable', author: 'worker' });
   revisePlan(s.db, a.id, { body: 'Reuse the parser', actor: 'worker' });
   finishAttempt(s.db, claimed.attempt.attemptId, { outcome: 'failed', agent: 'worker', failure: 'fixture mismatch' });
@@ -99,7 +101,7 @@ test('SQLite replay and Postgres replay project identical board state', { skip }
     artifacts: norm.artifacts(sq.db.prepare('SELECT * FROM ticket_artifacts ORDER BY ticket_id, id').all()),
     contracts: norm.agent(sq.db.prepare('SELECT * FROM agent_contracts ORDER BY ticket_id').all(),
       ['acceptance', 'constraints', 'verification_commands', 'required_capabilities', 'policy']),
-    leases: norm.agent(sq.db.prepare('SELECT * FROM agent_leases ORDER BY lease_id').all(), ['capabilities', 'files']),
+    leases: norm.agent(sq.db.prepare('SELECT * FROM agent_leases ORDER BY lease_id').all(), ['capabilities', 'files', 'resources']),
     attempts: norm.agent(sq.db.prepare('SELECT * FROM agent_attempts ORDER BY attempt_id').all(), ['evidence', 'verification']),
     discoveries: norm.agent(sq.db.prepare('SELECT * FROM agent_discoveries ORDER BY discovery_id').all(), ['data']),
     plans: norm.agent(sq.db.prepare('SELECT * FROM agent_plans ORDER BY ticket_id, version').all()),

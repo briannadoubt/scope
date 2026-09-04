@@ -59,27 +59,27 @@ test('makeEvent builds a valid envelope with all required fields', () => {
   assert.equal(e.ts, '2026-06-02T17:00:00.000Z');
   assert.equal(e.id.length, 26);
   assert.equal(e.requestId, 'req-1');
-  assert.equal(e.v, 2, 'new writes declare the expanded reader contract');
+  assert.equal(e.v, 3, 'new writes declare the expanded reader contract');
 });
 
-test('reader accepts immutable v1 history while the writer emits v2', () => {
+test('reader accepts immutable v1 history while the writer emits v3', () => {
   const legacy = makeEvent('ticket.delete', { ticketId: 'SCP-1' }, { actor: 'legacy' });
   legacy.v = 1;
   assert.doesNotThrow(() => validateEvent(legacy));
-  assert.deepEqual(SUPPORTED_EVENT_FORMAT_VERSIONS, [1, 2]);
-  assert.equal(MINIMUM_READER_EVENT_FORMAT_VERSION, 2);
+  assert.deepEqual(SUPPORTED_EVENT_FORMAT_VERSIONS, [1, 2, 3]);
+  assert.equal(MINIMUM_READER_EVENT_FORMAT_VERSION, 3);
 });
 
 test('unsupported event versions fail with an actionable compatibility error', () => {
   const future = makeEvent('ticket.delete', { ticketId: 'SCP-1' }, { actor: 'future' });
-  future.v = 3;
+  future.v = 4;
   assert.throws(
     () => validateEvent(future),
     (error) => {
       assert.ok(error instanceof UnsupportedEventVersionError);
       assert.equal(error.code, 'UNSUPPORTED_EVENT_FORMAT');
-      assert.equal(error.version, 3);
-      assert.deepEqual(error.supportedVersions, [1, 2]);
+      assert.equal(error.version, 4);
+      assert.deepEqual(error.supportedVersions, [1, 2, 3]);
       assert.match(error.message, /Upgrade Scope before opening or syncing/);
       return true;
     }
@@ -156,7 +156,7 @@ test('compareEvents is a deterministic total order: ts, then ulid id', () => {
 });
 
 test('EVENT_KINDS is the closed set the validator switches on', () => {
-  assert.equal(EVENT_KINDS.length, 25);
+  assert.equal(EVENT_KINDS.length, 26);
   assert.ok(EVENT_KINDS.includes('transaction.commit'));
   assert.ok(EVENT_KINDS.includes('ticket.set_field'));
   assert.ok(EVENT_KINDS.includes('workspace.rekey'));
@@ -166,4 +166,11 @@ test('EVENT_KINDS is the closed set the validator switches on', () => {
   assert.ok(EVENT_KINDS.includes('agent.attempt.finish'));
   assert.ok(EVENT_KINDS.includes('agent.message.send'));
   assert.ok(EVENT_KINDS.includes('agent.message.ack'));
+});
+
+test('phase resource events have a durable v3 reader boundary and validate allocations', () => {
+  const valid = { leaseId: ulid(), resources: [{ key: 'host:test:build', phase: 'build', units: 1, capacity: 1 }] };
+  assert.equal(makeEvent('agent.resources.set', valid, { actor: 'worker' }).v, 3);
+  assert.throws(() => makeEvent('agent.resources.set', { ...valid, resources: [{ ...valid.resources[0], units: 0 }] }, { actor: 'worker' }), /invalid resource/);
+  assert.throws(() => makeEvent('agent.resources.set', { ...valid, resources: [{ ...valid.resources[0], units: 2 }] }, { actor: 'worker' }), /invalid resource/);
 });

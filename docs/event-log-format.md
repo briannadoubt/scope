@@ -26,7 +26,7 @@ kind-specific `payload`:
 
 ```jsonc
 {
-  "v": 2,                          // event-format version (integer)
+  "v": 3,                          // event-format version (integer)
   "id": "01JZ9F2K7QABCD3EFGH4JKMN5", // ULID — globally unique, lexicographically time-sortable
   "ts": "2026-06-02T17:04:11.873Z",  // ISO-8601 UTC wall-clock of the actor that produced it
   "hlc": "1780429451873-000000",     // hybrid logical clock for deterministic live ordering
@@ -59,9 +59,9 @@ Rules:
 - **`actor` is required.** "Who changed what" is the whole point of the audit
   trail and the LWW tiebreak; an event with no actor is invalid. Use the human
   handle, or the agent's name / `"agent"`.
-- **`v` is the reader-compatibility boundary.** Current writers emit version 2
-  and current readers accept immutable version-1 history plus version 2. The
-  expanded transaction and agent vocabulary requires a version-2 reader.
+- **`v` is the reader-compatibility boundary.** Current writers emit version 3
+  and current readers accept immutable version-1 and version-2 history plus
+  version 3. Phase-resource reservations require a version-3 reader.
   Readers reject a newer `v` with `UNSUPPORTED_EVENT_FORMAT` and an actionable
   upgrade message rather than treating valid future data as corruption or
   silently projecting an incomplete workspace.
@@ -171,6 +171,8 @@ comment, relation, and artifact events, agent-native projections use:
 
 - `agent.contract.set`
 - `agent.lease.claim`, `agent.lease.renew`, `agent.lease.release`
+- `agent.resources.set` — replaces phase-resource allocations for an existing lease;
+  capacity counts only while that lease remains active.
 - `agent.attempt.start`, `agent.attempt.finish`
 - `agent.discovery.add`
 - `agent.plan.revise`

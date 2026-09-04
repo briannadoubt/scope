@@ -1,5 +1,6 @@
 import { Command, Option } from 'commander';
 import { coordinatorView } from './coordinator-view.js';
+import { phaseReadiness, acquireResources, releaseResources } from './agent-resources.js';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, readFileSync, watch as watchFileSystem, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -1735,6 +1736,24 @@ export function buildProgram() {
       const result = ticketId ? claimTicket(db, ticketId, options) : claimNext(db, options);
       out(cmd, result, (value) => `${chalk.green('✓')} claimed ${value.ticket?.id || value.lease.ticketId} as ${opts.agent}`);
     });
+
+  const resource = program.command('resource').description('Inspect and reserve execution-phase resources on an existing work lease.');
+  resource.command('ready <ticketId>')
+    .requiredOption('--phase <phase>')
+    .action((ticketId, opts, cmd) => {
+      const { db } = openOrDie();
+      out(cmd, phaseReadiness(db, ticketId, opts.phase), (value) => JSON.stringify(value, null, 2));
+    });
+  for (const [name, operation] of [['acquire', acquireResources], ['release', releaseResources]]) {
+    resource.command(`${name} <leaseId>`)
+      .requiredOption('--agent <agent>')
+      .requiredOption('--phase <phase>')
+      .action((leaseId, opts, cmd) => {
+        const { db } = openOrDie();
+        out(cmd, operation(db, leaseId, { agent: opts.agent, phase: opts.phase, model: actingModel(cmd) }),
+          (value) => JSON.stringify(value, null, 2));
+      });
+  }
 
   const lease = program.command('lease').description('Renew, release, and inspect execution leases.');
   lease.command('show <ticketId>').action((ticketId, _opts, cmd) => {

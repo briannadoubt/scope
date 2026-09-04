@@ -107,6 +107,21 @@ test('agent HTTP exposes parallel planning, execution state, and durable handoff
       method: 'POST',
       body: { ticketId: first.data.id, agent: 'claude:child-1', files: ['src/first.js'] },
     });
+    await apiFetch(t.baseUrl, `/api/agent/tickets/${first.data.id}/contract`, {
+      method: 'PUT', body: { policy: { resourceRequirements: { build: [{ key: 'host:test:engine' }] } } },
+    });
+    const admission = await apiFetch(t.baseUrl, `/api/agent/tickets/${first.data.id}/resources?phase=build`);
+    assert.equal(admission.data.state, 'available');
+    const reserved = await apiFetch(t.baseUrl, `/api/agent/leases/${claim.data.lease.leaseId}/resources/acquire`, {
+      method: 'POST', body: { agent: 'claude:child-1', phase: 'build' },
+    });
+    assert.equal(reserved.status, 200);
+    assert.equal(reserved.data.resources[0].key, 'host:test:engine');
+    const wrongOwner = await apiFetch(t.baseUrl, `/api/agent/leases/${claim.data.lease.leaseId}/resources/release`, {
+      method: 'POST', body: { agent: 'another-worker', phase: 'build' },
+    });
+    assert.equal(wrongOwner.data.code, 'LEASE_OWNERSHIP');
+
     const board = await apiFetch(t.baseUrl, '/api/board');
     const activeTicket = Object.values(board.data.buckets).flat().find((item) => item.id === first.data.id);
     assert.equal(activeTicket.execution.phase, 'running');

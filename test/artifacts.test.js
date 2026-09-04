@@ -88,7 +88,7 @@ test('opening a v6 workspace creates the artifact projection table', () => {
         "SELECT name FROM sqlite_master WHERE type='table' AND name='ticket_artifacts'"
       ).get();
       assert.equal(table.name, 'ticket_artifacts');
-      assert.equal(migrated.prepare("SELECT value FROM meta WHERE key='schema_version'").get().value, '9');
+      assert.equal(migrated.prepare("SELECT value FROM meta WHERE key='schema_version'").get().value, '10');
     } finally {
       migrated.close();
     }

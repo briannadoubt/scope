@@ -505,6 +505,10 @@ function applyEvent(db, e, human, assignments) {
       db.prepare('UPDATE agent_leases SET released_at=?,release_reason=? WHERE lease_id=?')
         .run(p.releasedAt ?? e.ts,p.reason ?? 'released',p.leaseId);
       return 1;
+    case 'agent.resources.set':
+      db.prepare('UPDATE agent_leases SET resources=? WHERE lease_id=?')
+        .run(JSON.stringify(p.resources), p.leaseId);
+      return 1;
     case 'agent.attempt.start': {
       const id = human.get(p.ticketId);
       if (!id) return 0;

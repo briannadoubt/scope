@@ -85,3 +85,23 @@ test('compact cursors invalidate on lease expiry and oversized records fail expl
     assert.throws(() => coordinatorView(db, { cursor: `${initial.snapshot}:0`, since: initial.snapshot }), /cannot be combined/);
   } finally { cleanup(); }
 });
+
+test('compact snapshots include phase resource blockers without making independent authoring unready', async () => {
+  const { db, cleanup } = createTempScope();
+  try {
+    const { acquireResources } = await import('../src/agent-resources.js');
+    const make = (name) => {
+      const ticket = createTicket(db, { type: 'story', title: name });
+      setContract(db, ticket.id, { policy: { files: [`src/${name}`], resourceRequirements: { build: [{ key: 'host:local:engine' }] } } });
+      return ticket;
+    };
+    const a = make('A'); const b = make('B');
+    const lease = claimTicket(db, a.id, { agent: 'builder', files: ['src/A'] }).lease;
+    acquireResources(db, lease.leaseId, { agent: 'builder', phase: 'build' });
+    const view = collect(db, { budgetBytes: 2048 });
+    const phase = view.records.find((r) => r.section === 'phases' && r.value.ticketId === b.id).value;
+    assert.equal(phase.state, 'blocked');
+    assert.equal(phase.blockers[0].holders[0].leaseId, lease.leaseId);
+    assert.equal(view.records.find((r) => r.section === 'tickets' && r.value.id === b.id).value.readiness, 'ready');
+  } finally { cleanup(); }
+});

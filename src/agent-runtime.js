@@ -48,6 +48,7 @@ function leaseRow(row) {
   return {
     leaseId: row.lease_id, ticketId: row.ticket_id, agent: row.agent,
     capabilities: parse(row.capabilities, []), files: parse(row.files, []),
+    resources: parse(row.resources, []),
     worktree: row.worktree, branch: row.branch, baseSha: row.base_sha,
     claimedAt: row.claimed_at, heartbeatAt: row.heartbeat_at,
     expiresAt: row.expires_at, releasedAt: row.released_at, releaseReason: row.release_reason,

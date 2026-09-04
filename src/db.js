@@ -330,7 +330,7 @@ export function ensureSearchIndex(db) {
   }
 }
 
-const CURRENT_SCHEMA_VERSION = '9';
+const CURRENT_SCHEMA_VERSION = '10';
 
 const CREATE_AGENT_TABLES = `
   CREATE TABLE IF NOT EXISTS agent_contracts (
@@ -352,6 +352,7 @@ const CREATE_AGENT_TABLES = `
     branch TEXT,
     base_sha TEXT,
     files TEXT NOT NULL DEFAULT '[]',
+    resources TEXT NOT NULL DEFAULT '[]',
     claimed_at TEXT NOT NULL,
     heartbeat_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
@@ -455,6 +456,13 @@ function getSchemaVersion(db) {
     .prepare("SELECT value FROM meta WHERE key = 'schema_version'")
     .get();
   return row?.value ?? null;
+}
+
+function ensureAgentTables(db) {
+  db.exec(CREATE_AGENT_TABLES);
+  if (!db.prepare('PRAGMA table_info(agent_leases)').all().some((column) => column.name === 'resources')) {
+    db.exec("ALTER TABLE agent_leases ADD COLUMN resources TEXT NOT NULL DEFAULT '[]'");
+  }
 }
 
 /**
@@ -648,7 +656,7 @@ function migrate(db, scopeDir) {
       db.exec(CREATE_WORKSPACE);
       db.exec(CREATE_TICKETS);
       db.exec(CREATE_AUX_TABLES);
-      db.exec(CREATE_AGENT_TABLES);
+      ensureAgentTables(db);
       const now = nowIso();
       db.prepare(
         `INSERT INTO workspace
@@ -784,7 +792,7 @@ function migrate(db, scopeDir) {
       ensureWorkspaceColumnsColumn(db);
       ensureDynamicStatusColumn(db);
       db.exec(CREATE_ARTIFACTS);
-      db.exec(CREATE_AGENT_TABLES);
+      ensureAgentTables(db);
 
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
@@ -818,7 +826,7 @@ function migrate(db, scopeDir) {
       ensureWorkspaceColumnsColumn(db);
       ensureDynamicStatusColumn(db);
       db.exec(CREATE_ARTIFACTS);
-      db.exec(CREATE_AGENT_TABLES);
+      ensureAgentTables(db);
       db.prepare(
         `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
@@ -845,7 +853,7 @@ function migrate(db, scopeDir) {
   ensureWorkspaceColumnsColumn(db);
   ensureDynamicStatusColumn(db);
   db.exec(CREATE_ARTIFACTS);
-  db.exec(CREATE_AGENT_TABLES);
+  ensureAgentTables(db);
   const existing = db.prepare('SELECT id FROM workspace WHERE id = 1').get();
   if (!existing) {
     const now = nowIso();
@@ -855,9 +863,9 @@ function migrate(db, scopeDir) {
        VALUES (1, ?, ?, '', '', ?, 1, ?, ?)`
     ).run(deriveDefaultKey(scopeDir), 'Workspace', defaultColumnsJson(), now, now);
   }
-  if (!version) {
+  if (version !== CURRENT_SCHEMA_VERSION) {
     db.prepare(
-      "INSERT INTO meta (key, value) VALUES ('schema_version', ?)"
+      "INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
     ).run(CURRENT_SCHEMA_VERSION);
   }
 }

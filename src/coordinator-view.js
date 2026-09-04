@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
 import { parallelPlan, readiness } from './agent-runtime.js';
 import { ScopeCliError } from './protocol.js';
+import { resourceRequirements, phaseReadiness } from './agent-resources.js';
 
 const digest = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const bytes = (value) => Buffer.byteLength(JSON.stringify(value));
-const SECTIONS = ['conflicts', 'unresolvedIntent', 'unresolvedActiveIntent', 'deferred', 'blockers', 'tickets', 'parallelGroups'];
+const SECTIONS = ['conflicts', 'unresolvedIntent', 'unresolvedActiveIntent', 'deferred', 'blockers', 'phases', 'tickets', 'parallelGroups'];
 
 /** Opt-in, lossless pagination of coordinator signals, without narrative/history payloads. */
-export function coordinatorView(db, { budgetBytes = 16384, cursor = null, since = null, ...options } = {}) {
+function buildCoordinatorView(db, { budgetBytes = 16384, cursor = null, since = null, ...options } = {}) {
   budgetBytes = Number(budgetBytes);
   if (!Number.isSafeInteger(budgetBytes) || budgetBytes < 2048 || budgetBytes > 1048576) {
     throw new ScopeCliError('budgetBytes must be an integer between 2048 and 1048576');
@@ -19,10 +20,12 @@ export function coordinatorView(db, { budgetBytes = 16384, cursor = null, since 
     ${options.parentId ? 'AND parent_id=?' : ''} ORDER BY number,id`).all(...params);
   const candidates = new Map(plan.candidates.map((item) => [item.ticket.id, item]));
   const blockers = [];
+  const phases = [];
   const tickets = allTickets.map((ticket) => {
     const candidate = candidates.get(ticket.id);
     const ready = candidate?.readiness ?? readiness(db, ticket.id, options);
     const execution = ready.execution;
+    for (const phase of Object.keys(resourceRequirements(db, ticket.id))) phases.push(phaseReadiness(db, ticket.id, phase, options));
     for (const blocker of ready.blockers) blockers.push({ ticketId: ticket.id, type: 'dependency', id: blocker.id, status: blocker.status });
     for (const [index, body] of (execution.latestHandoff?.data?.blockers ?? []).entries()) {
       blockers.push({ ticketId: ticket.id, type: 'handoff', discoveryId: execution.latestHandoff.discoveryId, index, body });
@@ -34,6 +37,8 @@ export function coordinatorView(db, { budgetBytes = 16384, cursor = null, since 
       status: ticket.status, readiness: ready.state, reasons: ready.reasons,
       missingCapabilities: ready.missingCapabilities ?? [],
       execution: { phase: execution.phase, agent: execution.agent,
+        ...(execution.lease?.state === 'active' && execution.lease.resources?.length
+          ? { resources: execution.lease.resources } : {}),
         attemptId: execution.attempt?.attemptId ?? null, leaseId: execution.lease?.leaseId ?? null,
         leaseState: execution.lease?.state ?? 'none', expiresAt: execution.lease?.expiresAt ?? null,
         handoffId: execution.latestHandoff?.discoveryId ?? null,
@@ -43,7 +48,7 @@ export function coordinatorView(db, { budgetBytes = 16384, cursor = null, since 
       ...(candidate ? { repositoryIntent: candidate.repositoryIntent } : {}),
     };
   });
-  const sections = { ...plan, tickets, blockers };
+  const sections = { ...plan, tickets, blockers, phases };
   const records = SECTIONS.flatMap((section) => sections[section].map((value) => ({ section, value })));
   const snapshot = digest({ capabilities: options.capabilities ?? [], parentId: options.parentId ?? null, records });
   let offset = 0;
@@ -80,4 +85,8 @@ export function coordinatorView(db, { budgetBytes = 16384, cursor = null, since 
   }
   if (!records.length) response.complete = true;
   return response;
+}
+
+export function coordinatorView(db, options = {}) {
+  return db.transaction(() => buildCoordinatorView(db, options))();
 }

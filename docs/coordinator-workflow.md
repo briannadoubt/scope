@@ -107,3 +107,84 @@ minified data was 1,900,175 bytes (~475,044 tokens at four characters/token),
 versus 7,864 bytes (~1,966 tokens) for one compact page and 449 bytes for an
 unchanged refresh. This is a synthetic response-size comparison, not a measured
 speedup on Alder or a tokenizer-specific token count.
+
+## Phase resources (dogfood.2, event format 3)
+
+A phase reservation is a list of `{key,phase,units,capacity}` allocations on the
+existing work lease. It introduces no worker, extra attempt, scheduling daemon,
+or delivery status. Declare requirements in the existing contract policy:
+
+```json
+{
+  "resourceRequirements": {
+    "build": [{"key":"host:mac:engine-build","capacity":1,"units":1}],
+    "capture": [{"key":"host:mac:foreground"}],
+    "test": [{"key":"host:mac:cpu-slots","capacity":2,"units":1}]
+  }
+}
+```
+
+Keys are workspace-scoped identifiers. Include the physical host, engine
+installation, checkout, or capture-surface domain as needed; nothing is
+engine-specific. Capacity and units default to one. All active users of a key
+must agree on capacity; disagreement is an explicit `capacity_mismatch` blocker.
+Capacity declarations are coordinator policy, not host measurement.
+
+```sh
+scope --json resource ready TICKET-ID --phase build
+scope --json resource acquire LEASE-ID --agent AGENT --phase build
+# Native host/wrapper performs the build after successful acquisition.
+scope --json resource release LEASE-ID --agent AGENT --phase build
+```
+
+The owner must hold the exact active work lease. A phase acquires all required
+resources atomically or none; one blocked phase does not change authoring
+readiness or prevent acquisition of an independent phase. `RESOURCE_UNAVAILABLE`
+returns holders, requested/used units and capacities. Compact `phases` records
+show available/held/blocked phase admission independently of ownership groups.
+HTTP and library equivalents are exposed alongside the CLI.
+
+Normal work-lease renewal extends the reservations. Explicit phase release
+keeps other phases; work completion, handoff, release or expiry makes all its
+allocations inactive. Stale lease handles cannot release a replacement worker's
+resources. On `LEASE_EXPIRED`, read execution state and reclaim work if
+appropriate; never retry the old lease ID. The wrapper must stop or fence
+expired execution before another process uses the physical resource. Expiry is
+not evidence that an engine process has exited.
+
+**Authority boundary:** acquisition is atomic for callers sharing one SQLite
+workspace database, including separate CLI processes and worktrees pointing at
+that authority. Use one authoritative `SCOPE_DIR` or the same workspace HTTP
+endpoint for each resource domain. Independent/offline replicas cannot provide
+a distributed mutex; merging event logs provides history, not mutual exclusion.
+Separate checkout databases must not each admit the same physical build domain.
+The native engine/checkout wrapper's existing lock remains the final physical
+guard. Resource admission does not claim to measure free memory/CPU, create
+workers, restart builds, or control the foreground app.
+
+**Compatibility:** this second commit bumps the package to `0.10.0-dogfood.2`,
+the SQLite cache schema to 10, and new event writes to format 3. Readers accept
+immutable formats 1, 2 and 3. Version-2 readers reject new writes explicitly;
+upgrade every writer/reader and any sync server before mutating a shared
+workspace with this build. PostgreSQL schema/replay support is included, but
+live PostgreSQL tests were skipped locally because no server was reachable.
+Do not install this over the running CLI or introduce format-3 writes into Alder
+until the coordinated upgrade is arranged. The earlier `8a49c70` commit provides
+the ownership/compact fixes alone while retaining event format 2.
+
+Safe Alder adoption: first review/cherry-pick the desired commit boundary and
+run the isolated regressions. Enable the compact view only after its capability
+flag is present; declare concrete source/read/output ownership for the intended
+workers. Preserve implementation, integration and acceptance as separately
+verified ticket contracts. Add phase requirements to engine wrappers only after
+choosing the shared admission authority and upgrading its readers. No Alder
+configuration, workers, native assets, installed CLI, or service was changed by
+this work.
+
+The resource-enabled build's isolated benchmark emits 7,875 compact bytes
+(~1,969 approximate tokens), or 460 bytes for an unchanged refresh. Its expanded
+full view is 1,900,575 bytes; the pre-fix baseline remains 1,900,175 bytes. Final
+resource validation ran `npm test`: 378 passed, 70 unavailable-Postgres skips,
+zero failures. A subsequent targeted CLI/HTTP/resource/migration pass ran 34/34.
+`npm run docs:agent:check` and `git diff --check` passed. The installed executable
+was verified separately as `0.10.0-dogfood.1`; it was not replaced.

@@ -20,6 +20,7 @@ export const AGENT_PROTOCOL_FEATURES = Object.freeze({
   compactCoordinatorView: true,
   declaredRepositoryIntent: true,
   leases: true,
+  phaseResourceReservations: true,
   derivedLifecycle: true,
   executionProjection: true,
   attempts: true,

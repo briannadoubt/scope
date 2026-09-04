@@ -96,7 +96,7 @@ test('newer event formats are incompatible, never mislabeled or skipped as corru
   const { dir, cleanup } = tmpEventsDir();
   try {
     const future = evt('ticket.delete', { ticketId: 'future' }, '2026-01-01T00:00:00.000Z');
-    future.v = 3;
+    future.v = 4;
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, `${future.id}.json`), JSON.stringify(future));
 
@@ -111,8 +111,8 @@ test('newer event formats are incompatible, never mislabeled or skipped as corru
     assert.equal(report.ok, false);
     assert.equal(report.corruptFiles.length, 0);
     assert.equal(report.incompatibleFiles.length, 1);
-    assert.equal(report.incompatibleFiles[0].version, 3);
-    assert.deepEqual(report.incompatibleFiles[0].supportedVersions, [1, 2]);
+    assert.equal(report.incompatibleFiles[0].version, 4);
+    assert.deepEqual(report.incompatibleFiles[0].supportedVersions, [1, 2, 3]);
   } finally {
     cleanup();
   }

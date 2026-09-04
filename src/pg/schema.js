@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS agent_leases (
   expires_at text NOT NULL, released_at text, release_reason text,
   PRIMARY KEY (tenant_id,lease_id)
 );
+ALTER TABLE agent_leases ADD COLUMN IF NOT EXISTS resources jsonb NOT NULL DEFAULT '[]';
 CREATE INDEX IF NOT EXISTS idx_agent_leases_ticket ON agent_leases (tenant_id,ticket_id,expires_at);
 CREATE TABLE IF NOT EXISTS agent_attempts (
   tenant_id text NOT NULL, attempt_id text NOT NULL, ticket_id text NOT NULL, lease_id text,

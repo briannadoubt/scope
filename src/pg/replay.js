@@ -360,6 +360,9 @@ async function applyEvent(db, T, e, human, assignments) {
           p.worktree??null,p.branch??null,p.baseSha??null]); return 1;
     case 'agent.lease.release':
       await db.query('UPDATE agent_leases SET released_at=$3,release_reason=$4 WHERE tenant_id=$1 AND lease_id=$2',[T,p.leaseId,p.releasedAt??e.ts,p.reason??'released']); return 1;
+    case 'agent.resources.set':
+      await db.query('UPDATE agent_leases SET resources=$3 WHERE tenant_id=$1 AND lease_id=$2',
+        [T,p.leaseId,JSON.stringify(p.resources)]); return 1;
     case 'agent.attempt.start': {
       const id = human.get(p.ticketId); if (!id) return 0;
       await db.query(`INSERT INTO agent_attempts (tenant_id,attempt_id,ticket_id,lease_id,agent,status,started_at)

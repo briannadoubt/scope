@@ -33,17 +33,17 @@ test('machine envelopes and revisions are stable', () => {
 
 test('capabilities and errors expose the event reader compatibility boundary', () => {
   const capabilities = buildCapabilities({ cliVersion: 'test' });
-  assert.equal(capabilities.eventFormatVersion, 2);
+  assert.equal(capabilities.eventFormatVersion, 3);
   assert.deepEqual(capabilities.eventFormat, {
-    writerVersion: 2,
-    readerVersions: [1, 2],
-    minimumReaderVersion: 2,
+    writerVersion: 3,
+    readerVersions: [1, 2, 3],
+    minimumReaderVersion: 3,
   });
 
-  const normalized = normalizeError(new UnsupportedEventVersionError(3));
+  const normalized = normalizeError(new UnsupportedEventVersionError(4));
   assert.equal(normalized.code, 'UNSUPPORTED_EVENT_FORMAT');
   assert.equal(normalized.retryable, false);
-  assert.deepEqual(normalized.details.supportedVersions, [1, 2]);
+  assert.deepEqual(normalized.details.supportedVersions, [1, 2, 3]);
 });
 
 test('receipts are durable, replayable, and reject request-id reuse across commands', () => {
@@ -117,7 +117,7 @@ test('doctor reports a newer event format as an upgrade requirement, not corrupt
     assert.equal(initializedResult.status, 0, initializedResult.stderr || initializedResult.stdout);
     const initialized = JSON.parse(initializedResult.stdout);
     const dir = join(initialized.data.storage.dataDir, 'events');
-    const future = makeFutureEvent(3);
+    const future = makeFutureEvent(4);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, `${future.id}.json`), JSON.stringify(future));
 
@@ -162,6 +162,14 @@ test('ready compact is explicitly versioned and default JSON remains compatible'
     assert.ok(Buffer.byteLength(JSON.stringify(compact.data)) <= 2048);
     const unchanged = JSON.parse(run('ready', '--plan', '--compact', '--since', compact.data.snapshot).stdout);
     assert.equal(unchanged.data.unchanged, true);
+    const ticketId = legacy.data.candidates[0].ticket.id;
+    assert.equal(run('contract', 'set', ticketId, '--policy', JSON.stringify({ resourceRequirements: { build: [{ key: 'host:test:build' }] } })).status, 0);
+    const claimed = JSON.parse(run('claim', ticketId, '--agent', 'worker').stdout);
+    const acquired = JSON.parse(run('resource', 'acquire', claimed.data.lease.leaseId, '--agent', 'worker', '--phase', 'build').stdout);
+    assert.equal(acquired.ok, true);
+    assert.equal(acquired.data.resources[0].phase, 'build');
+    const released = JSON.parse(run('resource', 'release', claimed.data.lease.leaseId, '--agent', 'worker', '--phase', 'build').stdout);
+    assert.deepEqual(released.data.resources, []);
     assert.equal(JSON.parse(run('ready', '--compact').stdout).ok, false);
     assert.equal(JSON.parse(run('ready', '--plan', '--compact', '--budget-bytes', '1').stdout).ok, false);
   } finally { rmSync(repo, { recursive: true, force: true }); }

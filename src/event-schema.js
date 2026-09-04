@@ -29,11 +29,12 @@ export { ulid, TICKET_FIELDS };
  *
  * Version 1 is the released legacy format. Version 2 makes the expanded
  * transaction/agent vocabulary an explicit reader boundary: current builds
- * continue to read immutable v1 history, but all new events are written as v2
- * so an older binary fails with an upgrade error before attempting replay.
+ * continue to read immutable v1/v2 history. New writes use the current version
+ * so older binaries fail with an upgrade error before attempting replay.
+ * Version 3 adds phase resource reservations; v2 readers must fail closed.
  */
-export const EVENT_FORMAT_VERSION = 2;
-export const SUPPORTED_EVENT_FORMAT_VERSIONS = Object.freeze([1, EVENT_FORMAT_VERSION]);
+export const EVENT_FORMAT_VERSION = 3;
+export const SUPPORTED_EVENT_FORMAT_VERSIONS = Object.freeze([1, 2, EVENT_FORMAT_VERSION]);
 export const MINIMUM_READER_EVENT_FORMAT_VERSION = EVENT_FORMAT_VERSION;
 
 /** HTML artifacts are stored inline in events so normal sync remains complete. */
@@ -57,6 +58,7 @@ export const EVENT_KINDS = Object.freeze([
   'agent.lease.claim',
   'agent.lease.renew',
   'agent.lease.release',
+  'agent.resources.set',
   'agent.attempt.start',
   'agent.attempt.finish',
   'agent.discovery.add',
@@ -335,6 +337,15 @@ function validatePayload(kind, p) {
       break;
     case 'agent.lease.release':
       if (!isUlid(p.leaseId)) fail('agent.lease.release.leaseId required');
+      break;
+    case 'agent.resources.set':
+      if (!isUlid(p.leaseId) || !Array.isArray(p.resources)) fail('agent.resources.set requires leaseId and resources');
+      for (const resource of p.resources ?? []) {
+        if (!isNonEmptyStr(resource.key) || !isNonEmptyStr(resource.phase)
+          || !Number.isSafeInteger(resource.units) || resource.units < 1
+          || !Number.isSafeInteger(resource.capacity) || resource.capacity < resource.units)
+          fail('agent.resources.set has invalid resource allocation');
+      }
       break;
     case 'agent.attempt.start':
       if (!isUlid(p.attemptId) || !isNonEmptyStr(p.ticketId) || !isNonEmptyStr(p.agent))

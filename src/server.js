@@ -1,5 +1,6 @@
 import express from 'express';
 import { coordinatorView } from './coordinator-view.js';
+import { phaseReadiness, acquireResources, releaseResources } from './agent-resources.js';
 import { ScopeCliError } from './protocol.js';
 import http from 'node:http';
 import https from 'node:https';
@@ -469,7 +470,8 @@ export async function startServer({
       const name = req.body && req.body.name;
       if (!name) return res.status(400).json({ error: 'name required' });
       try { res.status(201).json(await createProjectBoard(pool, { accountId: req.principal.accountId, name })); }
-      catch (e) { res.status(400).json({ error: e.message }); }
+      catch (e) { res.status(400).json({ error: e.message, ...(e instanceof ScopeCliError
+          ? { code: e.code, retryable: e.retryable, details: e.details } : {}) }); }
     });
     // Project lifecycle (SCP-192): rename / archive, owner only. The tenant
     // comes from the route param; ownership is validated against membership
@@ -488,14 +490,16 @@ export async function startServer({
       const body = req.body || {};
       if (body.name === undefined && body.columns === undefined) return res.status(400).json({ error: 'name or columns required' });
       try { res.json(await updateProjectBoard(pool, req.tenantId, { accountId: req.principal.accountId, name: body.name, columns: body.columns })); }
-      catch (e) { res.status(400).json({ error: e.message }); }
+      catch (e) { res.status(400).json({ error: e.message, ...(e instanceof ScopeCliError
+          ? { code: e.code, retryable: e.retryable, details: e.details } : {}) }); }
     });
     tApi.delete('/api/projects/:tenantId', ownerOf('tenantId'), async (req, res) => {
       try {
         const out = await archiveProject(pool, req.tenantId);
         evictReplica(req.tenantId); // drop the serving replica; data stays in PG
         res.json(out);
-      } catch (e) { res.status(400).json({ error: e.message }); }
+      } catch (e) { res.status(400).json({ error: e.message, ...(e instanceof ScopeCliError
+          ? { code: e.code, retryable: e.retryable, details: e.details } : {}) }); }
     });
     // Read the active board (>= viewer).
     tApi.get('/api/board', requireTenantRole(pool, 'viewer'), async (req, res) => {
@@ -824,7 +828,8 @@ export async function startServer({
       if (!w) return;
       wsContext.run(w.id, () => {
         try { handler(req, res, w, next); }
-        catch (e) { res.status(400).json({ error: e.message }); }
+        catch (e) { res.status(400).json({ error: e.message, ...(e instanceof ScopeCliError
+          ? { code: e.code, retryable: e.retryable, details: e.details } : {}) }); }
       });
     };
   }
@@ -1048,6 +1053,15 @@ export async function startServer({
           cursor: req.query.cursor, since: req.query.since })
       : req.query.plan === 'true' ? parallelPlan(w.db, options) : listReady(w.db, options));
   }));
+
+  app.get('/api/agent/tickets/:id/resources', ws((req, res, w) => {
+    res.json(phaseReadiness(w.db, req.params.id, req.query.phase));
+  }));
+  for (const [name, operation] of [['acquire', acquireResources], ['release', releaseResources]]) {
+    app.post(`/api/agent/leases/:id/resources/${name}`, ws((req, res, w) => {
+      res.json(operation(w.db, req.params.id, { agent: req.body.agent, phase: req.body.phase }));
+    }));
+  }
 
   app.get('/api/agent/overview', ws((_req, res, w) => {
     const pending = pendingMessageCounts(w.db);
