@@ -69,7 +69,7 @@ Bindings live in `~/.scope/bridge.json` with mode `0600`; retry/checkpoint state
 lives in `~/.scope/bridge-state.json` with the same permissions. These files are
 machine-local. CLI and UI projections expose only a one-way session reference,
 provider, connection health, timestamps, and safe error codes—not session ids,
-message bodies, provider output, credentials, or raw telemetry paths.
+message bodies, provider output, credentials, or raw filesystem paths.
 
 ## Provider-neutral CLI adapter
 

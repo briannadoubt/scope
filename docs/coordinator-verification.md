@@ -87,7 +87,10 @@ Canonical worktree/output paths are required; symlink aliases are not discovered
 Worker success and handoff do not certify integration or production acceptance;
 use separate ticket contracts and exact verification evidence for those stages.
 
-Installed Scope was checked as **0.10.0-dogfood.1** and was not replaced.
-No pushes, deployments, global installs, Alder workspace/configuration changes,
-Alder worker directions or native game-acceptance claims were made. See
+At the time of this isolated verification, installed Scope was checked as
+**0.10.0-dogfood.1** and was not replaced. The changes were subsequently merged
+to `main`; release-candidate validation and live installation are tracked
+separately from this historical ledger. No Alder workspace/configuration
+changes, Alder worker directions, or native game-acceptance claims were made by
+the verification work. See
 [coordinator-workflow.md](coordinator-workflow.md) for interface details.

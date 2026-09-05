@@ -115,9 +115,9 @@ agent. Threads can be filtered by ticket, acknowledged, replied to, or started
 from the browser. Ticket cards show the current execution phase and agent;
 ticket drawers expand that into lease expiry, attempt status, verification,
 evidence, repository intent, handoffs, and conflicts. Message bodies remain
-workspace data and are never included in dogfood telemetry. Agent rows and the
-message composer distinguish a live model-session connection from a durable
-mailbox that cannot currently wake its recipient.
+durable workspace data. Agent rows and the message composer distinguish a live
+model-session connection from a durable mailbox that cannot currently wake its
+recipient.
 
 ## Programmatic API
 
@@ -274,12 +274,6 @@ the `scope serve` topbar. The coordination center shows agent presence,
 ticket-linked threads, pending/acknowledged delivery, active leases, attempts,
 and conflicts; execution badges and details also appear on ticket cards and in
 the ticket drawer.
-
-For pre-release local calibration, the dogfood build records privacy-bounded
-command and route outcomes locally by default. It never records arguments,
-ticket/message content, credentials, or raw paths. Inspection, disabling,
-reporting, and removal are documented in
-[docs/dogfood-telemetry.md](docs/dogfood-telemetry.md).
 
 Claims and attempt outcomes derive ticket lifecycle automatically. Agent-readable
 ticket, board, context, and readiness JSON include a coherent `execution`
@@ -501,16 +495,22 @@ Every command accepts `--json` for machine-readable output.
 
 ## Releasing
 
-`npm run release` bumps the patch version, tags, and pushes. From there,
+`npm run release` checks that source and documentation are clean, bumps the
+patch version, commits only the package manifests, tags, and pushes. Active,
+untracked `.scope/events/*.json` and `.scope/receipts/*.json` runtime records do
+not block a release and are never staged by the wrapper; tracked changes and
+all other untracked files still block it. From there,
 [`.github/workflows/release.yml`](.github/workflows/release.yml) takes over:
 
-1. Verifies tag matches `package.json`.
-2. `npm publish --provenance --access public` to the npm registry.
-3. Fetches the GitHub source tarball and computes its sha256.
-4. Patches [`Formula/scope.rb`](Formula/scope.rb) and pushes it into
+1. Runs the full Node 20/22/24 suite plus the live PostgreSQL integration suite.
+2. Verifies the tag matches `package.json` and inspects the npm payload.
+3. `npm publish --provenance --access public` to the npm registry.
+4. Fetches the GitHub source tarball and computes its sha256.
+5. Patches [`Formula/scope.rb`](Formula/scope.rb) and pushes it into
    [`briannadoubt/homebrew-tap`](https://github.com/briannadoubt/homebrew-tap)
    via an SSH deploy key.
-5. Creates a GitHub release with auto-generated notes.
+6. Creates a GitHub release with auto-generated notes.
+7. Calls the hosted deployment workflow only after the release succeeds.
 
 Bump types:
 

@@ -22,34 +22,39 @@
   claims and attempt outcomes derive ticket lifecycle, agent-readable views
   expose coherent execution state, lease renewal records observed repository
   intent, and structured handoffs preserve unfinished work. Codex, Claude, or
-  another host still owns spawning, model-session wakeup, waiting,
-  cancellation, sandboxing, and worktree isolation.
+  another host still owns spawning, waiting, cancellation, sandboxing, and
+  worktree isolation.
 - **Addressed agent mailbox.** Agent registration and heartbeat presence,
   durable ticket-linked messages, threaded replies, expiry, idempotent
   acknowledgements, at-least-once reconnect delivery, CLI JSONL listeners,
   addressed SSE wakeups, and matching Node/REST/MCP operations.
+- **Live model-session delivery.** Machine-local, permission-restricted
+  bindings let the `scope serve` bridge resume supported Codex and Claude
+  sessions, retry transient failures, checkpoint provider acceptance, and
+  acknowledge messages without syncing provider session identifiers. Lifecycle
+  hooks register, renew, resume, and retire supported sessions automatically,
+  with a truthful mailbox-only fallback.
 - **Visual agent coordination.** The web UI now has a coordination center for
   agent presence, pending delivery, durable ticket-linked conversations,
   acknowledgements and replies, lease/attempt/conflict health, and direct
   ticket navigation. Board cards and ticket drawers surface the active agent,
   execution phase, lease, verification, evidence, repository intent, handoffs,
   and conflicts.
-- **Default-on local dogfood telemetry.** Dogfood builds record redacted CLI
-  and HTTP operation outcomes and latency for pre-release calibration, with a
-  local summary script and no arguments, content, credentials, or raw paths.
+- **Bounded coordinator views.** Structured source/interface/output ownership,
+  explicit pagination and detail references, deduplicated handoffs, strict
+  context budgets, and per-phase resource reservations keep large coordination
+  plans complete without flooding model context.
 
 ### Changed
 
-- Temporary dogfood telemetry excludes internal hub discovery and watchdog
-  probes, preventing ten-second liveness traffic from dominating usage and
-  latency reports while preserving ordinary `/api/meta` observations.
-- Event format 2 now declares the minimum reader boundary for transaction and
+- Event format 3 now declares the minimum reader boundary for transaction and
   agent events. Current Scope keeps read compatibility with immutable format-1
-  history, advertises read/write versions through `capabilities`, and reports
-  newer events as an actionable compatibility failure instead of corruption.
-- SQLite schema version 9 adds disposable projections for agent contracts,
-  leases, attempts, discoveries, plans, conflicts, registry presence, and
-  addressed messages.
+  and format-2 history, advertises read/write versions through `capabilities`,
+  and reports newer events as an actionable compatibility failure instead of
+  corruption.
+- SQLite schema version 10 adds disposable projections for agent contracts,
+  leases, attempts, discoveries, plans, conflicts, registry presence,
+  addressed messages, and execution-phase resource reservations.
 - Events carry hybrid logical clocks and base revisions so concurrent sibling
   field writes can be detected without sacrificing deterministic replay.
 

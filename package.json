@@ -1,6 +1,6 @@
 {
   "name": "scope-kanban",
-  "version": "0.10.0-dogfood.3",
+  "version": "0.10.0-rc.1",
   "description": "Local-first kanban for projects, epics, stories, and bugs — built for agents. CLI + web UI.",
   "type": "module",
   "bin": {
@@ -19,7 +19,6 @@
     "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude='test/**' --test-coverage-exclude='src/web/**' --import=./test/setup.js test/*.test.js",
     "docs:agent": "node ./scripts/generate-agent-docs.mjs",
     "docs:agent:check": "node ./scripts/generate-agent-docs.mjs --check",
-    "dogfood:report": "node ./scripts/summarize-dogfood-log.mjs",
     "release": "bash ./scripts/release.sh"
   },
   "engines": {

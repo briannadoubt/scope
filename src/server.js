@@ -23,11 +23,6 @@ import { replayInto } from './replay.js';
 import { setMeta } from './db.js';
 import { EVENT_FORMAT_VERSION, validateEvent } from './event-schema.js';
 import {
-  DOGFOOD_INTERNAL_PROBE_HEADER,
-  DOGFOOD_INTERNAL_PROBE_VALUE,
-  startDogfoodSpan,
-} from './dogfood-telemetry.js';
-import {
   getWorkspace,
   setWorkspace,
   listWorkspaces,
@@ -244,50 +239,6 @@ export async function startServer({
   const pairing = createPairingContext();
 
   app.use(express.json({ limit: '5mb' }));
-
-  // Temporary local dogfood instrumentation. Dogfood builds enable it by
-  // default and record only route templates/outcomes — never request paths
-  // with ids, query values, bodies, headers, or response data. Internal hub
-  // watchdog probes are omitted so they cannot dominate the usage sample.
-  app.use((req, res, next) => {
-    const ip = req.socket?.remoteAddress || '';
-    const loopback = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-    // Compatibility for a sibling scope serve process that was already alive
-    // before the explicit marker shipped. Node's built-in fetch supplies this
-    // stable header shape; ordinary browser requests keep being measured.
-    const legacyUnmarkedProbe = req.method === 'GET'
-      && req.path === '/api/meta'
-      && loopback
-      && req.get('user-agent') === 'node'
-      && req.get('accept') === '*/*'
-      && req.get('accept-language') === '*'
-      && req.get('sec-fetch-mode') === 'cors';
-    if (legacyUnmarkedProbe
-      || req.get(DOGFOOD_INTERNAL_PROBE_HEADER) === DOGFOOD_INTERNAL_PROBE_VALUE) {
-      next();
-      return;
-    }
-    const span = startDogfoodSpan({
-      surface: 'http',
-      operation: 'HTTP pending',
-      workspace: req.get('x-scope-workspace') || req.query?.workspace || primaryScopeDir,
-      cliVersion: PKG.version,
-      protocolVersion: PROTOCOL_VERSION,
-      eventFormatVersion: EVENT_FORMAT_VERSION,
-    });
-    res.once('finish', () => {
-      const template = typeof req.route?.path === 'string' ? req.route.path : 'unmatched';
-      const operation = `${req.method} ${req.baseUrl || ''}${template}`
-        .replace(/[^A-Za-z0-9_ ./:-]/g, '_')
-        .slice(0, 200);
-      span.finish({
-        operation,
-        outcome: res.statusCode >= 400 ? 'error' : 'success',
-        statusCode: res.statusCode,
-      });
-    });
-    next();
-  });
 
   // POST /api/pair/begin — issue a fresh pairing code. Loopback only (so
   // only the local `scope pair` CLI can request one).

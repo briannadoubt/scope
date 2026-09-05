@@ -109,7 +109,7 @@ versus 7,864 bytes (~1,966 tokens) for one compact page and 449 bytes for an
 unchanged refresh. This is a synthetic response-size comparison, not a measured
 speedup on Alder or a tokenizer-specific token count.
 
-## Phase resources (dogfood.2, event format 3)
+## Phase resources (Scope 0.10.0, event format 3)
 
 A phase reservation is a list of `{key,phase,units,capacity}` allocations on the
 existing work lease. It introduces no worker, extra attempt, scheduling daemon,
@@ -163,15 +163,13 @@ The native engine/checkout wrapper's existing lock remains the final physical
 guard. Resource admission does not claim to measure free memory/CPU, create
 workers, restart builds, or control the foreground app.
 
-**Compatibility:** this second commit bumps the package to `0.10.0-dogfood.2`,
-the SQLite cache schema to 10, and new event writes to format 3. Readers accept
-immutable formats 1, 2 and 3. Version-2 readers reject new writes explicitly;
-upgrade every writer/reader and any sync server before mutating a shared
-workspace with this build. PostgreSQL schema/replay support is included, but
-live PostgreSQL tests were skipped locally because no server was reachable.
-Do not install this over the running CLI or introduce format-3 writes into Alder
-until the coordinated upgrade is arranged. The earlier `8a49c70` commit provides
-the ownership/compact fixes alone while retaining event format 2.
+**Compatibility:** Scope 0.10.0 uses SQLite cache schema 10 and writes event
+format 3. Readers accept immutable formats 1, 2 and 3. Version-2 readers reject
+new writes explicitly; upgrade every writer/reader and any sync server before
+mutating a shared workspace with this release. PostgreSQL schema and replay
+support are included and covered by the release workflow's live PostgreSQL
+integration gate. The earlier `8a49c70` commit remains the ownership/compact
+fix boundary for consumers that intentionally need event format 2.
 
 Safe Alder adoption: first review/cherry-pick the desired commit boundary and
 run the isolated regressions. Enable the compact view only after its capability
@@ -187,5 +185,5 @@ The resource-enabled build's isolated benchmark emits 7,875 compact bytes
 full view is 1,900,575 bytes; the pre-fix baseline remains 1,900,175 bytes. Final
 resource validation ran `npm test`: 378 passed, 70 unavailable-Postgres skips,
 zero failures. A subsequent targeted CLI/HTTP/resource/migration pass ran 34/34.
-`npm run docs:agent:check` and `git diff --check` passed. The installed executable
-was verified separately as `0.10.0-dogfood.1`; it was not replaced.
+`npm run docs:agent:check` and `git diff --check` passed. Current
+release-candidate evidence is recorded in the release workflow.

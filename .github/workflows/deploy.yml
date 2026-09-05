@@ -3,14 +3,13 @@
 # SEPARATE workflow from release.yml — that ships the CLI to npm/Homebrew. This
 # one only deploys the cloud hub image and never touches the package registry.
 #
-# Triggers — version-tag-driven, mirroring release.yml (the Homebrew/npm flow):
-#   - push of a `v*.*.*` tag → deploy the hub for that release
-#   - workflow_dispatch       → on-demand deploy from the Actions UI
+# Triggers:
+#   - successful release.yml call after the full release gate and publication
+#   - workflow_dispatch for an intentional on-demand deploy from the Actions UI
 #
-# The same `v*.*.*` tag drives release.yml (publish the CLI) and this workflow
-# (deploy the hosted hub) — one tag, one coordinated release. Like release.yml,
-# this assumes the tag is release-quality (CI gates PRs before you tag); it does
-# not re-run the suite here.
+# Tag pushes are intentionally not a direct trigger. release.yml owns the
+# version-tag flow and calls this workflow only after verification, npm,
+# Homebrew, and GitHub release work succeeds.
 #
 # Required repo secret:
 #   FLY_API_TOKEN   a Fly deploy token (`fly tokens create deploy`)
@@ -21,8 +20,7 @@
 name: Deploy hub
 
 on:
-  push:
-    tags: ["v*.*.*"]
+  workflow_call:
   workflow_dispatch:
 
 # Never run two deploys at once; let an in-flight deploy finish, don't cancel it

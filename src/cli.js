@@ -42,12 +42,6 @@ import {
   writeReceipt,
 } from './protocol.js';
 import { buildCapabilities } from './capabilities.js';
-import {
-  disableDogfoodTelemetry,
-  dogfoodStatus,
-  enableDogfoodTelemetry,
-  startDogfoodSpan,
-} from './dogfood-telemetry.js';
 import { openWorkspaceDb } from './workspace-open.js';
 import { syncWithRemote } from './sync-client.js';
 import { startRemoteSync } from './remote-sync.js';
@@ -672,40 +666,6 @@ export function buildProgram() {
         return lines.join('\n');
       });
       if (!report.ok) process.exitCode = 2;
-    });
-
-  /* ---------- temporary local dogfood telemetry ---------- */
-  const dogfood = program
-    .command('dogfood')
-    .description('Configure or inspect privacy-bounded local dogfood telemetry (enabled by default).');
-
-  dogfood
-    .command('enable')
-    .description('Enable telemetry or select its log for every local Scope CLI/hub process.')
-    .option('--log <path>', 'NDJSON destination (default: ~/.scope/dogfood/usage.ndjson)')
-    .action((opts, cmd) => {
-      const result = enableDogfoodTelemetry(opts.log);
-      out(cmd, result, (value) => `${chalk.green('✓')} dogfood telemetry → ${value.logPath}`);
-    });
-
-  dogfood
-    .command('status')
-    .description('Show whether local dogfood telemetry is enabled and where it writes.')
-    .action((_opts, cmd) => {
-      const result = dogfoodStatus();
-      out(cmd, result, (value) => value.enabled
-        ? `${chalk.green('● enabled')} (${value.source}) → ${value.logPath}`
-        : chalk.gray('○ disabled'));
-    });
-
-  dogfood
-    .command('disable')
-    .description('Disable machine-local telemetry without deleting the accumulated log.')
-    .action((_opts, cmd) => {
-      const result = disableDogfoodTelemetry();
-      out(cmd, result, (value) => value.enabled
-        ? `${chalk.yellow('! still enabled by environment')} → ${value.logPath}`
-        : `${chalk.green('✓')} dogfood telemetry disabled`);
     });
 
   /* ---------- project (deprecated aliases to workspace) ---------- */
@@ -3337,30 +3297,7 @@ export function run(argv) {
   const program = buildProgram();
   const wantsJson = argv.includes('--json');
   let commanderError = '';
-  let dogfoodSpan = null;
   program.exitOverride();
-  program.hook('preAction', (_thisCommand, actionCommand) => {
-    const global = actionCommand.optsWithGlobals();
-    dogfoodSpan = startDogfoodSpan({
-      surface: 'cli',
-      operation: commandPath(actionCommand),
-      workspace: findScopeDir(),
-      cliVersion: PKG.version,
-      protocolVersion: PROTOCOL_VERSION,
-      eventFormatVersion: EVENT_FORMAT_VERSION,
-      json: Boolean(global.json),
-      requestId: Boolean(global.requestId),
-      ifRevision: Boolean(global.ifRevision),
-      model: Boolean(global.model || process.env.SCOPE_MODEL),
-    });
-  });
-  program.hook('postAction', () => {
-    const statusCode = Number(process.exitCode) || 0;
-    dogfoodSpan?.finish({
-      outcome: statusCode === 0 ? 'success' : 'error',
-      statusCode,
-    });
-  });
   program.configureOutput({
     writeErr: (text) => {
       if (wantsJson) commanderError += text;
@@ -3370,7 +3307,6 @@ export function run(argv) {
   program.parseAsync(argv).catch((e) => {
     setMutationContext(null);
     if (e instanceof ReceiptReplay) {
-      dogfoodSpan?.finish({ outcome: 'success', statusCode: 0, replayed: true });
       const envelope = {
         ...e.envelope,
         meta: { ...(e.envelope.meta || {}), replayed: true },
@@ -3386,11 +3322,6 @@ export function run(argv) {
             code: e.code?.startsWith?.('commander.') ? 'CLI_USAGE' : undefined,
           })
     );
-    dogfoodSpan?.finish({
-      outcome: 'error',
-      statusCode: normalized.exitCode || 1,
-      errorCode: normalized.code,
-    });
     if (wantsJson) {
       const scopeDir = findScopeDir();
       const meta = scopeDir ? { revision: safeRevision(scopeDir) } : {};

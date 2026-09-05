@@ -2,12 +2,14 @@ name: Release
 
 # Fires when a `v*.*.*` tag is pushed.
 # Flow:
-#   1. verify the tag matches package.json
-#   2. publish to npm via Trusted Publishing (OIDC — no NPM_TOKEN)
-#   3. fetch the GitHub auto-generated source tarball, compute sha256
-#   4. patch Formula/scope.rb (url + sha256)
-#   5. push the formula into briannadoubt/homebrew-tap
-#   6. create a GitHub release with the install snippet
+#   1. run the complete Node matrix and live Postgres integration suite
+#   2. verify the tag matches package.json and inspect the npm payload
+#   3. publish to npm via Trusted Publishing (OIDC — no NPM_TOKEN)
+#   4. fetch the GitHub auto-generated source tarball, compute sha256
+#   5. patch Formula/scope.rb (url + sha256)
+#   6. push the formula into briannadoubt/homebrew-tap
+#   7. create a GitHub release with the install snippet
+#   8. call the hosted deployment workflow only after release succeeds
 #
 # Required repo secrets:
 #   HOMEBREW_TAP_DEPLOY_KEY    SSH private key whose pubkey is a write-enabled
@@ -23,7 +25,57 @@ on:
       - 'v*.*.*'
 
 jobs:
+  verify:
+    name: Verify (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run docs:agent:check
+      - run: npm test
+
+  postgres-integration:
+    name: Verify Postgres (Node 22)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: scope
+          POSTGRES_PASSWORD: scope
+          POSTGRES_DB: scope_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scope -d scope_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      SCOPE_PG_URL: postgres://scope:scope@localhost:5432/scope_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+
   release:
+    needs: [verify, postgres-integration]
     runs-on: ubuntu-latest
     permissions:
       contents: write     # create GitHub release
@@ -55,6 +107,7 @@ jobs:
           npm ci
           node bin/scope.js --version
           node bin/scope.js --help | head -5
+          npm pack --dry-run
 
       - name: Publish to npm
         # Provenance still works (uses OIDC) — we just need NODE_AUTH_TOKEN
@@ -142,3 +195,9 @@ jobs:
             npm install -g scope-kanban
             npx scope-kanban --help
             ```
+
+  deploy:
+    name: Deploy hosted hub
+    needs: release
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
