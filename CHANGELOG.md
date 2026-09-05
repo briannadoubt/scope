@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.10.0
+
 ### Added
 
 - **Agent execution protocol 1.0.** Versioned JSON envelopes, stable error
