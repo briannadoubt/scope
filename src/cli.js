@@ -183,7 +183,7 @@ function openOrDie() {
   return openWorkspaceDb(dir);
 }
 
-function out(cmd, data, formatter) {
+function out(cmd, data, formatter, { compact = false } = {}) {
   const opts = cmd.optsWithGlobals();
   if (opts.json) {
     const scopeDir = findScopeDir();
@@ -195,7 +195,7 @@ function out(cmd, data, formatter) {
     };
     const envelope = successEnvelope(data, meta);
     if (opts.requestId && scopeDir) writeReceipt(scopeDir, opts.requestId, command, envelope);
-    process.stdout.write(JSON.stringify(envelope, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(envelope, null, compact ? undefined : 2) + '\n');
     setMutationContext(null);
     return;
   }
@@ -1919,12 +1919,14 @@ export function buildProgram() {
 
   program.command('context <ticketId>')
     .description('Return a compact deterministic context pack for an agent.')
-    .option('--since <timestamp>')
-    .option('--budget <tokens>', 'approximate token budget', '4000')
+    .option('--since <cursor>', 'changes after an event cursor or timestamp')
+    .option('--cursor <cursor>', 'continue a bounded context or detail page')
+    .option('--detail <ref>', 'retrieve a referenced context record')
+    .option('--budget <tokens>', '256–262144; caps minified data at four UTF-8 bytes per token', '4000')
     .action((ticketId, opts, cmd) => {
       const { db } = openOrDie();
-      const result = contextPack(db, ticketId, { since: opts.since, budget: Number(opts.budget) });
-      out(cmd, result, (value) => JSON.stringify(value, null, 2));
+      const result = contextPack(db, ticketId, { since: opts.since, cursor: opts.cursor, detail: opts.detail, budget: Number(opts.budget) });
+      out(cmd, result, (value) => JSON.stringify(value), { compact: true });
     });
 
   program.command('metrics')

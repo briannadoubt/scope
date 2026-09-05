@@ -1,6 +1,6 @@
 {
   "name": "scope-kanban",
-  "version": "0.10.0-dogfood.2",
+  "version": "0.10.0-dogfood.3",
   "description": "Local-first kanban for projects, epics, stories, and bugs — built for agents. CLI + web UI.",
   "type": "module",
   "bin": {

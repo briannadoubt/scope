@@ -29,6 +29,7 @@ export const AGENT_PROTOCOL_FEATURES = Object.freeze({
   typedDiscoveries: true,
   versionedPlans: true,
   contextPacks: true,
+  boundedContextPacks: true,
   repositoryIntent: true,
   observedRepositoryIntent: true,
   durableHandoffs: true,

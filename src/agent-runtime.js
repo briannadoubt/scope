@@ -13,6 +13,7 @@ import {
 import { getWorkspace } from './db.js';
 import { ScopeCliError } from './protocol.js';
 import { eventsDirForDb, readAllEvents } from './event-store.js';
+import { boundedContext, contextOptions } from './context-view.js';
 
 const DISCOVERY_TYPES = new Set(['decision', 'fact', 'risk', 'blocker', 'question', 'handoff', 'evidence']);
 const ATTEMPT_OUTCOMES = new Set(['succeeded', 'failed', 'handed_off', 'cancelled']);
@@ -680,7 +681,13 @@ export function revisePlan(db, ticketId, { body, reason = null, actor = null, mo
   });
 }
 
-export function contextPack(db, ticketId, { since = null, budget = 4000 } = {}) {
+export function contextPack(db, ticketId, options = {}) {
+  const normalized = contextOptions(options);
+  return db.transaction(() => buildContextPack(db, ticketId, normalized))();
+}
+
+function buildContextPack(db, ticketId, options) {
+  const { since } = options;
   const ticket = getTicket(db, ticketId);
   if (!ticket) throw new ScopeCliError(`Ticket not found: ${ticketId}`, { code: 'NOT_FOUND' });
   const events = readAllEvents(eventsDirForDb(db));
@@ -690,36 +697,35 @@ export function contextPack(db, ticketId, { since = null, budget = 4000 } = {}) 
       code: 'CURSOR_NOT_FOUND', retryable: true,
     });
   }
-  const sinceTimestamp = sinceIndex >= 0 ? events[sinceIndex].ts : since;
+  if (since && sinceIndex < 0 && !Number.isFinite(Date.parse(since))) {
+    throw new ScopeCliError('since must be an event cursor or timestamp');
+  }
+  const sinceTimestamp = sinceIndex >= 0 ? events[sinceIndex].ts : since ? new Date(since).toISOString() : null;
+  const leaseIds = new Set(db.prepare('SELECT lease_id FROM agent_leases WHERE ticket_id=?').all(ticketId).map((row) => row.lease_id));
+  const attemptIds = new Set(db.prepare('SELECT attempt_id FROM agent_attempts WHERE ticket_id=?').all(ticketId).map((row) => row.attempt_id));
   const touchesTicket = (event) => {
     const payload = event.payload ?? {};
-    return payload.ticketId === ticket.uid || payload.fromId === ticket.uid || payload.toId === ticket.uid;
+    return payload.ticketId === ticket.uid || payload.fromId === ticket.uid || payload.toId === ticket.uid
+      || leaseIds.has(payload.leaseId) || attemptIds.has(payload.attemptId);
   };
   const changes = events.slice(sinceIndex >= 0 ? sinceIndex + 1 : 0)
-    .filter(touchesTicket)
+    .filter((event) => touchesTicket(event) && (sinceIndex >= 0 || !since || event.ts > sinceTimestamp))
     .map((event) => ({ id: event.id, ts: event.ts, hlc: event.hlc ?? null, kind: event.kind, actor: event.actor, payload: event.payload }));
-  const discoveries = db.prepare(`SELECT * FROM agent_discoveries WHERE ticket_id=?
-    AND (? IS NULL OR created_at>?) ORDER BY created_at`).all(ticketId, sinceTimestamp, sinceTimestamp).map((row) => ({
-      discoveryId: row.discovery_id, type: row.type, body: row.body, data: parse(row.data, {}), author: row.author, createdAt: row.created_at,
-    }));
-  const attempts = db.prepare('SELECT * FROM agent_attempts WHERE ticket_id=? ORDER BY started_at DESC,attempt_id DESC LIMIT 10')
+  const changedDiscoveries = new Set(changes.filter((event) => event.kind === 'agent.discovery.add').map((event) => event.payload.discoveryId));
+  const discoveries = db.prepare(`SELECT * FROM agent_discoveries WHERE ticket_id=? ORDER BY created_at,discovery_id`).all(ticketId)
+    .filter((row) => !since || (sinceIndex >= 0 ? changedDiscoveries.has(row.discovery_id) : row.created_at > sinceTimestamp))
+    .map(discoveryRow);
+  const attempts = db.prepare('SELECT * FROM agent_attempts WHERE ticket_id=? ORDER BY started_at DESC,attempt_id DESC')
     .all(ticketId).map(attemptRow);
-  const plans = db.prepare('SELECT version,body,reason,actor,created_at AS createdAt FROM agent_plans WHERE ticket_id=? ORDER BY version DESC LIMIT 5').all(ticketId);
+  const plans = db.prepare('SELECT version,body,reason,actor,created_at AS createdAt FROM agent_plans WHERE ticket_id=? ORDER BY version DESC').all(ticketId);
   const pack = {
     ticket, contract: getContract(db, ticketId), readiness: readiness(db, ticketId),
     lease: activeLease(db, ticketId), relations: listRelations(db, ticketId), comments: listComments(db, ticketId),
     execution: executionState(db, ticketId), handoff: latestDiscovery(db, ticketId, 'handoff'),
     discoveries, attempts, plans, changes,
   };
-  const serialized = JSON.stringify(pack);
-  const maxChars = Math.max(1000, Number(budget) * 4);
   const cursor = events.at(-1)?.id ?? since ?? null;
-  if (serialized.length <= maxChars) return { ...pack, truncated: false, cursor };
-  return {
-    ...pack, comments: pack.comments.slice(-3), discoveries: discoveries.slice(-8), attempts: attempts.slice(0, 3), plans: plans.slice(0, 2),
-    changes: changes.slice(-12),
-    truncated: true, cursor, approximateTokens: Math.ceil(serialized.length / 4),
-  };
+  return boundedContext(pack, cursor, options);
 }
 
 export function agentMetrics(db, now = new Date()) {

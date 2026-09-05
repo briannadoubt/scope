@@ -1152,7 +1152,9 @@ export async function startServer({
   app.get('/api/agent/tickets/:id/context', ws((req, res, w) => {
     res.json(contextPack(w.db, req.params.id, {
       since: req.query.since || null,
-      budget: req.query.budget ? Number(req.query.budget) : undefined,
+      cursor: req.query.cursor || null,
+      detail: req.query.detail || null,
+      budget: req.query.budget === undefined ? undefined : Number(req.query.budget),
     }));
   }));
 
