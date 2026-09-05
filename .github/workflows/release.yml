@@ -4,20 +4,17 @@ name: Release
 # Flow:
 #   1. run the complete Node matrix and live Postgres integration suite
 #   2. verify the tag matches package.json and inspect the npm payload
-#   3. publish to npm via Trusted Publishing (OIDC — no NPM_TOKEN)
-#   4. fetch the GitHub auto-generated source tarball, compute sha256
-#   5. patch Formula/scope.rb (url + sha256)
-#   6. push the formula into briannadoubt/homebrew-tap
-#   7. create a GitHub release with the install snippet
-#   8. call the hosted deployment workflow only after release succeeds
+#   3. stage npm via short-lived Trusted Publishing (OIDC — no npm token)
+#   4. wait for malware scanning plus a maintainer's explicit 2FA approval
+#   5. fetch the GitHub auto-generated source tarball, compute sha256
+#   6. patch Formula/scope.rb (url + sha256)
+#   7. push the formula into briannadoubt/homebrew-tap
+#   8. create a GitHub release with the install snippet
+#   9. call the hosted deployment workflow only after release succeeds
 #
 # Required repo secrets:
 #   HOMEBREW_TAP_DEPLOY_KEY    SSH private key whose pubkey is a write-enabled
 #                              deploy key on briannadoubt/homebrew-tap
-#   NPM_TOKEN                  npm granular access token with Packages:
-#                              Read+Write on All packages, Bypass 2FA enabled
-#                              (Trusted Publishing wasn't yet available for
-#                              this account when we set this up).
 
 on:
   push:
@@ -77,9 +74,10 @@ jobs:
   release:
     needs: [verify, postgres-integration]
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     permissions:
       contents: write     # create GitHub release
-      id-token: write     # provenance attestation on npm publish
+      id-token: write     # short-lived npm OIDC credential + provenance
 
     steps:
       - name: Checkout
@@ -88,8 +86,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
 
       - name: Verify tag matches package.json
         id: meta
@@ -109,13 +108,39 @@ jobs:
           node bin/scope.js --help | head -5
           npm pack --dry-run
 
-      - name: Publish to npm
-        # Provenance still works (uses OIDC) — we just need NODE_AUTH_TOKEN
-        # for auth because Trusted Publishing wasn't available for this
-        # account yet. Swap to OIDC-only when npm enables it.
+      - name: Use staged-publishing capable npm
+        run: npm install --global npm@12.0.2
+
+      - name: Stage npm package with OIDC
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          if npm view "scope-kanban@${VERSION}" version --json >/dev/null 2>&1; then
+            echo "scope-kanban@${VERSION} is already public; skipping staging."
+          else
+            npm stage publish --provenance --access public
+          fi
+
+      - name: Wait for npm malware scan and maintainer 2FA approval
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "Approve scope-kanban@${VERSION} from npm's Staged Packages view after its scan completes."
+          for attempt in $(seq 1 240); do
+            PUBLISHED="$(npm view "scope-kanban@${VERSION}" version --json 2>/dev/null || true)"
+            if [ "$PUBLISHED" = "\"${VERSION}\"" ]; then
+              echo "scope-kanban@${VERSION} is public."
+              exit 0
+            fi
+            if [ $((attempt % 20)) -eq 0 ]; then
+              echo "Still awaiting npm approval (${attempt}/240 checks)."
+            fi
+            sleep 15
+          done
+          echo "::error::Timed out waiting for scope-kanban@${VERSION} approval on npm."
+          exit 1
 
       - name: Fetch sha256 of GitHub source tarball
         id: sha

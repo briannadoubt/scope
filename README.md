@@ -505,13 +505,22 @@ all other untracked files still block it. From there,
 
 1. Runs the full Node 20/22/24 suite plus the live PostgreSQL integration suite.
 2. Verifies the tag matches `package.json` and inspects the npm payload.
-3. `npm publish --provenance --access public` to the npm registry.
-4. Fetches the GitHub source tarball and computes its sha256.
-5. Patches [`Formula/scope.rb`](Formula/scope.rb) and pushes it into
+3. Uses a short-lived GitHub OIDC identity to run `npm stage publish`; no
+   long-lived npm token is stored in GitHub.
+4. Waits for npm's malware scan and an explicit maintainer approval with 2FA
+   before treating the package as released.
+5. Fetches the GitHub source tarball and computes its sha256.
+6. Patches [`Formula/scope.rb`](Formula/scope.rb) and pushes it into
    [`briannadoubt/homebrew-tap`](https://github.com/briannadoubt/homebrew-tap)
    via an SSH deploy key.
-6. Creates a GitHub release with auto-generated notes.
-7. Calls the hosted deployment workflow only after the release succeeds.
+7. Creates a GitHub release with auto-generated notes.
+8. Calls the hosted deployment workflow only after the release succeeds.
+
+The npm package is configured with a stage-only trusted publisher for
+`briannadoubt/scope`'s `release.yml` workflow and the strict publishing-access
+policy. Direct token publishing is intentionally disabled. During a release,
+approve the scanned version from npm's **Staged Packages** view; the workflow
+will then continue automatically.
 
 Bump types:
 

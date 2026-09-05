@@ -12,8 +12,9 @@
 #
 # What the GitHub Actions workflow then does (.github/workflows/release.yml):
 #   1. Runs the Node matrix and live Postgres integration suite.
-#   2. Publishes npm, updates Homebrew, and creates the GitHub release.
-#   3. Deploys the hosted hub only after the release succeeds.
+#   2. Stages npm with OIDC and waits for maintainer 2FA approval.
+#   3. Updates Homebrew and creates the GitHub release.
+#   4. Deploys the hosted hub only after the release succeeds.
 #
 # Required GitHub repo secret (set once):
 #   HOMEBREW_TAP_DEPLOY_KEY    SSH private key; its pubkey is a write-enabled
@@ -65,6 +66,7 @@ git push origin "$BRANCH" "$NEW_VERSION"
 green ""
 green "✓ Pushed $NEW_VERSION. GitHub Actions will now:"
 echo "    • run the full Node matrix and live Postgres integration suite"
+echo "    • stage npm with OIDC and wait for maintainer 2FA approval"
 echo "    • fetch the source tarball and compute its sha256"
 echo "    • update Formula/scope.rb in briannadoubt/homebrew-tap"
 echo "    • create a GitHub release"

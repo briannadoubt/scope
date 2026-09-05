@@ -64,6 +64,9 @@
   sees current docs and the tag-driven publication workflow is triggered.
 - Remote sync teardown no longer publishes counters, errors, or pull signals
   from a request that settles after `stop()` returns.
+- npm releases now use a stage-only GitHub OIDC trusted publisher, wait for a
+  maintainer's post-scan 2FA approval, and keep Homebrew, GitHub Releases, and
+  deployment gated on the package becoming publicly visible.
 
 ## 0.9.0
 
