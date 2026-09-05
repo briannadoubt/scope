@@ -44,13 +44,14 @@ import { syncWithRemote } from './sync-client.js';
  * @param {number} [opts.intervalMs=30000] - catch-up backstop tick
  * @param {Function} [opts.fetchImpl] - injectable fetch (tests)
  * @param {Function} [opts.connectImpl] - injectable SSE connector (tests)
+ * @param {Function} [opts.syncImpl] - injectable sync primitive (tests)
  * @param {(s:object)=>void} [opts.onStatus] - status change callback
  * @returns {{ stop: () => void, status: () => object, syncNow: () => Promise<void> }}
  */
 export function startRemoteSync(db, scopeDir, {
   remote, project, token = '', model = '',
   debounceMs = 80, intervalMs = 30000,
-  fetchImpl, connectImpl = connectSse, onStatus,
+  fetchImpl, connectImpl = connectSse, syncImpl = syncWithRemote, onStatus,
 } = {}) {
   if (!remote) throw new Error('startRemoteSync: remote is required');
   if (!project) throw new Error('startRemoteSync: project is required');
@@ -79,9 +80,13 @@ export function startRemoteSync(db, scopeDir, {
     inFlight = true;
     state.running = true; emit();
     try {
-      const r = await syncWithRemote(db, scopeDir, {
+      const r = await syncImpl(db, scopeDir, {
         remote, remoteWorkspace: project, token, model, fetchImpl,
       });
+      // stop() is synchronous, so an already-running request may settle after
+      // it returns. Do not publish post-stop counters or remote-pull signals;
+      // callers use the returned status snapshot to verify teardown.
+      if (state.stopped) return;
       state.pushed += r.pushed || 0;
       state.pulled += r.pulled || 0;
       state.rounds += 1;
@@ -99,7 +104,7 @@ export function startRemoteSync(db, scopeDir, {
     } catch (e) {
       // Transient (offline, 5xx, race) — never kill the loop; the interval tick
       // and the next change/SSE signal will retry. Local writes keep flowing.
-      state.lastError = e.message || String(e);
+      if (!state.stopped) state.lastError = e.message || String(e);
     } finally {
       inFlight = false;
       state.running = false; emit();

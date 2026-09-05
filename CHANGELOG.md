@@ -62,6 +62,8 @@
 - The local release wrapper now refreshes its versioned agent reference and
   pushes its lightweight version tag explicitly, ensuring release verification
   sees current docs and the tag-driven publication workflow is triggered.
+- Remote sync teardown no longer publishes counters, errors, or pull signals
+  from a request that settles after `stop()` returns.
 
 ## 0.9.0
 
