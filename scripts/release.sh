@@ -6,7 +6,8 @@
 #
 # What this does locally:
 #   1. Sanity checks (release-clean tree, on main).
-#   2. Bumps package.json/package-lock.json, commits, and creates v<x.y.z>.
+#   2. Bumps package.json/package-lock.json, refreshes generated docs, commits,
+#      and creates v<x.y.z>.
 #   3. Pushes the commit and tag.
 #
 # What the GitHub Actions workflow then does (.github/workflows/release.yml):
@@ -47,15 +48,19 @@ step "Bumping version ($BUMP) and tagging"
 # Our precise release-tree check above permits only generated, untracked Scope
 # runtime records. npm's generic cleanliness guard cannot distinguish those
 # from source files, so perform the version edit without its Git integration
-# and then stage exactly the two package manifests ourselves.
+# and then stage exactly the release-owned files ourselves.
 NEW_VERSION="$(npm version "$BUMP" --no-git-tag-version --force)"
-git add package.json package-lock.json
+npm run docs:agent
+git add package.json package-lock.json docs/agent-protocol.md
 git commit -m "Release $NEW_VERSION"
 git tag "$NEW_VERSION"
 green "Version is now $NEW_VERSION"
 
 step "Pushing commit and tag to origin"
-git push origin "$BRANCH" --follow-tags
+# `git tag` above creates a lightweight tag. `--follow-tags` only includes
+# annotated tags, so name the release tag explicitly or the workflow will not
+# receive the tag push that triggers publication.
+git push origin "$BRANCH" "$NEW_VERSION"
 
 green ""
 green "✓ Pushed $NEW_VERSION. GitHub Actions will now:"

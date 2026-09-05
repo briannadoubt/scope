@@ -59,6 +59,9 @@
   addressed messages, and execution-phase resource reservations.
 - Events carry hybrid logical clocks and base revisions so concurrent sibling
   field writes can be detected without sacrificing deterministic replay.
+- The local release wrapper now refreshes its versioned agent reference and
+  pushes its lightweight version tag explicitly, ensuring release verification
+  sees current docs and the tag-driven publication workflow is triggered.
 
 ## 0.9.0
 

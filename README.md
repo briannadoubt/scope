@@ -496,7 +496,8 @@ Every command accepts `--json` for machine-readable output.
 ## Releasing
 
 `npm run release` checks that source and documentation are clean, bumps the
-patch version, commits only the package manifests, tags, and pushes. Active,
+patch version, refreshes the generated agent reference, commits the
+release-owned files, tags, and pushes. Active,
 untracked `.scope/events/*.json` and `.scope/receipts/*.json` runtime records do
 not block a release and are never staged by the wrapper; tracked changes and
 all other untracked files still block it. From there,
