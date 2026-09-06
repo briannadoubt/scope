@@ -116,7 +116,7 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
           set -euo pipefail
-          if npm view "scope-kanban@${VERSION}" version --json >/dev/null 2>&1; then
+          if [ "$(npm view "scope-kanban@${VERSION}" version 2>/dev/null || true)" = "$VERSION" ]; then
             echo "scope-kanban@${VERSION} is already public; skipping staging."
           else
             npm stage publish --provenance --access public
@@ -129,8 +129,8 @@ jobs:
           set -euo pipefail
           echo "Approve scope-kanban@${VERSION} from npm's Staged Packages view after its scan completes."
           for attempt in $(seq 1 240); do
-            PUBLISHED="$(npm view "scope-kanban@${VERSION}" version --json 2>/dev/null || true)"
-            if [ "$PUBLISHED" = "\"${VERSION}\"" ]; then
+            PUBLISHED="$(npm view "scope-kanban@${VERSION}" version 2>/dev/null || true)"
+            if [ "$PUBLISHED" = "$VERSION" ]; then
               echo "scope-kanban@${VERSION} is public."
               exit 0
             fi
